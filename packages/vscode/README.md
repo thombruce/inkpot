@@ -1,65 +1,68 @@
-# inkpot README
+# Inkpot
 
-This is the README for your extension "inkpot". After writing up a brief description, we recommend including the following sections.
+A plaintext format for writing novels.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Markdown-like syntax highlighting for `.inkpot` and `.ip` documents
+- Context tag highlighting for marking scenes as `@todo`, `@wip`, `@draft` and `@done`
+- Hierarchical headers with visible (`## Header`) and non-visible (`== Header`) options
+- Scene synopses describing the written contents of a scene; just start a line with `~`
+- Header tags and cookies for recording novel info: `[1/3]` and `words:123`
+- Dated headers for recording daily word counts; just start your header with a date (`2025-02-01`)
 
-For example if there is an image subfolder under your extension project workspace:
+## Example
 
-\!\[feature X\]\(images/feature-x.png\)
+```
+Title: Novel
+Author: Thom Bruce
+Date: 2025-02-01
+Copyright: (C) 2025 Thom Bruce
+Draft date: 2025-02-01
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+~ This document represents a novel outline
 
-## Requirements
+= Act I [0/2]
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+~ Synopses can be used to describe the contents of any headered section
 
-## Extension Settings
+## Chapter 1 @wip [0/2] words:52
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+~ This one follows a visible chapter marker
 
-For example:
+=== Scene 1 @wip words:52
 
-This extension contributes the following settings:
+~ This is an example **synopsis**, _hell, yeah_! ~~Ignore this.~~
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+==== 2025-02-01 words:26
+
+This is an idea to record daily word counts within the document itself...
+
+It could use cookies or it could use tags as currently demonstrated above.
+
+==== 2025-02-02 words:26
+
+This is an idea to record daily word counts within the document itself...
+
+It could use cookies or it could use tags as currently demonstrated above.
+
+=== Scene 2 @todo
+
+~ This is another synopsis!
+
+This ~~secne~~ scene demonstrates the use of **Mardown** to render _inline_ `markup`.
+
+/ It also features a comment.
+
+## Chapter 2: _Headings Still Support Markdown_ @todo [0/0] words:0
+```
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- It's just a language syntax highlighter for now; richer features are yet to come.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.1.0
 
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Initial release of Inkpot
