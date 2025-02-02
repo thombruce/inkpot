@@ -1,5 +1,5 @@
 # To generate JSON run:
-# npx js-yaml syntaxes/ink.tmLanguage.yaml > syntaxes/ink.tmLanguage.json
+# npx js-yaml syntaxes/inkpot.tmLanguage.yaml > syntaxes/inkpot.tmLanguage.json
 
 "$schema": https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json
 
@@ -20,15 +20,15 @@ repository:
     match: "^([\\w\\s]+):(.+)$"
     captures:
       '1':
-        name: entity.name.tag.ink
+        name: entity.name.tag.inkpot
       '2':
-        name: string.unquoted.ink
+        name: string.unquoted.inkpot
 
   ## BLOCK ##
 
   block:
     patterns:
-    - include: "#heading"
+    - include: "#headings"
     - include: "#synopsis"
     - include: "#comment"
 
@@ -38,26 +38,47 @@ repository:
 
     - include: "#inline"
 
-  heading:
-    name: markup.heading.ink
+  headings:
+    patterns:
+    - include: "#visibleHeading"
+    - include: "#nonVisibleHeading"
 
-    match: "(?:^|\\G)([#=]+\\s+(.*?)(\\s+[#=]{1,})?\\s*)$"
+  visibleHeading:
+    name: markup.heading.inkpot.visible
+    match: "(?:^|\\G)([#]+\\s+(.*?)(\\s+[#]{1,})?\\s*)$"
     captures:
       '1':
-        name: punctuation.definition.heading.ink
+        name: punctuation.definition.heading.inkpot
       '2':
-        name: entity.name.section.ink
+        name: entity.name.section.inkpot
         patterns:
         - include: "#tags"
         - include: "#inline"
       '3':
-        name: punctuation.definition.heading.ink
+        name: punctuation.definition.heading.inkpot
+
+    patterns:
+    - include: text.html.markdown#heading
+
+  nonVisibleHeading:
+    name: markup.heading.inkpot.nonVisible
+    match: "(?:^|\\G)([=]+\\s+(.*?)(\\s+[=]{1,})?\\s*)$"
+    captures:
+      '1':
+        name: punctuation.definition.heading.inkpot
+      '2':
+        name: entity.name.section.inkpot
+        patterns:
+        - include: "#tags"
+        - include: "#inline"
+      '3':
+        name: punctuation.definition.heading.inkpot
 
     patterns:
     - include: text.html.markdown#heading
 
   synopsis:
-    name: markup.inserted.ink
+    name: markup.inserted.inkpot
 
     begin: "(?:^|\\G)~ ?"
     while: "(?:^|\\G)~ ?"
@@ -66,7 +87,7 @@ repository:
     - include: "#inline"
 
   comment:
-    name: comment.line.ink
+    name: comment.line.inkpot
 
     begin: "(?:^|\\G)/ ?"
     while: "(?:^|\\G)/ ?"
@@ -81,19 +102,19 @@ repository:
     - include: "#tag"
 
   date:
-    name: string.interpolated.ink.date
+    name: string.interpolated.inkpot.date
     match: "(?<=[#=]+\\s+)(\\d{4}-\\d{2}-\\d{2})"
 
   cookie:
-    name: keyword.control.ink.cookie
+    name: keyword.control.inkpot.cookie
     match: "\\B(\\[\\d+\\/\\d+\\])\\B"
 
   context:
-    name: entity.name.class.ink.context
+    name: entity.name.class.inkpot.context
     match: "\\B(\\@\\w+)"
 
   tag:
-    name: variable.parameter.ink.tag
+    name: variable.parameter.inkpot.tag
     match: "(?<!<|\\]\\()\\b(\\w+(?<!https?):\\S+)"
 
   ## INLINE ##

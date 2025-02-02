@@ -11,19 +11,26 @@
   ],
   "contributes": {
     "languages": [{
-      "id": "ink",
-      "aliases": ["Inkpot", "ink"],
-      "extensions": [".ink"],
+      "id": "inkpot",
+      "aliases": ["Inkpot", "ip"],
+      "extensions": [".inkpot", ".ip"],
       "configuration": "./language-configuration.json"
     }],
     "grammars": [{
-      "language": "ink",
+      "language": "inkpot",
       "scopeName": "text.inkpot",
-      "path": "./syntaxes/ink.tmLanguage.json"
+      "path": "./syntaxes/inkpot.tmLanguage.json"
     }],
     "configurationDefaults": {
       "editor.tokenColorCustomizations": {
-        "textMateRules": []
+        "textMateRules": [
+          {
+            "scope": "markup.heading.inkpot.nonVisible",
+            "settings": {
+              "foreground": "#88aadd"
+            }
+          }
+        ]
       }
     }
   }
