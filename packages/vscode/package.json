@@ -1,6 +1,6 @@
 {
-  "name": "inkpot",
-  "displayName": "Inkpot",
+  "name": "inkpot-lang",
+  "displayName": "Inkpot Novel Format",
   "description": "A plaintext format for writing novels.",
   "version": "0.1.0",
   "publisher": "thombruce",
