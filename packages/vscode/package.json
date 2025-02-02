@@ -2,7 +2,7 @@
   "name": "inkpot-lang",
   "displayName": "Inkpot Novel Format",
   "description": "A plaintext format for writing novels.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "thombruce",
   "repository": "https://github.com/thombruce/inkpot.git",
   "private": "true",
