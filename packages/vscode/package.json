@@ -35,6 +35,9 @@
       }
     ],
     "configurationDefaults": {
+      "[inkpot]": {
+        "editor.wordWrap": "bounded"
+      },
       "editor.tokenColorCustomizations": {
         "textMateRules": [
           {
