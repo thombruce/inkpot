@@ -1,0 +1,133 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Inkpot",
+  "scopeName": "text.inkpot",
+  "patterns": [
+    {
+      "include": "#meta"
+    },
+    {
+      "include": "#block"
+    }
+  ],
+  "repository": {
+    "meta": {
+      "match": "^([\\w\\s]+):(.+)$",
+      "captures": {
+        "1": {
+          "name": "entity.name.tag.ink"
+        },
+        "2": {
+          "name": "string.unquoted.ink"
+        }
+      }
+    },
+    "block": {
+      "patterns": [
+        {
+          "include": "#heading"
+        },
+        {
+          "include": "#synopsis"
+        },
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#priority"
+        },
+        {
+          "include": "#date"
+        },
+        {
+          "include": "#todo"
+        },
+        {
+          "include": "#inline"
+        }
+      ]
+    },
+    "heading": {
+      "name": "markup.heading.ink",
+      "match": "(?:^|\\G)([#=]+\\s+(.*?)(\\s+[#=]{1,})?\\s*)$",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.heading.ink"
+        },
+        "2": {
+          "name": "entity.name.section.ink",
+          "patterns": [
+            {
+              "include": "#tags"
+            },
+            {
+              "include": "#inline"
+            }
+          ]
+        },
+        "3": {
+          "name": "punctuation.definition.heading.ink"
+        }
+      },
+      "patterns": [
+        {
+          "include": "text.html.markdown#heading"
+        }
+      ]
+    },
+    "synopsis": {
+      "name": "markup.inserted.ink",
+      "begin": "(?:^|\\G)~ ?",
+      "while": "(?:^|\\G)~ ?",
+      "patterns": [
+        {
+          "include": "#inline"
+        }
+      ]
+    },
+    "comment": {
+      "name": "comment.line.ink",
+      "begin": "(?:^|\\G)/ ?",
+      "while": "(?:^|\\G)/ ?"
+    },
+    "tags": {
+      "patterns": [
+        {
+          "include": "#date"
+        },
+        {
+          "include": "#cookie"
+        },
+        {
+          "include": "#context"
+        },
+        {
+          "include": "#tag"
+        }
+      ]
+    },
+    "date": {
+      "name": "string.interpolated.ink.date",
+      "match": "(?<=[#=]+\\s+)(\\d{4}-\\d{2}-\\d{2})"
+    },
+    "cookie": {
+      "name": "keyword.control.ink.cookie",
+      "match": "\\B(\\[\\d+\\/\\d+\\])\\B"
+    },
+    "context": {
+      "name": "entity.name.class.ink.context",
+      "match": "\\B(\\@\\w+)"
+    },
+    "tag": {
+      "name": "variable.parameter.ink.tag",
+      "match": "(?<!<|\\]\\()\\b(\\w+(?<!https?):\\S+)"
+    },
+    "inline": {
+      "patterns": [
+        {
+          "include": "text.html.markdown#inline"
+        }
+      ]
+    }
+  }
+}

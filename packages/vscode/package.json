@@ -1,0 +1,30 @@
+{
+  "name": "inkpot",
+  "displayName": "Inkpot",
+  "description": "A plaintext format for writing novels.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "ink",
+      "aliases": ["Inkpot", "ink"],
+      "extensions": [".ink"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "ink",
+      "scopeName": "text.inkpot",
+      "path": "./syntaxes/ink.tmLanguage.json"
+    }],
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": []
+      }
+    }
+  }
+}
