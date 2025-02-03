@@ -14,11 +14,13 @@ A plaintext format for writing novels.
 ## Example
 
 ```
+---
 Title: Novel
 Author: Thom Bruce
 Date: 2025-02-01
 Copyright: (C) 2025 Thom Bruce
 Draft date: 2025-02-01
+---
 
 ~ This document represents a novel outline
 
@@ -62,6 +64,10 @@ This ~~secne~~ scene demonstrates the use of **Mardown** to render _inline_ `mar
 - It's just a language syntax highlighter for now; richer features are yet to come.
 
 ## Release Notes
+
+### 0.2.0
+
+Extend support to full Markdown subset
 
 ### 0.1.0
 
