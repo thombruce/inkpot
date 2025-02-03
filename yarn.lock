@@ -1753,7 +1753,7 @@ init-package-json@6.0.3:
     validate-npm-package-name "^5.0.0"
 
 "inkpot-lang@file:/home/thombruce/dev/thombruce/inkpot/packages/vscode":
-  version "0.1.1"
+  version "0.2.0"
   resolved "file:packages/vscode"
 
 inquirer@^8.2.4:
