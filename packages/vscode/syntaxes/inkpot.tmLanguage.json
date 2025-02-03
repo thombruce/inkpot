@@ -4,24 +4,13 @@
   "scopeName": "text.inkpot",
   "patterns": [
     {
-      "include": "#meta"
+      "include": "#block"
     },
     {
-      "include": "#block"
+      "include": "text.html.markdown"
     }
   ],
   "repository": {
-    "meta": {
-      "match": "^([\\w\\s]+):(.+)$",
-      "captures": {
-        "1": {
-          "name": "entity.name.tag.inkpot"
-        },
-        "2": {
-          "name": "string.unquoted.inkpot"
-        }
-      }
-    },
     "block": {
       "patterns": [
         {
