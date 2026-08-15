@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ink-core + ink-cli. The workspace excludes app/src-tauri, so no webkit
+      # is needed here.
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Catches JS/import breakage in the frontend, plus the reorder splice
+      # self-check. Does not build the Tauri app (needs system webkit libs).
+      - name: Frontend build + reorder test
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+          node src/reorder.test.mjs
