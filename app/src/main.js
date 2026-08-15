@@ -103,20 +103,70 @@ function drawOutline(root) {
     const el = document.createElement("div");
     el.className = "item " + node.visibility; // visible | scene | excluded
     el.style.paddingLeft = 12 + (node.level - 1) * 14 + "px";
-    const marker = { visible: "#", scene: "~", excluded: "%" }[node.visibility];
-    const sigil = marker.repeat(node.level);
-    el.textContent = `${sigil} ${node.title || "(untitled)"}`;
+    const sigil = MARKER[node.visibility].repeat(node.level);
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = `${sigil} ${node.title || "(untitled)"}`;
+    label.title = node.title || "(untitled)"; // full text when ellipsized
     if (node.meta_keys.length) {
       const keys = document.createElement("span");
       keys.className = "keys";
       keys.textContent = `[${node.meta_keys.join(", ")}]`;
-      el.appendChild(keys);
+      label.appendChild(keys);
     }
+    el.appendChild(label);
     el.addEventListener("click", () => jumpTo(node.heading_span.start));
     makeDraggable(el, node);
+
+    // Segmented state set: click any of # / ~ / % to go straight to that state.
+    const current = MARKER[node.visibility];
+    const controls = document.createElement("span");
+    controls.className = "controls";
+    for (const [glyph, title] of STATES) {
+      const active = glyph === current;
+      controls.appendChild(
+        makeToggle(glyph, active, title, () => {
+          if (!active) setMarker(node, glyph);
+        }),
+      );
+    }
+    el.appendChild(controls);
+
     outlineEl.appendChild(el);
     for (const c of node.children) walk(c);
   }
+}
+
+// The three heading states, as (sigil, tooltip), and the visibility -> sigil map.
+const STATES = [
+  ["#", "Visible heading"],
+  ["~", "Scene (hidden heading, body prints)"],
+  ["%", "Excluded from manuscript"],
+];
+const MARKER = { visible: "#", scene: "~", excluded: "%" };
+
+// Build an outline control button that sets a heading state.
+function makeToggle(glyph, active, title, onClick) {
+  const b = document.createElement("button");
+  b.className = "toggle" + (active ? " active" : "");
+  b.textContent = glyph;
+  b.draggable = false;
+  b.title = title;
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// Rewrite a heading's marker run (its `level` sigil chars) in place, switching
+// its state. The states are exclusive — `%` overwrites `#`/`~` and vice versa —
+// so there is nothing to "remember"; you pick the state you want directly.
+function setMarker(node, marker) {
+  const { start } = node.heading_span;
+  editor.dispatch({
+    changes: { from: start, to: start + node.level, insert: marker.repeat(node.level) },
+  });
 }
 
 // Move the caret to a char offset and scroll it into view. Char offsets match
