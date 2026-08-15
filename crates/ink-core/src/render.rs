@@ -43,6 +43,54 @@ fn manuscript(node: &Node, out: &mut String) {
     }
 }
 
+/// Render `root` as a manuscript in HTML: visible headings become `<h1>`–`<h6>`,
+/// paragraphs `<p>`, bold/italic `<strong>`/`<em>`, with CriticMarkup resolved
+/// and scenes/metadata/comments dropped. Text is escaped; single newlines
+/// within a paragraph become `<br>` (so verse lines survive).
+pub fn render_html(root: &Node) -> String {
+    let mut out = String::new();
+    manuscript_html(root, &mut out);
+    out
+}
+
+fn manuscript_html(node: &Node, out: &mut String) {
+    if node.level > 0 && node.visible && !node.title.is_empty() {
+        let lvl = node.level.min(6);
+        writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&node.title)).ok();
+    }
+    for block in &node.body {
+        if let Block::Para(spans) = block {
+            let html = html_inlines(spans);
+            if !html.trim().is_empty() {
+                writeln!(out, "<p>{html}</p>").ok();
+            }
+        }
+    }
+    for child in &node.children {
+        manuscript_html(child, out);
+    }
+}
+
+fn html_inlines(spans: &[Inline]) -> String {
+    spans.iter().filter_map(inline_html).collect()
+}
+
+fn inline_html(span: &Inline) -> Option<String> {
+    Some(match span {
+        Inline::Text(s) => escape(s).replace('\n', "<br>"),
+        Inline::Bold(cs) => format!("<strong>{}</strong>", html_inlines(cs)),
+        Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs)),
+        Inline::Insert(cs) => html_inlines(cs),
+        Inline::Sub { new, .. } => html_inlines(new),
+        Inline::Delete(_) | Inline::Comment(_) => return None,
+    })
+}
+
+/// Escape the HTML-significant characters in prose text.
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
 fn outline(node: &Node, out: &mut String) {
     if node.level > 0 {
         let sigil = if node.visible { '#' } else { '~' };

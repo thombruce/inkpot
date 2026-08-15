@@ -77,29 +77,25 @@ body {
 #editor { height: 100%; }
 .cm-editor { height: 100%; }
 
-/* Preview */
-.preview { display: flex; flex-direction: column; background: var(--panel); }
-.viewbar {
-  display: flex;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
+/* Preview — reading view */
+.preview { background: var(--panel); }
+.reading {
+  padding: 24px 32px;
+  font: 16px/1.7 Georgia, serif;
+  color: var(--ink);
+  max-width: 42em;
 }
-.viewbar button {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--dim);
-  padding: 3px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
+.reading h1, .reading h2, .reading h3,
+.reading h4, .reading h5, .reading h6 {
+  font-family: system-ui, sans-serif;
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
 }
-.viewbar button.active { color: var(--ink); border-color: var(--accent); }
-#preview {
-  flex: 1;
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
-  white-space: pre-wrap;
-  font: 14px/1.7 Georgia, serif;
-}
+.reading h1 { font-size: 1.7em; }
+.reading h2 { font-size: 1.4em; }
+.reading h3 { font-size: 1.18em; }
+.reading h4, .reading h5, .reading h6 { font-size: 1em; }
+.reading > :first-child { margin-top: 0; }
+.reading p { margin: 0 0 1em; }
+.reading strong { font-weight: 700; }
+.reading em { font-style: italic; }

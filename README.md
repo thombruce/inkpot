@@ -106,8 +106,9 @@ npm run tauri build    # standalone build
 ```
 
 The app: a live-highlighted `.ink` editor, an outline panel (click to jump,
-drag to rearrange scenes and chapters), a manuscript/edit preview, and file
-open/save with an unsaved-changes guard.
+drag to rearrange scenes and chapters), a formatted reading preview (rendered
+headings, bold, and italics — no markers), and file open/save with an
+unsaved-changes guard.
 
 ## Development
 

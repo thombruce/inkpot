@@ -7,7 +7,7 @@ mod parse;
 mod render;
 
 pub use parse::parse;
-pub use render::{render, View};
+pub use render::{render, render_html, View};
 
 /// A half-open range of **char** (Unicode scalar) offsets into the source.
 ///

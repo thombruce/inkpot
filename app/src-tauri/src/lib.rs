@@ -1,7 +1,7 @@
 //! Tauri shell: two stateless commands over `ink-core`. Text is canonical on
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
-use ink_core::{parse, render as core_render, Node, Span, View};
+use ink_core::{parse, render_html, Node, Span};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -53,23 +53,17 @@ fn outline(src: String) -> OutlineNode {
     to_outline(&parse(&src), &mut next_id)
 }
 
-/// Render `src` in the given view: "manuscript" | "outline" | "edit".
+/// Render `src` as a reading-view manuscript in HTML.
 #[tauri::command]
-fn render(src: String, view: String) -> Result<String, String> {
-    let view = match view.as_str() {
-        "manuscript" => View::Manuscript,
-        "outline" => View::Outline,
-        "edit" => View::Edit,
-        other => return Err(format!("unknown view '{other}'")),
-    };
-    Ok(core_render(&parse(&src), view))
+fn preview(src: String) -> String {
+    render_html(&parse(&src))
 }
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![outline, render])
+        .invoke_handler(tauri::generate_handler![outline, preview])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

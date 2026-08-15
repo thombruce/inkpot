@@ -164,6 +164,20 @@ fn backslash_escapes_markers() {
     assert_eq!(joined, "a *star* and a {brace");
 }
 
+#[test]
+fn html_manuscript_renders_tags_and_escapes() {
+    let src = "# Ch <One>\n\n~~ Scene\nk: v\n\nA {+bold **word**} & a *slant*. {/note}\n";
+    let html = ink_core::render_html(&parse(src));
+    assert!(html.contains("<h1>Ch &lt;One&gt;</h1>"), "{html}");
+    assert!(html.contains("<strong>word</strong>"));
+    assert!(html.contains("<em>slant</em>"));
+    assert!(html.contains("&amp;"));
+    // Scene heading, metadata, and comments never appear.
+    assert!(!html.contains("Scene"));
+    assert!(!html.contains("note"));
+    assert!(!html.contains("k:"));
+}
+
 fn slice(src: &str, s: ink_core::Span) -> String {
     src.chars().skip(s.start).take(s.end - s.start).collect()
 }

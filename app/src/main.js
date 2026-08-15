@@ -9,10 +9,8 @@ const fs = window.__TAURI__.fs;
 
 const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
-const viewbar = document.querySelector(".viewbar");
 const filenameEl = document.getElementById("filename");
 
-let view = "manuscript";
 let currentPath = null; // path of the open file, or null if unsaved
 let dirty = false;
 let loading = false; // true while replacing the doc programmatically
@@ -53,12 +51,12 @@ function debounce(fn, ms) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  const [tree, rendered] = await Promise.all([
+  const [tree, html] = await Promise.all([
     invoke("outline", { src }),
-    invoke("render", { src, view }),
+    invoke("preview", { src }),
   ]);
   drawOutline(tree);
-  previewEl.textContent = rendered;
+  previewEl.innerHTML = html;
 }, 150);
 
 // A dark theme matching the app palette.
@@ -172,14 +170,6 @@ function moveNode(drag, target, pos) {
     scrollIntoView: true,
   });
 }
-
-viewbar.addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  view = btn.dataset.view;
-  for (const b of viewbar.children) b.classList.toggle("active", b === btn);
-  refresh();
-});
 
 // --- File open/save -------------------------------------------------------
 

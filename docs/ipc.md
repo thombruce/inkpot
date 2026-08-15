@@ -25,20 +25,23 @@ type OutlineNode = {
 };
 ```
 
-### `render(src: string, view: string) -> string`
+### `preview(src: string) -> string`
 
-`view` is `"manuscript" | "outline" | "edit"`. Returns the rendered text.
-Errors (unknown view) come back as a rejected promise.
+Returns the manuscript rendered as reading-view **HTML** (`<h1>`–`<h6>`, `<p>`,
+`<strong>`, `<em>`) with CriticMarkup resolved and scenes/metadata/comments
+dropped. Text is escaped in Rust, so the frontend can assign it via `innerHTML`.
+(The plain-text `manuscript`/`outline`/`edit` views still exist in `ink-core`
+for the CLI; the app only needs this one.)
 
 ## What does NOT cross IPC
 
-- **Syntax highlighting** — a CodeMirror language mode on the frontend, no
-  per-keystroke round trip. (Not yet wired; the shell uses a plain textarea.)
+- **Syntax highlighting** — a CodeMirror language mode on the frontend
+  (`inklang.js`), no per-keystroke round trip.
 - **Drag-reorder** — the frontend already holds `node_span`; a move is an
   editor transaction (delete range, insert at target), then re-parse. There is
   deliberately no `reorder` command.
-- **File open/save** — will be `tauri-plugin-fs` + `tauri-plugin-dialog` called
-  from JS. Not yet added.
+- **File open/save** — `tauri-plugin-fs` + `tauri-plugin-dialog`, called from JS
+  via `withGlobalTauri`.
 
 ## Offsets
 
