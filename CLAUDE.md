@@ -6,9 +6,11 @@ Guidance for working in this repo. Read the README for the `.ink` format and
 ## What this is
 
 inkpot is a plain-text prose format (`.ink`) plus a Tauri desktop editor. A
-document parses into a `Node` tree with a **shared hierarchy of visible (`#`)
-and invisible (`~`) headings**, inline metadata, comments, and CriticMarkup.
-Three views render from the tree: manuscript, outline, edit.
+document parses into a `Node` tree with a **shared hierarchy of visible (`#`),
+scene (`~`), and excluded (`%`) headings** (a three-state `Visibility`), inline
+metadata, comments, and CriticMarkup. Three views render from the tree:
+manuscript, outline, edit. Excluded (`%`) subtrees drop from the manuscript but
+stay in outline/edit.
 
 ## Layout & boundaries
 

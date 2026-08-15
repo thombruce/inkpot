@@ -16,7 +16,7 @@ type Span = { start: number; end: number }; // char offsets into src
 type OutlineNode = {
   id: number;            // stable preorder index within one parse
   level: number;
-  visible: boolean;      // '#' => true, '~' scene => false
+  visibility: "visible" | "scene" | "excluded"; // '#' / '~' / '%'
   title: string;
   meta_keys: string[];   // metadata keys only (values stay in the source)
   heading_span: Span;    // the heading line — scroll target

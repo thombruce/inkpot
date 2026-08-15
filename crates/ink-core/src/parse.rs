@@ -1,7 +1,7 @@
 //! Line-oriented block scanner + inline scanner. Hand-written on purpose: the
 //! grammar is small and diverges from Markdown enough that a crate is a fight.
 
-use crate::{Block, Inline, Node, Span};
+use crate::{Block, Inline, Node, Span, Visibility};
 
 /// Parse a `.ink` document into a root [`Node`] (level 0).
 ///
@@ -11,7 +11,7 @@ pub fn parse(src: &str) -> Node {
     let doc_len = src.chars().count();
     let root = Node {
         level: 0,
-        visible: true,
+        visibility: Visibility::Visible,
         title: String::new(),
         meta: Vec::new(),
         body: Vec::new(),
@@ -32,7 +32,7 @@ pub fn parse(src: &str) -> Node {
         let line_end = offset + raw.chars().count();
         offset = line_end + 1; // +1 for the '\n' str::lines() stripped
 
-        if let Some((level, visible, title)) = heading(raw) {
+        if let Some((level, visibility, title)) = heading(raw) {
             flush_body(stack.last_mut().unwrap(), &mut body_lines);
             // Clamp illegal jumps to parent+1 (Model A: count is depth).
             let parent_level = stack.last().map(|n| n.level).unwrap_or(0);
@@ -44,7 +44,7 @@ pub fn parse(src: &str) -> Node {
             }
             stack.push(Node {
                 level,
-                visible,
+                visibility,
                 title,
                 meta: Vec::new(),
                 body: Vec::new(),
@@ -100,13 +100,15 @@ fn close_spans(node: &mut Node, end: usize) {
     }
 }
 
-/// `# Title` / `~~ Scene` -> (level, visible, title). None if not a heading.
-fn heading(line: &str) -> Option<(u8, bool, String)> {
+/// `# Title` / `~~ Scene` / `%% Cut` -> (level, visibility, title). None if not
+/// a heading.
+fn heading(line: &str) -> Option<(u8, Visibility, String)> {
     let mut chars = line.chars();
     let first = chars.next()?;
-    let visible = match first {
-        '#' => true,
-        '~' => false,
+    let visibility = match first {
+        '#' => Visibility::Visible,
+        '~' => Visibility::Scene,
+        '%' => Visibility::Excluded,
         _ => return None,
     };
     let mut count = 1u8;
@@ -123,7 +125,7 @@ fn heading(line: &str) -> Option<(u8, bool, String)> {
     // Must be followed by a space, else it's body text (e.g. "#hashtag").
     let after = &line[idx..];
     let title = after.strip_prefix(' ')?.trim().to_string();
-    Some((count, visible, title))
+    Some((count, visibility, title))
 }
 
 /// `key: value` where key is a single token. None otherwise. The single-token

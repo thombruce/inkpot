@@ -1,6 +1,6 @@
 //! Three read-only views over the [`Node`] tree.
 
-use crate::{Block, Inline, Node};
+use crate::{Block, Inline, Node, Visibility};
 use std::fmt::Write;
 
 /// Which projection of the document to render.
@@ -25,9 +25,22 @@ pub fn render(root: &Node, view: View) -> String {
     out
 }
 
+/// The source heading char for a visibility.
+fn sigil(v: Visibility) -> char {
+    match v {
+        Visibility::Visible => '#',
+        Visibility::Scene => '~',
+        Visibility::Excluded => '%',
+    }
+}
+
 fn manuscript(node: &Node, out: &mut String) {
+    // Excluded subtrees never reach the manuscript.
+    if node.visibility == Visibility::Excluded {
+        return;
+    }
     // Visible headings print their title; scenes contribute body only.
-    if node.level > 0 && node.visible && !node.title.is_empty() {
+    if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
         writeln!(out, "{}\n", node.title).ok();
     }
     for block in &node.body {
@@ -54,7 +67,10 @@ pub fn render_html(root: &Node) -> String {
 }
 
 fn manuscript_html(node: &Node, out: &mut String) {
-    if node.level > 0 && node.visible && !node.title.is_empty() {
+    if node.visibility == Visibility::Excluded {
+        return;
+    }
+    if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
         let lvl = node.level.min(6);
         writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&node.title)).ok();
     }
@@ -93,7 +109,7 @@ fn escape(s: &str) -> String {
 
 fn outline(node: &Node, out: &mut String) {
     if node.level > 0 {
-        let sigil = if node.visible { '#' } else { '~' };
+        let sigil = sigil(node.visibility);
         let indent = "  ".repeat((node.level - 1) as usize);
         let marker: String = std::iter::repeat(sigil).take(node.level as usize).collect();
         let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
@@ -111,7 +127,7 @@ fn outline(node: &Node, out: &mut String) {
 
 fn edit(node: &Node, out: &mut String) {
     if node.level > 0 {
-        let sigil = if node.visible { '#' } else { '~' };
+        let sigil = sigil(node.visibility);
         let marker: String = std::iter::repeat(sigil).take(node.level as usize).collect();
         writeln!(out, "{marker} {}", node.title).ok();
         for (k, v) in &node.meta {

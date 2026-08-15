@@ -40,10 +40,15 @@ They passed in the **narrow** hall without a *word*.
 |--------|---------|---------|
 | `#`, `##`, `###`, … | Visible heading (chapter, section) | yes |
 | `~`, `~~`, `~~~`, … | Invisible heading (scene, beat) | no (body still prints) |
+| `%`, `%%`, `%%%`, … | Excluded section (notes, cut drafts) | no (whole subtree omitted) |
 
 The **count** is the depth, regardless of marker — a `~~~` scene nests inside a
 `##` section, a `~~` scene is a peer of a `##` section. An illegal jump (e.g.
 level 1 straight to level 4) is clamped to parent + 1.
+
+A `%` section keeps its heading, body, and every nested child in the document
+(they show in the outline and edit views) but omits the whole subtree from the
+manuscript — for research notes, or cutting a scene while keeping it for later.
 
 ### Metadata
 

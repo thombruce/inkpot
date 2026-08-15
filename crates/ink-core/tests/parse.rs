@@ -1,4 +1,4 @@
-use ink_core::{parse, render, Block, Inline, View};
+use ink_core::{parse, render, Block, Inline, View, Visibility};
 
 const SAMPLE: &str = include_str!("../../../examples/sample.ink");
 
@@ -9,7 +9,7 @@ fn tree_shape_and_nesting() {
     assert_eq!(root.children.len(), 2);
     let ch1 = &root.children[0];
     assert_eq!(ch1.title, "Chapter 1");
-    assert!(ch1.visible);
+    assert_eq!(ch1.visibility, Visibility::Visible);
     assert_eq!(ch1.level, 1);
 
     // Chapter 1 -> The Arrival (##).
@@ -18,8 +18,14 @@ fn tree_shape_and_nesting() {
     assert_eq!(arrival.level, 2);
 
     // The Arrival holds two invisible scenes as peers.
-    let scenes: Vec<_> = arrival.children.iter().map(|n| (n.visible, n.title.as_str())).collect();
-    assert_eq!(scenes, vec![(false, "The Kitchen"), (false, "The Hallway")]);
+    let scenes: Vec<_> = arrival.children.iter().map(|n| (n.visibility, n.title.as_str())).collect();
+    assert_eq!(
+        scenes,
+        vec![
+            (Visibility::Scene, "The Kitchen"),
+            (Visibility::Scene, "The Hallway"),
+        ]
+    );
 }
 
 #[test]
@@ -176,6 +182,30 @@ fn html_manuscript_renders_tags_and_escapes() {
     assert!(!html.contains("Scene"));
     assert!(!html.contains("note"));
     assert!(!html.contains("k:"));
+}
+
+#[test]
+fn excluded_section_drops_from_manuscript_but_stays_in_tree() {
+    let src = "# Kept\n\nvisible prose.\n\n% Cut draft\n\nsecret notes.\n\n## nested kept\n\nstill secret.\n";
+    let root = parse(src);
+    // The % section is a normal top-level node in the tree.
+    let cut = &root.children[1];
+    assert_eq!(cut.title, "Cut draft");
+    assert_eq!(cut.visibility, Visibility::Excluded);
+    assert_eq!(cut.children.len(), 1); // the nested "## nested kept" rides along
+
+    // Manuscript (plain + HTML) omits the whole excluded subtree.
+    let manu = render(&root, View::Manuscript);
+    assert!(manu.contains("visible prose."));
+    assert!(!manu.contains("secret notes."));
+    assert!(!manu.contains("Cut draft"));
+    assert!(!manu.contains("still secret."));
+    let html = ink_core::render_html(&root);
+    assert!(!html.contains("secret"));
+
+    // Outline still shows it, with the % sigil.
+    let out = render(&root, View::Outline);
+    assert!(out.contains("% Cut draft"));
 }
 
 fn slice(src: &str, s: ink_core::Span) -> String {

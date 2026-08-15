@@ -19,16 +19,28 @@ pub struct Span {
     pub end: usize,
 }
 
+/// How a heading and its subtree reach the manuscript. The marker char sets it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Visibility {
+    /// `#` — heading and body print.
+    Visible,
+    /// `~` — heading hidden, body still prints (a scene).
+    Scene,
+    /// `%` — heading, body, and all descendants excluded from the manuscript
+    /// (kept in the document; shown in outline and edit views).
+    Excluded,
+}
+
 /// A structural unit: heading + metadata + body prose + nested children.
 ///
-/// The root node has `level == 0`, `visible == true`, empty `title`, and holds
-/// any preamble text (before the first heading) plus the top-level headings.
+/// The root node has `level == 0`, `Visibility::Visible`, empty `title`, and
+/// holds any preamble text (before the first heading) plus the top-level headings.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     /// Depth in the shared hierarchy. Marker *count* in the source.
     pub level: u8,
-    /// `#` headings print (`true`); `~` scene headings do not (`false`).
-    pub visible: bool,
+    /// Whether the heading/subtree prints, per its marker (`#`/`~`/`%`).
+    pub visibility: Visibility,
     pub title: String,
     /// `key: value` lines directly under the heading. Never printed.
     pub meta: Vec<(String, String)>,

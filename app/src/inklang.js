@@ -1,6 +1,6 @@
 // A CodeMirror 6 StreamLanguage for the .ink format. Line-oriented, mirroring
-// the Rust parser: headings (# visible / ~ scene), a metadata zone right after
-// a heading, `/` line comments, CriticMarkup, and **bold** / *italic*.
+// the Rust parser: headings (# visible / ~ scene / % excluded), a metadata zone
+// right after a heading, `/` line comments, CriticMarkup, and **bold** / *italic*.
 
 import { StreamLanguage, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { Tag } from "@lezer/highlight";
@@ -10,6 +10,7 @@ const t = {
   heading: Tag.define(),
   scene: Tag.define(),
   meta: Tag.define(),
+  excluded: Tag.define(),
   comment: Tag.define(),
   insert: Tag.define(),
   del: Tag.define(),
@@ -47,6 +48,10 @@ const inkMode = StreamLanguage.define({
       if (stream.match(/^~+\s.*/)) {
         state.inMeta = true;
         return "scene";
+      }
+      if (stream.match(/^%+\s.*/)) {
+        state.inMeta = true;
+        return "excluded";
       }
       if (state.inMeta) {
         if (stream.match(/^[A-Za-z0-9_-]+:.*/)) return "meta";
@@ -92,6 +97,7 @@ const inkMode = StreamLanguage.define({
   tokenTable: {
     heading: t.heading,
     scene: t.scene,
+    excluded: t.excluded,
     meta: t.meta,
     comment: t.comment,
     insert: t.insert,
@@ -105,6 +111,9 @@ const inkMode = StreamLanguage.define({
 const highlight = HighlightStyle.define([
   { tag: t.heading, color: "#7aa2f7", fontWeight: "bold" },
   { tag: t.scene, color: "#c9a26b", fontStyle: "italic" },
+  // Muted italic reads as "set aside / not published" — works for both a cut
+  // section and a notes section (strikethrough would imply deletion only).
+  { tag: t.excluded, color: "#8b93a3", fontStyle: "italic" },
   { tag: t.meta, color: "#9a9aa6" },
   { tag: t.comment, color: "#6a9955", fontStyle: "italic" },
   { tag: t.insert, color: "#73c990" },

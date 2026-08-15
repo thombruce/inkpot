@@ -101,9 +101,10 @@ function drawOutline(root) {
 
   function walk(node) {
     const el = document.createElement("div");
-    el.className = "item" + (node.visible ? "" : " scene");
+    el.className = "item " + node.visibility; // visible | scene | excluded
     el.style.paddingLeft = 12 + (node.level - 1) * 14 + "px";
-    const sigil = (node.visible ? "#" : "~").repeat(node.level);
+    const marker = { visible: "#", scene: "~", excluded: "%" }[node.visibility];
+    const sigil = marker.repeat(node.level);
     el.textContent = `${sigil} ${node.title || "(untitled)"}`;
     if (node.meta_keys.length) {
       const keys = document.createElement("span");

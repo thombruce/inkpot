@@ -1,7 +1,7 @@
 //! Tauri shell: two stateless commands over `ink-core`. Text is canonical on
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
-use ink_core::{parse, render_html, Node, Span};
+use ink_core::{parse, render_html, Node, Span, Visibility};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -22,7 +22,8 @@ impl From<Span> for SpanDto {
 struct OutlineNode {
     id: usize,
     level: u8,
-    visible: bool,
+    /// "visible" | "scene" | "excluded".
+    visibility: &'static str,
     title: String,
     meta_keys: Vec<String>,
     heading_span: SpanDto,
@@ -36,7 +37,11 @@ fn to_outline(node: &Node, next_id: &mut usize) -> OutlineNode {
     OutlineNode {
         id,
         level: node.level,
-        visible: node.visible,
+        visibility: match node.visibility {
+            Visibility::Visible => "visible",
+            Visibility::Scene => "scene",
+            Visibility::Excluded => "excluded",
+        },
         title: node.title.clone(),
         meta_keys: node.meta.iter().map(|(k, _)| k.clone()).collect(),
         heading_span: node.heading_span.into(),
