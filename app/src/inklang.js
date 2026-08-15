@@ -18,6 +18,21 @@ const t = {
   emphasis: Tag.define(),
 };
 
+// Left-flanking opener: char at `at` exists and is not whitespace.
+const flankOpen = (s, at) => at < s.length && !/\s/.test(s[at]);
+
+// Right-flanking closer: `delim` at/after `from` with a non-whitespace,
+// non-backslash char before it and non-empty content (idx > from).
+function findClose(s, from, delim) {
+  let idx = s.indexOf(delim, from);
+  while (idx !== -1) {
+    const before = s[idx - 1];
+    if (idx > from && before && !/\s/.test(before) && before !== "\\") return idx;
+    idx = s.indexOf(delim, idx + delim.length);
+  }
+  return -1;
+}
+
 const inkMode = StreamLanguage.define({
   startState: () => ({ inMeta: false }),
   blankLine: (state) => {
@@ -40,16 +55,38 @@ const inkMode = StreamLanguage.define({
       if (stream.match(/^\/.*/)) return "comment"; // `/` line comment
     }
 
-    // Inline constructs. Order matters: bold before italic.
+    // Backslash escape: consume `\` + the next char as literal.
+    if (stream.peek() === "\\") {
+      stream.next();
+      if (!stream.eol()) stream.next();
+      return null;
+    }
+
+    // CriticMarkup.
     if (stream.match(/^\{\+[^}]*\}/)) return "insert";
     if (stream.match(/^\{-[^}]*\}/)) return "del";
     if (stream.match(/^\{~[^}]*\}/)) return "sub";
     if (stream.match(/^\{\/[^}]*\}/)) return "comment";
-    if (stream.match(/^\*\*[^*]+\*\*/)) return "strong";
-    if (stream.match(/^\*[^*\n]+\*/)) return "emphasis";
 
-    // Plain run: advance to the next construct opener or end of line.
-    if (!stream.match(/^[^{*]+/)) stream.next();
+    // Emphasis with flanking. Order matters: bold before italic.
+    const s = stream.string, p = stream.pos;
+    if (s.startsWith("**", p) && flankOpen(s, p + 2)) {
+      const end = findClose(s, p + 2, "**");
+      if (end > p + 2) {
+        stream.pos = end + 2;
+        return "strong";
+      }
+    }
+    if (s[p] === "*" && flankOpen(s, p + 1)) {
+      const end = findClose(s, p + 1, "*");
+      if (end > p + 1) {
+        stream.pos = end + 1;
+        return "emphasis";
+      }
+    }
+
+    // Plain run up to the next opener (stop at { * \ so those get their turn).
+    if (!stream.match(/^[^{*\\]+/)) stream.next();
     return null;
   },
   tokenTable: {

@@ -180,6 +180,19 @@ fn scan_inline(text: &str) -> Vec<Inline> {
     }
 
     while i < bytes.len() {
+        // Backslash escape: the next char is literal (drops the backslash).
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            let next = i + 1;
+            let len = next_char_len(bytes, next);
+            let ch = &text[next..next + len];
+            if is_escapable(ch) {
+                flush_plain!(i);
+                out.push(Inline::Text(ch.to_string()));
+                i = next + len;
+                plain_start = i;
+                continue;
+            }
+        }
         // CriticMarkup: {+ {- {~ {/
         if bytes[i] == b'{' && i + 1 < bytes.len() {
             if let Some((inline, end)) = critic(text, i) {
@@ -190,9 +203,10 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 continue;
             }
         }
-        // Bold **...** (check before single *).
-        if text[i..].starts_with("**") {
-            if let Some(end) = find(text, i + 2, "**") {
+        // Bold **...** (check before single *). Flanking: opener followed by
+        // non-space, closer preceded by non-space.
+        if text[i..].starts_with("**") && opens(text, i + 2) {
+            if let Some(end) = find_closing(text, i + 2, "**") {
                 flush_plain!(i);
                 out.push(Inline::Bold(text[i + 2..end].to_string()));
                 i = end + 2;
@@ -201,8 +215,8 @@ fn scan_inline(text: &str) -> Vec<Inline> {
             }
         }
         // Italic *...*
-        if bytes[i] == b'*' {
-            if let Some(end) = find(text, i + 1, "*") {
+        if bytes[i] == b'*' && opens(text, i + 1) {
+            if let Some(end) = find_closing(text, i + 1, "*") {
                 flush_plain!(i);
                 out.push(Inline::Italic(text[i + 1..end].to_string()));
                 i = end + 1;
@@ -214,6 +228,33 @@ fn scan_inline(text: &str) -> Vec<Inline> {
     }
     flush_plain!(text.len());
     out
+}
+
+/// Chars that a backslash escapes into a literal (markers + backslash itself).
+fn is_escapable(ch: &str) -> bool {
+    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\")
+}
+
+/// Left-flanking opener: the char at `at` exists and is not whitespace.
+fn opens(text: &str, at: usize) -> bool {
+    text[at..].chars().next().is_some_and(|c| !c.is_whitespace())
+}
+
+/// Right-flanking closer: find `delim` at/after `from` whose immediately
+/// preceding char is non-whitespace, not a backslash, and leaves non-empty
+/// content (`pos > from`).
+fn find_closing(text: &str, from: usize, delim: &str) -> Option<usize> {
+    let mut search = from;
+    while let Some(pos) = find(text, search, delim) {
+        if pos > from {
+            match text[..pos].chars().next_back() {
+                Some(c) if !c.is_whitespace() && c != '\\' => return Some(pos),
+                _ => {}
+            }
+        }
+        search = pos + delim.len();
+    }
+    None
 }
 
 /// Parse one CriticMarkup span starting at `{`. Returns (inline, end-after-`}`).

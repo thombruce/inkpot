@@ -79,6 +79,63 @@ fn outline_lists_every_heading() {
     }
 }
 
+// Parse a bare paragraph and return its inline spans.
+fn inlines(text: &str) -> Vec<Inline> {
+    let root = parse(text);
+    match &root.body[0] {
+        Block::Para(spans) => spans.clone(),
+        other => panic!("expected a paragraph, got {other:?}"),
+    }
+}
+
+#[test]
+fn spaced_asterisks_are_literal() {
+    // The math case: every * has spaces both sides -> no emphasis.
+    let spans = inlines("5 * 3 = 15 and 2 * 4 = 8");
+    assert_eq!(spans, vec![Inline::Text("5 * 3 = 15 and 2 * 4 = 8".to_string())]);
+}
+
+#[test]
+fn emphasis_hugs_and_ignores_trailing_punctuation() {
+    // Closing * is preceded by 't'; the period sits outside the span.
+    let spans = inlines("The dog was *fast*.");
+    assert_eq!(
+        spans,
+        vec![
+            Inline::Text("The dog was ".to_string()),
+            Inline::Italic("fast".to_string()),
+            Inline::Text(".".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn bold_still_parses() {
+    let spans = inlines("a **loud** noise");
+    assert!(spans.contains(&Inline::Bold("loud".to_string())));
+}
+
+#[test]
+fn leading_and_trailing_asterisks_stay_literal() {
+    // "* " (space after) can't open; " *" (space before) can't close.
+    let spans = inlines("* not a bullet *");
+    assert_eq!(spans, vec![Inline::Text("* not a bullet *".to_string())]);
+}
+
+#[test]
+fn backslash_escapes_markers() {
+    // \* -> literal asterisk, no emphasis; \{ -> literal brace.
+    let spans = inlines(r"a \*star\* and a \{brace");
+    let joined: String = spans
+        .iter()
+        .map(|s| match s {
+            Inline::Text(t) => t.clone(),
+            other => panic!("unexpected span {other:?}"),
+        })
+        .collect();
+    assert_eq!(joined, "a *star* and a {brace");
+}
+
 fn slice(src: &str, s: ink_core::Span) -> String {
     src.chars().skip(s.start).take(s.end - s.start).collect()
 }
