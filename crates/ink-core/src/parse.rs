@@ -1,0 +1,224 @@
+//! Line-oriented block scanner + inline scanner. Hand-written on purpose: the
+//! grammar is small and diverges from Markdown enough that a crate is a fight.
+
+use crate::{Block, Inline, Node};
+
+/// Parse a `.ink` document into a root [`Node`] (level 0).
+pub fn parse(src: &str) -> Node {
+    let mut root = Node {
+        level: 0,
+        visible: true,
+        title: String::new(),
+        meta: Vec::new(),
+        body: Vec::new(),
+        children: Vec::new(),
+    };
+    // Stack of raw-pointer-free indices into the tree is awkward; instead we
+    // keep a stack of owned nodes and fold them together as levels close.
+    let mut stack: Vec<Node> = vec![root];
+    // Buffer of body lines for the node currently on top of the stack.
+    let mut body_lines: Vec<&str> = Vec::new();
+    let mut in_meta = false; // are we in the meta zone right after a heading?
+
+    for raw in src.lines() {
+        if let Some((level, visible, title)) = heading(raw) {
+            flush_body(stack.last_mut().unwrap(), &mut body_lines);
+            // Clamp illegal jumps to parent+1 (Model A: count is depth).
+            let parent_level = stack.last().map(|n| n.level).unwrap_or(0);
+            let level = level.min(parent_level + 1);
+            // Close any siblings/deeper nodes until top is a valid parent.
+            while stack.len() > 1 && stack.last().unwrap().level >= level {
+                let done = stack.pop().unwrap();
+                stack.last_mut().unwrap().children.push(done);
+            }
+            stack.push(Node {
+                level,
+                visible,
+                title,
+                meta: Vec::new(),
+                body: Vec::new(),
+                children: Vec::new(),
+            });
+            in_meta = true;
+            continue;
+        }
+
+        // Meta zone: `key: value` lines directly after a heading, until a blank
+        // line or the first non-matching line.
+        if in_meta {
+            if raw.trim().is_empty() {
+                in_meta = false;
+                continue; // swallow the blank separator
+            }
+            if let Some((k, v)) = meta_line(raw) {
+                stack.last_mut().unwrap().meta.push((k, v));
+                continue;
+            }
+            in_meta = false; // fall through: this line is body
+        }
+
+        body_lines.push(raw);
+    }
+
+    flush_body(stack.last_mut().unwrap(), &mut body_lines);
+    // Fold the remaining stack back into the root.
+    while stack.len() > 1 {
+        let done = stack.pop().unwrap();
+        stack.last_mut().unwrap().children.push(done);
+    }
+    root = stack.pop().unwrap();
+    root
+}
+
+/// `# Title` / `~~ Scene` -> (level, visible, title). None if not a heading.
+fn heading(line: &str) -> Option<(u8, bool, String)> {
+    let mut chars = line.chars();
+    let first = chars.next()?;
+    let visible = match first {
+        '#' => true,
+        '~' => false,
+        _ => return None,
+    };
+    let mut count = 1u8;
+    let rest = line[first.len_utf8()..].chars();
+    let mut idx = first.len_utf8();
+    for c in rest {
+        if c == first {
+            count += 1;
+            idx += c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    // Must be followed by a space, else it's body text (e.g. "#hashtag").
+    let after = &line[idx..];
+    let title = after.strip_prefix(' ')?.trim().to_string();
+    Some((count, visible, title))
+}
+
+/// `key: value` where key is a single token. None otherwise. The single-token
+/// key rule keeps prose like "She said: hello" out of the meta zone.
+fn meta_line(line: &str) -> Option<(String, String)> {
+    let (k, v) = line.split_once(':')?;
+    let k = k.trim();
+    if k.is_empty() || !k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return None;
+    }
+    Some((k.to_string(), v.trim().to_string()))
+}
+
+/// Drain buffered body lines into the node: `/` lines become comments,
+/// blank-separated runs become paragraphs.
+fn flush_body(node: &mut Node, lines: &mut Vec<&str>) {
+    let mut para: Vec<&str> = Vec::new();
+    for &line in lines.iter() {
+        if let Some(comment) = line.strip_prefix('/') {
+            if !para.is_empty() {
+                node.body.push(Block::Para(scan_inline(&para.join("\n"))));
+                para.clear();
+            }
+            node.body.push(Block::LineComment(comment.trim().to_string()));
+        } else if line.trim().is_empty() {
+            if !para.is_empty() {
+                node.body.push(Block::Para(scan_inline(&para.join("\n"))));
+                para.clear();
+            }
+        } else {
+            para.push(line);
+        }
+    }
+    if !para.is_empty() {
+        node.body.push(Block::Para(scan_inline(&para.join("\n"))));
+    }
+    lines.clear();
+}
+
+/// Scan a paragraph's text into inline spans.
+fn scan_inline(text: &str) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    let mut plain_start = 0;
+
+    // Push any pending plain text before a markup token.
+    macro_rules! flush_plain {
+        ($end:expr) => {
+            if $end > plain_start {
+                out.push(Inline::Text(text[plain_start..$end].to_string()));
+            }
+        };
+    }
+
+    while i < bytes.len() {
+        // CriticMarkup: {+ {- {~ {/
+        if bytes[i] == b'{' && i + 1 < bytes.len() {
+            if let Some((inline, end)) = critic(text, i) {
+                flush_plain!(i);
+                out.push(inline);
+                i = end;
+                plain_start = i;
+                continue;
+            }
+        }
+        // Bold **...** (check before single *).
+        if text[i..].starts_with("**") {
+            if let Some(end) = find(text, i + 2, "**") {
+                flush_plain!(i);
+                out.push(Inline::Bold(text[i + 2..end].to_string()));
+                i = end + 2;
+                plain_start = i;
+                continue;
+            }
+        }
+        // Italic *...*
+        if bytes[i] == b'*' {
+            if let Some(end) = find(text, i + 1, "*") {
+                flush_plain!(i);
+                out.push(Inline::Italic(text[i + 1..end].to_string()));
+                i = end + 1;
+                plain_start = i;
+                continue;
+            }
+        }
+        i += next_char_len(bytes, i);
+    }
+    flush_plain!(text.len());
+    out
+}
+
+/// Parse one CriticMarkup span starting at `{`. Returns (inline, end-after-`}`).
+fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
+    let kind = text.as_bytes().get(start + 1)?;
+    let content_start = start + 2;
+    let close = find(text, content_start, "}")?;
+    let content = &text[content_start..close];
+    let inline = match kind {
+        b'+' => Inline::Insert(content.to_string()),
+        b'-' => Inline::Delete(content.to_string()),
+        b'/' => Inline::Comment(content.to_string()),
+        b'~' => {
+            let (old, new) = content.split_once('~')?;
+            Inline::Sub {
+                old: old.to_string(),
+                new: new.to_string(),
+            }
+        }
+        _ => return None,
+    };
+    Some((inline, close + 1))
+}
+
+/// Byte index of the next occurrence of `needle` at or after `from`.
+fn find(text: &str, from: usize, needle: &str) -> Option<usize> {
+    text[from..].find(needle).map(|rel| from + rel)
+}
+
+/// UTF-8 length of the char starting at byte `i`.
+fn next_char_len(bytes: &[u8], i: usize) -> usize {
+    match bytes[i] {
+        b if b < 0x80 => 1,
+        b if b >> 5 == 0b110 => 2,
+        b if b >> 4 == 0b1110 => 3,
+        _ => 4,
+    }
+}

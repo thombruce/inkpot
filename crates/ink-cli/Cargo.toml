@@ -1,0 +1,13 @@
+[package]
+name = "ink-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI for rendering inkpot documents to manuscript, outline, or edit views."
+
+[[bin]]
+name = "ink"
+path = "src/main.rs"
+
+[dependencies]
+ink-core = { path = "../ink-core" }
