@@ -69,8 +69,14 @@ Distribution will be tag-triggered GitHub Actions building on a 3-OS matrix
 (`.AppImage`/`.deb`/`.rpm`, `.dmg`, `.msi`/NSIS). First release ships
 **unsigned** (macOS notarization ~$99/yr and Windows code-signing deferred
 until friction is real). Auto-update via the Tauri v2 updater plugin is a
-later add. Blockers: `bundle.active` is `false`, the icon is a placeholder
-(needs a real PNG → `cargo tauri icon`), and there's no `release.yml` yet.
+later add. Blockers: `bundle.active` is `false` and there's no `release.yml`
+yet (the icon is done — real set generated from `assets/inkpot.png`).
+
+The release **version is single-sourced in `app/src-tauri/Cargo.toml`**
+(`tauri.conf.json` omits `version` and inherits it). Bump it there per
+release and tag `vX.Y.Z`. SemVer, mapped to the format: stay in `0.x` until
+the `.ink` format stabilises; `1.0`+ MAJOR = a format-breaking change.
+`ink-core`/`ink-cli` versions are separate from the app's release version.
 
 ## Known rough edges
 
