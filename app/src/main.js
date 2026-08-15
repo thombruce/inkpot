@@ -202,11 +202,22 @@ function setDoc(text) {
   loading = false;
 }
 
+// Returns false if there are unsaved changes and the user declined to discard.
+async function confirmDiscard() {
+  if (!dirty) return true;
+  return dialog.confirm("Discard unsaved changes?", { title: "inkpot" });
+}
+
+async function newFile() {
+  if (!(await confirmDiscard())) return;
+  setDoc("");
+  currentPath = null;
+  markDirty(false);
+  refresh();
+}
+
 async function openFile() {
-  if (dirty) {
-    const ok = await dialog.confirm("Discard unsaved changes?", { title: "inkpot" });
-    if (!ok) return;
-  }
+  if (!(await confirmDiscard())) return;
   const path = await dialog.open({ multiple: false, filters: INK_FILTERS });
   if (!path) return; // cancelled
   const text = await fs.readTextFile(path);
@@ -233,6 +244,7 @@ async function saveFileAs() {
   markDirty(false);
 }
 
+document.getElementById("new").addEventListener("click", newFile);
 document.getElementById("open").addEventListener("click", openFile);
 document.getElementById("save").addEventListener("click", saveFile);
 document.getElementById("saveAs").addEventListener("click", saveFileAs);
@@ -245,6 +257,9 @@ window.addEventListener("keydown", (e) => {
   } else if (e.key === "o") {
     e.preventDefault();
     openFile();
+  } else if (e.key === "n") {
+    e.preventDefault();
+    newFile();
   }
 });
 
