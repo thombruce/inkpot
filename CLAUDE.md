@@ -59,6 +59,17 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   `Co-Authored-By` trailer.
 - Commit or push only when asked.
 
+## Releasing (planned, not built — see #6)
+
+Distribution will be tag-triggered GitHub Actions building on a 3-OS matrix
+(ubuntu/macos/windows — Tauri bundles natively, no cross-compile) via
+`tauri-apps/tauri-action`, publishing installers to **GitHub Releases**
+(`.AppImage`/`.deb`/`.rpm`, `.dmg`, `.msi`/NSIS). First release ships
+**unsigned** (macOS notarization ~$99/yr and Windows code-signing deferred
+until friction is real). Auto-update via the Tauri v2 updater plugin is a
+later add. Blockers: `bundle.active` is `false`, the icon is a placeholder
+(needs a real PNG → `cargo tauri icon`), and there's no `release.yml` yet.
+
 ## Known rough edges
 
 Tracked as GitHub issues #1–#4: metadata blank-line rule (docs, #1), no escape
