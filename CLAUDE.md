@@ -61,16 +61,17 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   `Co-Authored-By` trailer.
 - Commit or push only when asked.
 
-## Releasing (planned, not built — see #6)
+## Releasing
 
-Distribution will be tag-triggered GitHub Actions building on a 3-OS matrix
-(ubuntu/macos/windows — Tauri bundles natively, no cross-compile) via
-`tauri-apps/tauri-action`, publishing installers to **GitHub Releases**
-(`.AppImage`/`.deb`/`.rpm`, `.dmg`, `.msi`/NSIS). First release ships
-**unsigned** (macOS notarization ~$99/yr and Windows code-signing deferred
-until friction is real). Auto-update via the Tauri v2 updater plugin is a
-later add. Blockers: `bundle.active` is `false` and there's no `release.yml`
-yet (the icon is done — real set generated from `assets/inkpot.png`).
+Tag `vX.Y.Z` and push it → `.github/workflows/release.yml` builds on a 3-OS
+matrix (macos universal, ubuntu, windows — Tauri bundles natively) via
+`tauri-apps/tauri-action` and publishes installers (`.AppImage`/`.deb`/`.rpm`,
+universal `.dmg`, `.msi`/NSIS) to **GitHub Releases** as a **draft prerelease**
+— review, then publish (`gh release edit vX.Y.Z --draft=false`). Builds are
+**unsigned** (signing #10, updater #11 tracked separately). macOS is also a
+Homebrew cask in `thombruce/homebrew-tap` (`Casks/inkpot.rb`); bump its
+`version` + `sha256` per release — the dmg is `inkpot_<version>_universal.dmg`.
+First release: v0.1.0.
 
 The release **version is single-sourced in `app/src-tauri/Cargo.toml`**
 (`tauri.conf.json` omits `version` and inherits it). Bump it there per
@@ -80,7 +81,6 @@ the `.ink` format stabilises; `1.0`+ MAJOR = a format-breaking change.
 
 ## Known rough edges
 
-Tracked as GitHub issues #1–#4: metadata blank-line rule (docs, #1), no escape
-for literal markup (#2), inline markup doesn't nest (#3), reorder blank-line
-seams (#4). The `.ink` parser silently drops a mis-classified metadata line —
-the blank-line-after-heading convention avoids it.
+Open work is tracked in GitHub issues. One parser gotcha to keep in mind: the
+`.ink` parser silently drops a mis-classified metadata line — the
+blank-line-after-heading convention (documented in the README) avoids it.

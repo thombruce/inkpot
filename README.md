@@ -148,7 +148,8 @@ root stays fast and webkit-free.
 
 ## Status
 
-Early but functional: the full loop works — write, highlight, outline,
-rearrange, preview, open/save. Known rough edges are tracked as
-[issues](https://github.com/thombruce/inkpot/issues) (escape rules, nested
-markup, reorder seams).
+**v0.1.0 released** — grab an installer from
+[Releases](https://github.com/thombruce/inkpot/releases), or macOS via Homebrew
+(above). The full loop works: write, highlight, outline, rearrange, preview,
+open/save, exclude sections. Builds are unsigned for now. Ongoing work is
+tracked as [issues](https://github.com/thombruce/inkpot/issues).
