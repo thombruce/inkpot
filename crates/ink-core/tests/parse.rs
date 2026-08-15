@@ -79,6 +79,41 @@ fn outline_lists_every_heading() {
     }
 }
 
+fn slice(src: &str, s: ink_core::Span) -> String {
+    src.chars().skip(s.start).take(s.end - s.start).collect()
+}
+
+#[test]
+fn spans_map_back_to_source() {
+    let root = parse(SAMPLE);
+    let ch1 = &root.children[0];
+    let ch2 = &root.children[1];
+
+    // heading_span isolates the heading line.
+    assert_eq!(slice(SAMPLE, ch2.heading_span), "# Chapter 2");
+
+    // Chapter 1's subtree covers both scenes but stops before Chapter 2.
+    let ch1_text = slice(SAMPLE, ch1.node_span);
+    assert!(ch1_text.starts_with("# Chapter 1"));
+    assert!(ch1_text.contains("The Kitchen"));
+    assert!(ch1_text.contains("The Hallway"));
+    assert!(!ch1_text.contains("Chapter 2"));
+
+    // Sibling spans are contiguous: ch1 ends exactly where ch2 begins.
+    assert_eq!(ch1.node_span.end, ch2.node_span.start);
+    // Root covers the whole document.
+    assert_eq!(root.node_span, ink_core::Span { start: 0, end: SAMPLE.chars().count() });
+}
+
+#[test]
+fn spans_are_char_offsets_not_bytes() {
+    // Non-ASCII before a heading: byte offsets would overshoot, char offsets
+    // stay correct.
+    let src = "# Café\n\nStuff.\n\n# Zwei\n";
+    let root = parse(src);
+    assert_eq!(slice(src, root.children[1].heading_span), "# Zwei");
+}
+
 #[test]
 fn illegal_level_jump_is_clamped() {
     // Jump from level 1 straight to level 4 clamps to level 2.

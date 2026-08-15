@@ -1,17 +1,23 @@
 //! Line-oriented block scanner + inline scanner. Hand-written on purpose: the
 //! grammar is small and diverges from Markdown enough that a crate is a fight.
 
-use crate::{Block, Inline, Node};
+use crate::{Block, Inline, Node, Span};
 
 /// Parse a `.ink` document into a root [`Node`] (level 0).
+///
+/// Spans are **char** offsets. Line offsets assume `\n` endings; a stray `\r`
+/// (CRLF) would shift them by one per line — normalize on load if it matters.
 pub fn parse(src: &str) -> Node {
-    let mut root = Node {
+    let doc_len = src.chars().count();
+    let root = Node {
         level: 0,
         visible: true,
         title: String::new(),
         meta: Vec::new(),
         body: Vec::new(),
         children: Vec::new(),
+        heading_span: Span { start: 0, end: 0 },
+        node_span: Span { start: 0, end: doc_len },
     };
     // Stack of raw-pointer-free indices into the tree is awkward; instead we
     // keep a stack of owned nodes and fold them together as levels close.
@@ -19,8 +25,13 @@ pub fn parse(src: &str) -> Node {
     // Buffer of body lines for the node currently on top of the stack.
     let mut body_lines: Vec<&str> = Vec::new();
     let mut in_meta = false; // are we in the meta zone right after a heading?
+    let mut offset = 0usize; // char offset at the start of the current line
 
     for raw in src.lines() {
+        let line_start = offset;
+        let line_end = offset + raw.chars().count();
+        offset = line_end + 1; // +1 for the '\n' str::lines() stripped
+
         if let Some((level, visible, title)) = heading(raw) {
             flush_body(stack.last_mut().unwrap(), &mut body_lines);
             // Clamp illegal jumps to parent+1 (Model A: count is depth).
@@ -38,6 +49,10 @@ pub fn parse(src: &str) -> Node {
                 meta: Vec::new(),
                 body: Vec::new(),
                 children: Vec::new(),
+                heading_span: Span { start: line_start, end: line_end },
+                // .end is filled in by close_spans once we know where the
+                // next equal-or-shallower heading begins.
+                node_span: Span { start: line_start, end: doc_len },
             });
             in_meta = true;
             continue;
@@ -66,8 +81,23 @@ pub fn parse(src: &str) -> Node {
         let done = stack.pop().unwrap();
         stack.last_mut().unwrap().children.push(done);
     }
-    root = stack.pop().unwrap();
+    let mut root = stack.pop().unwrap();
+    close_spans(&mut root, doc_len);
     root
+}
+
+/// Fill in each node's `node_span.end`: a node runs until its next sibling
+/// begins, or (for a last child) until its parent's end.
+fn close_spans(node: &mut Node, end: usize) {
+    node.node_span.end = end;
+    for i in 0..node.children.len() {
+        let child_end = node
+            .children
+            .get(i + 1)
+            .map(|next| next.node_span.start)
+            .unwrap_or(end);
+        close_spans(&mut node.children[i], child_end);
+    }
 }
 
 /// `# Title` / `~~ Scene` -> (level, visible, title). None if not a heading.

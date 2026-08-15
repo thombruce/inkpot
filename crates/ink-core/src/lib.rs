@@ -9,6 +9,16 @@ mod render;
 pub use parse::parse;
 pub use render::{render, View};
 
+/// A half-open range of **char** (Unicode scalar) offsets into the source.
+///
+/// Char offsets, not bytes: they line up with JS string indexing on the
+/// frontend (except astral chars — see the parser notes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+
 /// A structural unit: heading + metadata + body prose + nested children.
 ///
 /// The root node has `level == 0`, `visible == true`, empty `title`, and holds
@@ -24,6 +34,13 @@ pub struct Node {
     pub meta: Vec<(String, String)>,
     pub body: Vec<Block>,
     pub children: Vec<Node>,
+    /// The heading line itself (`~~~ Title`). Empty `0..0` for the root.
+    /// Frontend uses `heading_span.start` to scroll the editor to a heading.
+    pub heading_span: Span,
+    /// The whole subtree: heading through the end of its last descendant
+    /// (up to the next heading of equal-or-shallower level, else end of doc).
+    /// Frontend uses this to cut/paste a scene when drag-reordering.
+    pub node_span: Span,
 }
 
 /// A block of content inside a node's body.
