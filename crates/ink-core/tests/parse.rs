@@ -50,8 +50,8 @@ fn criticmarkup_scanned() {
         Block::Para(s) => Some(s),
         _ => None,
     }).unwrap();
-    assert!(first_para.iter().any(|s| matches!(s, Inline::Insert(t) if t == "Steam rose from the kettle.")));
-    assert!(first_para.iter().any(|s| matches!(s, Inline::Sub { old, new } if old == "grey" && new == "pale with morning")));
+    assert!(first_para.iter().any(|s| matches!(s, Inline::Insert(cs) if *cs == txt("Steam rose from the kettle."))));
+    assert!(first_para.iter().any(|s| matches!(s, Inline::Sub { old, new } if *old == txt("grey") && *new == txt("pale with morning"))));
     assert!(first_para.iter().any(|s| matches!(s, Inline::Comment(_))));
 }
 
@@ -79,6 +79,11 @@ fn outline_lists_every_heading() {
     }
 }
 
+// A single Text span wrapped as an inline sequence (the common operand shape).
+fn txt(s: &str) -> Vec<Inline> {
+    vec![Inline::Text(s.to_string())]
+}
+
 // Parse a bare paragraph and return its inline spans.
 fn inlines(text: &str) -> Vec<Inline> {
     let root = parse(text);
@@ -103,7 +108,7 @@ fn emphasis_hugs_and_ignores_trailing_punctuation() {
         spans,
         vec![
             Inline::Text("The dog was ".to_string()),
-            Inline::Italic("fast".to_string()),
+            Inline::Italic(txt("fast")),
             Inline::Text(".".to_string()),
         ]
     );
@@ -112,7 +117,30 @@ fn emphasis_hugs_and_ignores_trailing_punctuation() {
 #[test]
 fn bold_still_parses() {
     let spans = inlines("a **loud** noise");
-    assert!(spans.contains(&Inline::Bold("loud".to_string())));
+    assert!(spans.contains(&Inline::Bold(txt("loud"))));
+}
+
+#[test]
+fn markup_nests() {
+    let spans = inlines("{+She was **furious**.}");
+    let insert = spans
+        .iter()
+        .find_map(|s| match s {
+            Inline::Insert(cs) => Some(cs),
+            _ => None,
+        })
+        .expect("insertion span");
+    assert_eq!(
+        insert,
+        &vec![
+            Inline::Text("She was ".to_string()),
+            Inline::Bold(txt("furious")),
+            Inline::Text(".".to_string()),
+        ]
+    );
+    // Manuscript accepts the insertion and keeps the nested bold.
+    let out = render(&parse("{+She was **furious**.}"), View::Manuscript);
+    assert!(out.contains("She was **furious**."));
 }
 
 #[test]

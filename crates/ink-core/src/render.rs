@@ -32,7 +32,7 @@ fn manuscript(node: &Node, out: &mut String) {
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
-            let line = spans.iter().filter_map(inline_print).collect::<String>();
+            let line = print_inlines(spans);
             if !line.trim().is_empty() {
                 writeln!(out, "{}\n", line.trim()).ok();
             }
@@ -76,7 +76,7 @@ fn edit(node: &Node, out: &mut String) {
     for block in &node.body {
         match block {
             Block::Para(spans) => {
-                let line = spans.iter().map(inline_source).collect::<String>();
+                let line = source_inlines(spans);
                 writeln!(out, "{line}\n").ok();
             }
             Block::LineComment(c) => {
@@ -89,27 +89,37 @@ fn edit(node: &Node, out: &mut String) {
     }
 }
 
-/// Inline -> print output: visible markup kept, criticmarkup resolved.
+/// Inline sequence -> print output: visible markup kept, criticmarkup resolved.
+fn print_inlines(spans: &[Inline]) -> String {
+    spans.iter().filter_map(inline_print).collect()
+}
+
 fn inline_print(span: &Inline) -> Option<String> {
     Some(match span {
         Inline::Text(s) => s.clone(),
-        Inline::Bold(s) => format!("**{s}**"),
-        Inline::Italic(s) => format!("*{s}*"),
-        Inline::Insert(s) => s.clone(),
-        Inline::Sub { new, .. } => new.clone(),
+        Inline::Bold(cs) => format!("**{}**", print_inlines(cs)),
+        Inline::Italic(cs) => format!("*{}*", print_inlines(cs)),
+        Inline::Insert(cs) => print_inlines(cs),
+        Inline::Sub { new, .. } => print_inlines(new),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
 
-/// Inline -> source form (round-trip within a paragraph).
+/// Inline sequence -> source form (round-trip within a paragraph).
+fn source_inlines(spans: &[Inline]) -> String {
+    spans.iter().map(inline_source).collect()
+}
+
 fn inline_source(span: &Inline) -> String {
     match span {
         Inline::Text(s) => s.clone(),
-        Inline::Bold(s) => format!("**{s}**"),
-        Inline::Italic(s) => format!("*{s}*"),
-        Inline::Insert(s) => format!("{{+{s}}}"),
-        Inline::Delete(s) => format!("{{-{s}}}"),
-        Inline::Sub { old, new } => format!("{{~{old}~{new}}}"),
+        Inline::Bold(cs) => format!("**{}**", source_inlines(cs)),
+        Inline::Italic(cs) => format!("*{}*", source_inlines(cs)),
+        Inline::Insert(cs) => format!("{{+{}}}", source_inlines(cs)),
+        Inline::Delete(cs) => format!("{{-{}}}", source_inlines(cs)),
+        Inline::Sub { old, new } => {
+            format!("{{~{}~{}}}", source_inlines(old), source_inlines(new))
+        }
         Inline::Comment(s) => format!("{{/{s}}}"),
     }
 }

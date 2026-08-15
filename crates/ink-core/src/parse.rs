@@ -208,7 +208,7 @@ fn scan_inline(text: &str) -> Vec<Inline> {
         if text[i..].starts_with("**") && opens(text, i + 2) {
             if let Some(end) = find_closing(text, i + 2, "**") {
                 flush_plain!(i);
-                out.push(Inline::Bold(text[i + 2..end].to_string()));
+                out.push(Inline::Bold(scan_inline(&text[i + 2..end])));
                 i = end + 2;
                 plain_start = i;
                 continue;
@@ -218,7 +218,7 @@ fn scan_inline(text: &str) -> Vec<Inline> {
         if bytes[i] == b'*' && opens(text, i + 1) {
             if let Some(end) = find_closing(text, i + 1, "*") {
                 flush_plain!(i);
-                out.push(Inline::Italic(text[i + 1..end].to_string()));
+                out.push(Inline::Italic(scan_inline(&text[i + 1..end])));
                 i = end + 1;
                 plain_start = i;
                 continue;
@@ -264,14 +264,14 @@ fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
     let close = find(text, content_start, "}")?;
     let content = &text[content_start..close];
     let inline = match kind {
-        b'+' => Inline::Insert(content.to_string()),
-        b'-' => Inline::Delete(content.to_string()),
+        b'+' => Inline::Insert(scan_inline(content)),
+        b'-' => Inline::Delete(scan_inline(content)),
         b'/' => Inline::Comment(content.to_string()),
         b'~' => {
             let (old, new) = content.split_once('~')?;
             Inline::Sub {
-                old: old.to_string(),
-                new: new.to_string(),
+                old: scan_inline(old),
+                new: scan_inline(new),
             }
         }
         _ => return None,

@@ -52,20 +52,21 @@ pub enum Block {
     LineComment(String),
 }
 
-/// An inline span within a paragraph.
+/// An inline span within a paragraph. Markup operands are themselves inline
+/// sequences, so markup nests: `{+She was **furious**.}` parses the bold.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Inline {
     Text(String),
     /// `**bold**` — visible markup, prints.
-    Bold(String),
+    Bold(Vec<Inline>),
     /// `*italic*` — visible markup, prints.
-    Italic(String),
+    Italic(Vec<Inline>),
     /// `{+insertion}` — CriticMarkup, accepted into print.
-    Insert(String),
+    Insert(Vec<Inline>),
     /// `{-deletion}` — CriticMarkup, dropped from print.
-    Delete(String),
+    Delete(Vec<Inline>),
     /// `{~old~new}` — CriticMarkup substitution; `new` prints.
-    Sub { old: String, new: String },
-    /// `{/comment}` — inline comment, never prints.
+    Sub { old: Vec<Inline>, new: Vec<Inline> },
+    /// `{/comment}` — inline comment, never prints. Kept raw (never rendered).
     Comment(String),
 }
