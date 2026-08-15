@@ -3,12 +3,20 @@ import { EditorState } from "@codemirror/state";
 import { ink } from "./inklang.js";
 
 const { invoke } = window.__TAURI__.core;
+const dialog = window.__TAURI__.dialog;
+const fs = window.__TAURI__.fs;
 
 const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
 const viewbar = document.querySelector(".viewbar");
+const filenameEl = document.getElementById("filename");
 
 let view = "manuscript";
+let currentPath = null; // path of the open file, or null if unsaved
+let dirty = false;
+let loading = false; // true while replacing the doc programmatically
+
+const INK_FILTERS = [{ name: "inkpot", extensions: ["ink", "md", "txt"] }];
 
 const SAMPLE = `# Chapter 1
 
@@ -79,7 +87,9 @@ const editor = new EditorView({
       ink(),
       theme,
       EditorView.updateListener.of((u) => {
-        if (u.docChanged) refresh();
+        if (!u.docChanged) return;
+        if (!loading) markDirty(true); // skip programmatic loads
+        refresh();
       }),
     ],
   }),
@@ -121,6 +131,73 @@ viewbar.addEventListener("click", (e) => {
   view = btn.dataset.view;
   for (const b of viewbar.children) b.classList.toggle("active", b === btn);
   refresh();
+});
+
+// --- File open/save -------------------------------------------------------
+
+function markDirty(d) {
+  dirty = d;
+  updateFilename();
+}
+
+function updateFilename() {
+  const base = currentPath ? currentPath.split("/").pop() : "untitled";
+  filenameEl.textContent = dirty ? `${base} *` : base;
+}
+
+// Replace the whole document without tripping the dirty flag.
+function setDoc(text) {
+  loading = true;
+  editor.dispatch({
+    changes: { from: 0, to: editor.state.doc.length, insert: text },
+  });
+  loading = false;
+}
+
+async function openFile() {
+  if (dirty) {
+    const ok = await dialog.confirm("Discard unsaved changes?", { title: "inkpot" });
+    if (!ok) return;
+  }
+  const path = await dialog.open({ multiple: false, filters: INK_FILTERS });
+  if (!path) return; // cancelled
+  const text = await fs.readTextFile(path);
+  setDoc(text);
+  currentPath = path;
+  markDirty(false);
+  refresh();
+}
+
+async function saveFile() {
+  if (!currentPath) return saveFileAs();
+  await fs.writeTextFile(currentPath, editor.state.doc.toString());
+  markDirty(false);
+}
+
+async function saveFileAs() {
+  const path = await dialog.save({
+    defaultPath: currentPath ?? "untitled.ink",
+    filters: INK_FILTERS,
+  });
+  if (!path) return; // cancelled
+  await fs.writeTextFile(path, editor.state.doc.toString());
+  currentPath = path;
+  markDirty(false);
+}
+
+document.getElementById("open").addEventListener("click", openFile);
+document.getElementById("save").addEventListener("click", saveFile);
+document.getElementById("saveAs").addEventListener("click", saveFileAs);
+
+window.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.key === "s") {
+    e.preventDefault();
+    e.shiftKey ? saveFileAs() : saveFile();
+  } else if (e.key === "o") {
+    e.preventDefault();
+    openFile();
+  }
 });
 
 refresh();

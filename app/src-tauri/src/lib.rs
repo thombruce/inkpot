@@ -67,6 +67,8 @@ fn render(src: String, view: String) -> Result<String, String> {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![outline, render])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
