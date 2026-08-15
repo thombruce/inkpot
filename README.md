@@ -124,6 +124,12 @@ Prebuilt installers are published to
 [Releases](https://github.com/thombruce/inkpot/releases) — `.AppImage`/`.deb`/`.rpm`
 (Linux), `.dmg` (macOS), `.msi`/`.exe` (Windows).
 
+macOS via Homebrew:
+
+```sh
+brew install --cask thombruce/tap/inkpot
+```
+
 Early builds are **unsigned**, so the OS warns on first launch:
 
 - **macOS** — right-click the app → **Open** (once), instead of double-clicking.
