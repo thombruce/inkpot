@@ -44,17 +44,9 @@ body {
 .outline .item .keys { color: var(--dim); font-size: 11px; margin-left: 6px; }
 
 /* Editor */
-.editor { display: flex; }
-#src {
-  flex: 1;
-  border: none;
-  resize: none;
-  padding: 16px;
-  background: var(--bg);
-  color: var(--ink);
-  font: 14px/1.6 ui-monospace, monospace;
-  outline: none;
-}
+.editor { padding: 0; }
+#editor { height: 100%; }
+.cm-editor { height: 100%; }
 
 /* Preview */
 .preview { display: flex; flex-direction: column; background: var(--panel); }

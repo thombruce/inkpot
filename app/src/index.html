@@ -10,7 +10,7 @@
     <main class="panes">
       <aside id="outline" class="pane outline" aria-label="Outline"></aside>
       <section class="pane editor">
-        <textarea id="src" spellcheck="false" aria-label="Source"></textarea>
+        <div id="editor" aria-label="Source"></div>
       </section>
       <section class="pane preview">
         <div class="viewbar" role="tablist">
@@ -20,6 +20,6 @@
         <pre id="preview" aria-live="polite"></pre>
       </section>
     </main>
-    <script src="main.js"></script>
+    <script type="module" src="./main.js"></script>
   </body>
 </html>

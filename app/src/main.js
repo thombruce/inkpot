@@ -1,6 +1,9 @@
+import { EditorView, minimalSetup } from "codemirror";
+import { EditorState } from "@codemirror/state";
+import { ink } from "./inklang.js";
+
 const { invoke } = window.__TAURI__.core;
 
-const srcEl = document.getElementById("src");
 const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
 const viewbar = document.querySelector(".viewbar");
@@ -30,7 +33,6 @@ They passed in the **narrow** hall without a *word*.
 The train left at noon.
 `;
 
-// Debounce re-parse/render so we don't hammer IPC on every keystroke.
 function debounce(fn, ms) {
   let t;
   return (...a) => {
@@ -39,19 +41,52 @@ function debounce(fn, ms) {
   };
 }
 
-async function refresh() {
-  const src = srcEl.value;
+const refresh = debounce(async () => {
+  const src = editor.state.doc.toString();
   const [tree, rendered] = await Promise.all([
     invoke("outline", { src }),
     invoke("render", { src, view }),
   ]);
   drawOutline(tree);
   previewEl.textContent = rendered;
-}
+}, 150);
+
+// A dark theme matching the app palette.
+const theme = EditorView.theme(
+  {
+    "&": { height: "100%", backgroundColor: "#1e1e24", color: "#e6e6ea" },
+    ".cm-content": {
+      caretColor: "#7aa2f7",
+      fontFamily: "ui-monospace, monospace",
+      fontSize: "14px",
+      lineHeight: "1.6",
+      padding: "16px 0",
+    },
+    ".cm-cursor": { borderLeftColor: "#7aa2f7" },
+    "&.cm-focused": { outline: "none" },
+    ".cm-line": { padding: "0 16px" },
+  },
+  { dark: true },
+);
+
+const editor = new EditorView({
+  parent: document.getElementById("editor"),
+  state: EditorState.create({
+    doc: SAMPLE,
+    extensions: [
+      minimalSetup,
+      EditorView.lineWrapping,
+      ink(),
+      theme,
+      EditorView.updateListener.of((u) => {
+        if (u.docChanged) refresh();
+      }),
+    ],
+  }),
+});
 
 function drawOutline(root) {
   outlineEl.replaceChildren();
-  // Skip the level-0 root; render its descendants.
   for (const child of root.children) walk(child);
 
   function walk(node) {
@@ -66,7 +101,6 @@ function drawOutline(root) {
       keys.textContent = `[${node.meta_keys.join(", ")}]`;
       el.appendChild(keys);
     }
-    // Click jumps the editor caret to this heading.
     el.addEventListener("click", () => jumpTo(node.heading_span.start));
     outlineEl.appendChild(el);
     for (const c of node.children) walk(c);
@@ -74,13 +108,11 @@ function drawOutline(root) {
 }
 
 // Move the caret to a char offset and scroll it into view. Char offsets match
-// JS UTF-16 indexing for BMP text; astral chars (emoji) would drift.
+// CodeMirror positions for BMP text; astral chars (emoji) would drift.
 function jumpTo(offset) {
-  srcEl.focus();
-  srcEl.setSelectionRange(offset, offset);
-  // Approximate scroll: proportion of the char offset through the document.
-  const ratio = offset / Math.max(1, srcEl.value.length);
-  srcEl.scrollTop = ratio * (srcEl.scrollHeight - srcEl.clientHeight);
+  const pos = Math.min(offset, editor.state.doc.length);
+  editor.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+  editor.focus();
 }
 
 viewbar.addEventListener("click", (e) => {
@@ -91,6 +123,4 @@ viewbar.addEventListener("click", (e) => {
   refresh();
 });
 
-srcEl.addEventListener("input", debounce(refresh, 150));
-srcEl.value = SAMPLE;
 refresh();
