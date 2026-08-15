@@ -1,5 +1,7 @@
 # inkpot
 
+[![CI](https://github.com/thombruce/inkpot/actions/workflows/ci.yml/badge.svg)](https://github.com/thombruce/inkpot/actions/workflows/ci.yml)
+
 A writing format and desktop app for prose (and poetry) that keeps a whole
 work — novel, short story, article — in one continuous document, while letting
 you rearrange its parts, annotate invisibly, and edit non-destructively.
