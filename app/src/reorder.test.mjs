@@ -2,30 +2,44 @@
 import assert from "node:assert/strict";
 import { spliceMove } from "./reorder.js";
 
-// A|B|C, three 2-char blocks. Move C (4..6) before A (0..0).
+const noTripleNewline = (t) => assert.ok(!/\n{3,}/.test(t), `doubled blank line in:\n${t}`);
+
+// Move the last chapter (no trailing blank) to the front. Seams stay clean.
 {
-  const r = spliceMove("AABBCC", 4, 6, 0);
-  assert.equal(r.text, "CCAABB");
-  assert.equal(r.at, 0);
+  const doc = "# A\nbody a\n\n# B\nbody b\n\n# C\nbody c\n";
+  const from = doc.indexOf("# C");
+  const r = spliceMove(doc, from, doc.length, 0);
+  assert.equal(r.text, "# C\nbody c\n\n# A\nbody a\n\n# B\nbody b\n");
+  assert.equal(r.at, 0); // caret at the moved block
+  noTripleNewline(r.text);
 }
 
-// Move A (0..2) to after B, i.e. insert at C's start (4) — shifts left.
+// Move a heading-only node between two headings — must not glue headings.
 {
-  const r = spliceMove("AABBCC", 0, 2, 4);
-  assert.equal(r.text, "BBAACC");
-  assert.equal(r.at, 2); // 4 - (2-0)
+  const doc = "# A\n\n# B\nbody b\n";
+  const to = doc.indexOf("# B");
+  const r = spliceMove(doc, 0, to, doc.length); // move A to the end
+  assert.equal(r.text, "# B\nbody b\n\n# A\n");
+  assert.ok(r.text.slice(r.at).startsWith("# A"));
+  noTripleNewline(r.text);
 }
 
-// Move A to the very end (insert at doc end, past the cut).
+// Move a middle chapter after the last one.
 {
-  const r = spliceMove("AABBCC", 0, 2, 6);
-  assert.equal(r.text, "BBCCAA");
-  assert.equal(r.at, 4); // 6 - (2-0)
+  const doc = "# A\nbody a\n\n# B\nbody b\n\n# C\nbody c\n";
+  const from = doc.indexOf("# B");
+  const to = doc.indexOf("# C");
+  const r = spliceMove(doc, from, to, doc.length);
+  assert.equal(r.text, "# A\nbody a\n\n# C\nbody c\n\n# B\nbody b\n");
+  noTripleNewline(r.text);
 }
 
 // No-op: dropping inside the dragged range.
-assert.equal(spliceMove("AABBCC", 2, 4, 3), null);
-assert.equal(spliceMove("AABBCC", 2, 4, 2), null); // boundary start
-assert.equal(spliceMove("AABBCC", 2, 4, 4), null); // boundary end
+{
+  const doc = "# A\nbody a\n\n# B\nbody b\n";
+  assert.equal(spliceMove(doc, 0, 5, 3), null);
+  assert.equal(spliceMove(doc, 0, 5, 0), null); // boundary start
+  assert.equal(spliceMove(doc, 0, 5, 5), null); // boundary end
+}
 
 console.log("reorder: all assertions passed");
