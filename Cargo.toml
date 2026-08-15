@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/ink-core", "crates/ink-cli"]
+# The Tauri app is its own workspace (heavy GUI deps) — keep it out of core.
+exclude = ["app"]
 
 [workspace.package]
 version = "0.1.0"

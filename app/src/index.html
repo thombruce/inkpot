@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>inkpot</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="panes">
+      <aside id="outline" class="pane outline" aria-label="Outline"></aside>
+      <section class="pane editor">
+        <textarea id="src" spellcheck="false" aria-label="Source"></textarea>
+      </section>
+      <section class="pane preview">
+        <div class="viewbar" role="tablist">
+          <button data-view="manuscript" class="active">Manuscript</button>
+          <button data-view="edit">Edit</button>
+        </div>
+        <pre id="preview" aria-live="polite"></pre>
+      </section>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>
