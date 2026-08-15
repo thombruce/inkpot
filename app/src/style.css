@@ -67,6 +67,8 @@ body {
   color: var(--ink);
 }
 .outline .item:hover { background: #ffffff10; }
+.outline .item.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.outline .item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .outline .item.scene { color: var(--scene); font-style: italic; }
 .outline .item .keys { color: var(--dim); font-size: 11px; margin-left: 6px; }
 

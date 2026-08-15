@@ -1,6 +1,7 @@
 import { EditorView, minimalSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { ink } from "./inklang.js";
+import { spliceMove } from "./reorder.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -15,6 +16,7 @@ let view = "manuscript";
 let currentPath = null; // path of the open file, or null if unsaved
 let dirty = false;
 let loading = false; // true while replacing the doc programmatically
+let draggedNode = null; // outline node being dragged, or null
 
 const INK_FILTERS = [{ name: "inkpot", extensions: ["ink", "md", "txt"] }];
 
@@ -112,6 +114,7 @@ function drawOutline(root) {
       el.appendChild(keys);
     }
     el.addEventListener("click", () => jumpTo(node.heading_span.start));
+    makeDraggable(el, node);
     outlineEl.appendChild(el);
     for (const c of node.children) walk(c);
   }
@@ -123,6 +126,51 @@ function jumpTo(offset) {
   const pos = Math.min(offset, editor.state.doc.length);
   editor.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
   editor.focus();
+}
+
+// Drag-reorder: dropping node A onto node B relocates A's whole subtree text
+// to before/after B (upper/lower half of the target). It's a pure text move —
+// A keeps its own heading markers, so a reparse re-derives the new hierarchy.
+function makeDraggable(el, node) {
+  el.draggable = true;
+  el.addEventListener("dragstart", (e) => {
+    draggedNode = node;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(node.id));
+  });
+  el.addEventListener("dragover", (e) => {
+    if (!draggedNode || draggedNode.id === node.id) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const after = e.clientY > rect.top + rect.height / 2;
+    el.classList.toggle("drop-before", !after);
+    el.classList.toggle("drop-after", after);
+  });
+  el.addEventListener("dragleave", () => {
+    el.classList.remove("drop-before", "drop-after");
+  });
+  el.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const after = el.classList.contains("drop-after");
+    el.classList.remove("drop-before", "drop-after");
+    if (draggedNode && draggedNode.id !== node.id) {
+      moveNode(draggedNode, node, after ? "after" : "before");
+    }
+    draggedNode = null;
+  });
+}
+
+function moveNode(drag, target, pos) {
+  const { start: from, end: to } = drag.node_span;
+  const insertAt = pos === "before" ? target.node_span.start : target.node_span.end;
+  const moved = spliceMove(editor.state.doc.toString(), from, to, insertAt);
+  if (!moved) return; // drop inside the dragged subtree — no-op
+
+  editor.dispatch({
+    changes: { from: 0, to: editor.state.doc.length, insert: moved.text },
+    selection: { anchor: moved.at },
+    scrollIntoView: true,
+  });
 }
 
 viewbar.addEventListener("click", (e) => {
