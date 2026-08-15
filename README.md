@@ -118,6 +118,18 @@ drag to rearrange scenes and chapters, and toggle any heading between visible
 bold, and italics — no markers), and file open/save with an unsaved-changes
 guard.
 
+## Installing a release
+
+Prebuilt installers are published to
+[Releases](https://github.com/thombruce/inkpot/releases) — `.AppImage`/`.deb`/`.rpm`
+(Linux), `.dmg` (macOS), `.msi`/`.exe` (Windows).
+
+Early builds are **unsigned**, so the OS warns on first launch:
+
+- **macOS** — right-click the app → **Open** (once), instead of double-clicking.
+- **Windows** — on the SmartScreen prompt, **More info → Run anyway**.
+- **Linux** — no warning; mark `.AppImage` executable, or install the `.deb`/`.rpm`.
+
 ## Development
 
 ```sh
