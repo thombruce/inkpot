@@ -41,6 +41,11 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   stateless (parse in, render out). No document state crosses IPC. A scene move
   is a text splice, not a tree mutation — hence there is deliberately **no
   reorder command**; see `app/src/reorder.js`.
+- **Autosave is path-gated.** A debounced write to `currentPath` fires once
+  edits settle (`main.js`); untitled/example buffers have no path, so they are
+  never written — the example doc never hits disk. A Tauri `onCloseRequested`
+  guard flushes the autosave then prompts before discarding an unsaved untitled
+  buffer. Crash recovery of untitled drafts (app-data snapshots) is #13.
 - **Heading depth = marker count** (Model A). `#`/`~` set visibility, the count
   sets depth. Illegal jumps clamp to parent + 1 (`parse.rs`).
 - **Spans are char (Unicode scalar) offsets**, to match JS string indexing.
