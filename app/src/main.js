@@ -88,7 +88,10 @@ const editor = new EditorView({
       theme,
       EditorView.updateListener.of((u) => {
         if (!u.docChanged) return;
-        if (!loading) markDirty(true); // skip programmatic loads
+        if (!loading) {
+          markDirty(true); // skip programmatic loads
+          autosave();
+        }
         refresh();
       }),
     ],
@@ -273,6 +276,22 @@ async function saveFile() {
   await fs.writeTextFile(currentPath, editor.state.doc.toString());
   markDirty(false);
 }
+
+// Autosave: write the buffer to its file once edits settle. Only fires when the
+// doc has a path — untitled/example buffers have nowhere to go and are left for
+// the user to Save As first (crash recovery of untitled drafts is the stretch
+// goal in issue #12).
+async function autosaveNow() {
+  if (!currentPath || !dirty) return;
+  await fs.writeTextFile(currentPath, editor.state.doc.toString());
+  markDirty(false);
+}
+const autosave = debounce(autosaveNow, 1000);
+
+// Flush a pending autosave on the way out, so the ~1s debounce window can't
+// swallow the last edits. blur covers app-switching; beforeunload covers close.
+window.addEventListener("blur", autosaveNow);
+window.addEventListener("beforeunload", autosaveNow);
 
 async function saveFileAs() {
   const path = await dialog.save({
