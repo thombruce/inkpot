@@ -112,11 +112,12 @@ npm run tauri dev      # live dev with hot reload
 npm run tauri build    # standalone build
 ```
 
-The app: a live-highlighted `.ink` editor, an outline panel (click to jump,
-drag to rearrange scenes and chapters, and toggle any heading between visible
-`#` / scene `~` / excluded `%`), a formatted reading preview (rendered headings,
-bold, and italics — no markers), and file open/save with an unsaved-changes
-guard.
+The app: a live-highlighted `.ink` editor with foldable sections, a collapsible
+outline panel (click to jump, drag to rearrange scenes and chapters, and toggle
+any heading between visible `#` / scene `~` / excluded `%`), a formatted reading
+preview toggled from the editor (rendered headings, bold, and italics — no
+markers), and file open/save with autosave to the current file plus an
+unsaved-changes guard on untitled buffers.
 
 ## Installing a release
 
@@ -141,6 +142,7 @@ Early builds are **unsigned**, so the OS warns on first launch:
 ```sh
 cargo test                      # ink-core parser/render tests (app excluded)
 node app/src/reorder.test.mjs   # drag-reorder splice self-check
+node app/src/fold.test.mjs       # edit-view fold depth/section self-check
 ```
 
 The Tauri app is a separate workspace (heavy GUI deps), so `cargo test` at the
@@ -148,8 +150,8 @@ root stays fast and webkit-free.
 
 ## Status
 
-**v0.1.0 released** — grab an installer from
+**v0.2.0 released** — grab an installer from
 [Releases](https://github.com/thombruce/inkpot/releases), or macOS via Homebrew
-(above). The full loop works: write, highlight, outline, rearrange, preview,
-open/save, exclude sections. Builds are unsigned for now. Ongoing work is
-tracked as [issues](https://github.com/thombruce/inkpot/issues).
+(above). The full loop works: write, highlight, outline, rearrange, fold,
+preview, autosave, exclude sections. Builds are unsigned for now. Ongoing work
+is tracked as [issues](https://github.com/thombruce/inkpot/issues).
