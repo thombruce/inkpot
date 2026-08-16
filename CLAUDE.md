@@ -90,9 +90,11 @@ matrix (macos universal, ubuntu, windows — Tauri bundles natively) via
 universal `.dmg`, `.msi`/NSIS) to **GitHub Releases** as a **draft prerelease**
 — review, then publish (`gh release edit vX.Y.Z --draft=false`). Builds are
 **unsigned** (signing #10, updater #11 tracked separately). macOS is also a
-Homebrew cask in `thombruce/homebrew-tap` (`Casks/inkpot.rb`); bump its
-`version` + `sha256` per release — the dmg is `inkpot_<version>_universal.dmg`.
-First release: v0.1.0.
+Homebrew cask in `thombruce/homebrew-tap` (`Casks/inkpot.rb`); publishing a
+release fires `.github/workflows/homebrew.yml`, which recomputes the dmg
+`sha256` and bumps the cask's `version` + `sha256` automatically (needs the
+`HOMEBREW_TAP_TOKEN` secret — a PAT with write access to the tap). No manual
+bump. First release: v0.1.0.
 
 The release **version is single-sourced in `app/src-tauri/Cargo.toml`**
 (`tauri.conf.json` omits `version` and inherits it). Bump it there per

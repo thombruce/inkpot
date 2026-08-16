@@ -1,0 +1,37 @@
+name: Homebrew
+
+# Bump the Homebrew cask when a release is published. This runs on release
+# *publish*, not tag push: the Release workflow creates a draft prerelease, and
+# only once it is published are the asset download URLs live. Needs the
+# HOMEBREW_TAP_TOKEN secret — a PAT with write access to thombruce/homebrew-tap.
+on:
+  release:
+    types: [published]
+
+jobs:
+  cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute version + sha256 from the published dmg
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          URL="https://github.com/thombruce/inkpot/releases/download/${TAG}/inkpot_${VERSION}_universal.dmg"
+          SHA=$(curl -fsSL "$URL" | sha256sum | cut -d' ' -f1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Bump the cask
+        run: |
+          git clone "https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/thombruce/homebrew-tap.git"
+          cd homebrew-tap
+          # The cask interpolates #{version} into the url, so only these two lines change.
+          sed -i -E "s|^  version \".*\"|  version \"${VERSION}\"|" Casks/inkpot.rb
+          sed -i -E "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" Casks/inkpot.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/inkpot.rb
+          # No-op if the release re-fires for a version already bumped.
+          git diff --cached --quiet || git commit -m "inkpot ${VERSION}"
+          git push
