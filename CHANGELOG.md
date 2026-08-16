@@ -7,6 +7,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- Tab accepts the highlighted metadata-key completion (Enter already did).
+
 ## [0.3.0] - 2026-08-16
 
 ### Added

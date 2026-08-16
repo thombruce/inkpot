@@ -2,7 +2,7 @@ import { EditorView, minimalSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/autocomplete";
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
@@ -187,7 +187,9 @@ const editor = new EditorView({
       search({ top: true }),
       highlightSelectionMatches(),
       autocompletion({ override: [completeMetaKey] }),
-      keymap.of([...searchKeymap, ...completionKeymap]),
+      // Tab accepts the highlighted completion; a no-op (falls through) when the
+      // tooltip is closed. Enter also accepts, via completionKeymap.
+      keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap]),
       theme,
       EditorView.updateListener.of((u) => {
         if (!u.docChanged) return;
