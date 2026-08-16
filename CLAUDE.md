@@ -95,6 +95,10 @@ release and tag `vX.Y.Z`. SemVer, mapped to the format: stay in `0.x` until
 the `.ink` format stabilises; `1.0`+ MAJOR = a format-breaking change.
 `ink-core`/`ink-cli` versions are separate from the app's release version.
 
+Log user-facing changes under `## [Unreleased]` in `CHANGELOG.md` as you go;
+when tagging, rename that heading to the new version + date and paste it into
+the release notes (the workflow's `releaseBody` is static boilerplate).
+
 ## Known rough edges
 
 Open work is tracked in GitHub issues. One parser gotcha to keep in mind: the
