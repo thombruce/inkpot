@@ -313,6 +313,12 @@ async function saveFileAs() {
   markDirty(false);
 }
 
+const outlineBtn = document.getElementById("toggleOutline");
+outlineBtn.addEventListener("click", () => {
+  const hidden = document.body.classList.toggle("hide-outline");
+  outlineBtn.classList.toggle("active", !hidden);
+});
+
 const previewBtn = document.getElementById("togglePreview");
 previewBtn.addEventListener("click", () => {
   const showing = document.body.classList.toggle("show-preview");

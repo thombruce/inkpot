@@ -38,6 +38,7 @@ body {
   font-size: 12px;
 }
 .toolbar button:hover { border-color: var(--accent); }
+.toolbar button.active { border-color: var(--accent); color: var(--accent); }
 .toolbar .filename {
   margin-left: 8px;
   color: var(--dim);
@@ -60,6 +61,7 @@ body {
 /* Outline is a fixed rail; editor/preview share the rest. Editor shows by
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
+body.hide-outline .outline { display: none; }
 .editor, .preview { flex: 1; border-right: none; }
 .preview { display: none; }
 body.show-preview .editor { display: none; }
