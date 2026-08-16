@@ -75,6 +75,18 @@ const theme = EditorView.theme(
     ".cm-cursor": { borderLeftColor: "#7aa2f7" },
     "&.cm-focused": { outline: "none" },
     ".cm-line": { padding: "0 16px" },
+    // Fold gutter: blend into the editor, dim arrows that light up on hover.
+    ".cm-gutters": { backgroundColor: "#1e1e24", color: "#6a6a76", border: "none" },
+    ".cm-foldGutter .cm-gutterElement": { cursor: "pointer", color: "#6a6a76" },
+    ".cm-foldGutter .cm-gutterElement:hover": { color: "#7aa2f7" },
+    ".cm-foldPlaceholder": {
+      backgroundColor: "#2a2a33",
+      border: "1px solid #34343e",
+      color: "#9a9aa6",
+      margin: "0 4px",
+      padding: "0 6px",
+      borderRadius: "4px",
+    },
   },
   { dark: true },
 );
