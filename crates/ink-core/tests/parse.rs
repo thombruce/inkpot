@@ -1,4 +1,4 @@
-use ink_core::{parse, render, Block, Inline, View, Visibility};
+use ink_core::{parse, render, word_count, Block, Inline, View, Visibility};
 
 const SAMPLE: &str = include_str!("../../../examples/sample.ink");
 
@@ -79,6 +79,17 @@ fn manuscript_hides_invisible_and_resolves_markup() {
     assert!(!out.contains("pov"));
     // Exactly one trailing newline, no dangling blank line.
     assert!(out.ends_with("noon.\n") && !out.ends_with("\n\n"));
+}
+
+#[test]
+fn word_count_counts_manuscript_prose_only() {
+    // Heading titles excluded; scene body counts; `%` subtree contributes 0.
+    let doc = "# Chapter\n\nThree plain words.\n\n~ Scene\n\nTwo more.\n\n% Cut\n\nHidden words here.\n";
+    assert_eq!(word_count(&parse(doc)), 5); // 3 + 2, excluded drops
+
+    // CriticMarkup resolves before counting: insert adds, delete drops, sub uses new.
+    let cm = "# H\n\nkeep {+added} {-removed here} {~old~new} end.\n";
+    assert_eq!(word_count(&parse(cm)), 4); // keep, added, new, end
 }
 
 #[test]

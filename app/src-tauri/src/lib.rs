@@ -1,7 +1,7 @@
 //! Tauri shell: two stateless commands over `ink-core`. Text is canonical on
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
-use ink_core::{parse, render, render_html, Node, Span, View, Visibility};
+use ink_core::{parse, render, render_html, word_count, Node, Span, View, Visibility};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -26,6 +26,8 @@ struct OutlineNode {
     visibility: &'static str,
     title: String,
     meta_keys: Vec<String>,
+    /// Manuscript word count of this subtree (root carries the document total).
+    words: usize,
     heading_span: SpanDto,
     node_span: SpanDto,
     children: Vec<OutlineNode>,
@@ -44,6 +46,7 @@ fn to_outline(node: &Node, next_id: &mut usize) -> OutlineNode {
         },
         title: node.title.clone(),
         meta_keys: node.meta.iter().map(|(k, _)| k.clone()).collect(),
+        words: word_count(node),
         heading_span: node.heading_span.into(),
         node_span: node.node_span.into(),
         // Preorder: assign this node's id before descending (matches the docs).

@@ -14,6 +14,7 @@ const fs = window.__TAURI__.fs;
 const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
 const filenameEl = document.getElementById("filename");
+const wordcountEl = document.getElementById("wordcount");
 
 let currentPath = null; // path of the open file, or null if unsaved
 let dirty = false;
@@ -61,6 +62,8 @@ const refresh = debounce(async () => {
   ]);
   drawOutline(tree);
   previewEl.innerHTML = html;
+  // Root carries the whole-document manuscript word count.
+  wordcountEl.textContent = `${tree.words.toLocaleString()} words`;
 }, 150);
 
 // A dark theme matching the app palette.
@@ -176,6 +179,13 @@ function drawOutline(root) {
       label.appendChild(keys);
     }
     el.appendChild(label);
+    if (node.words > 0) {
+      const wc = document.createElement("span");
+      wc.className = "wc";
+      wc.textContent = node.words.toLocaleString();
+      wc.title = `${node.words.toLocaleString()} words`;
+      el.appendChild(wc);
+    }
     el.addEventListener("click", () => jumpTo(node.heading_span.start));
     makeDraggable(el, node);
 

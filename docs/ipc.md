@@ -19,6 +19,7 @@ type OutlineNode = {
   visibility: "visible" | "scene" | "excluded"; // '#' / '~' / '%'
   title: string;
   meta_keys: string[];   // metadata keys only (values stay in the source)
+  words: number;         // manuscript word count of this subtree (root = doc total)
   heading_span: Span;    // the heading line — scroll target
   node_span: Span;       // whole subtree — cut/paste range for drag-move
   children: OutlineNode[];

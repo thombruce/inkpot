@@ -66,6 +66,26 @@ fn manuscript(node: &Node, out: &mut String) {
     }
 }
 
+/// Manuscript word count of a subtree: prose words that would print. Excluded
+/// (`%`) subtrees, comments, deletions, and metadata contribute nothing;
+/// substitutions count their replacement; visible heading titles are not counted
+/// (prose only, matching how writers tally). Mirrors `manuscript`'s resolution.
+pub fn word_count(node: &Node) -> usize {
+    if node.visibility == Visibility::Excluded {
+        return 0;
+    }
+    let mut n = 0;
+    for block in &node.body {
+        if let Block::Para(spans) = block {
+            n += print_inlines(spans).split_whitespace().count();
+        }
+    }
+    for child in &node.children {
+        n += word_count(child);
+    }
+    n
+}
+
 /// Render `root` as a manuscript in HTML: visible headings become `<h1>`–`<h6>`,
 /// paragraphs `<p>`, bold/italic `<strong>`/`<em>`, with CriticMarkup resolved
 /// and scenes/metadata/comments dropped. Text is escaped; single newlines
