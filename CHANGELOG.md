@@ -11,6 +11,13 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 - Tab accepts the highlighted metadata-key completion (Enter already did).
 
+### Fixed
+
+- A document opening at a deeper heading (e.g. all `##`) no longer demotes its
+  first heading to level 1 and nests the rest beneath it — the depth clamp only
+  applies against a real heading parent, so same-depth headings stay siblings
+  (and render at the same size).
+
 ## [0.3.0] - 2026-08-16
 
 ### Added

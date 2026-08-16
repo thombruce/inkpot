@@ -286,3 +286,13 @@ fn illegal_level_jump_is_clamped() {
     assert_eq!(deep.title, "Deep");
     assert_eq!(deep.level, 2);
 }
+
+#[test]
+fn same_depth_headings_at_start_are_siblings() {
+    // Opening at `##` must not demote the first to level 1 and nest the rest
+    // beneath it — the clamp only applies against a real heading parent.
+    let root = parse("## Chapter 1\n\n## Chapter 2\n\n## Chapter 3\n");
+    assert_eq!(root.children.len(), 3);
+    assert!(root.children.iter().all(|c| c.level == 2));
+    assert_eq!(root.children[1].title, "Chapter 2");
+}

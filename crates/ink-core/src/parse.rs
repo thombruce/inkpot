@@ -36,9 +36,12 @@ pub fn parse(src: &str) -> Node {
 
         if let Some((level, visibility, title)) = heading(raw) {
             flush_body(stack.last_mut().unwrap(), &mut body_lines);
-            // Clamp illegal jumps to parent+1 (Model A: count is depth).
+            // Clamp illegal downward jumps to parent+1 (Model A: count is depth),
+            // but only against a real heading parent — never the implicit root, or
+            // a document that opens deep (e.g. all `##`) would see its first
+            // heading demoted to level 1 and the rest nested under it.
             let parent_level = stack.last().map(|n| n.level).unwrap_or(0);
-            let level = level.min(parent_level + 1);
+            let level = if stack.len() > 1 { level.min(parent_level + 1) } else { level };
             // Close any siblings/deeper nodes until top is a valid parent.
             while stack.len() > 1 && stack.last().unwrap().level >= level {
                 let done = stack.pop().unwrap();

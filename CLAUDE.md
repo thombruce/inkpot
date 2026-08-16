@@ -56,7 +56,10 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   (in `capabilities/default.json`), or the app silently won't quit. Crash
   recovery of untitled drafts (app-data snapshots) is #13.
 - **Heading depth = marker count** (Model A). `#`/`~` set visibility, the count
-  sets depth. Illegal jumps clamp to parent + 1 (`parse.rs`).
+  sets depth. Illegal downward jumps clamp to parent + 1 (`parse.rs`) — but only
+  against a *real heading parent*, never the implicit root, so a document that
+  opens deep (e.g. all `##`) keeps its headings as same-level siblings instead
+  of demoting the first and nesting the rest.
 - **Spans are char (Unicode scalar) offsets**, to match JS string indexing.
   They agree with CodeMirror positions for BMP text; astral chars (emoji)
   drift — a known, accepted edge. Line offsets assume `\n` (normalize CRLF).
