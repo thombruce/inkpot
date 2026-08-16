@@ -1,5 +1,7 @@
 import { EditorView, minimalSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
+import { keymap } from "@codemirror/view";
+import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
@@ -87,6 +89,27 @@ const theme = EditorView.theme(
       padding: "0 6px",
       borderRadius: "4px",
     },
+    // Find/replace panel + match highlights, on the dark palette.
+    ".cm-panels": { backgroundColor: "#26262e", color: "#e6e6ea" },
+    ".cm-panels.cm-panels-top": { borderBottom: "1px solid #34343e" },
+    ".cm-search label, .cm-search button, .cm-search input": { fontSize: "12px" },
+    ".cm-search input": {
+      backgroundColor: "#1e1e24",
+      color: "#e6e6ea",
+      border: "1px solid #34343e",
+      borderRadius: "3px",
+    },
+    ".cm-search button": {
+      backgroundColor: "transparent",
+      color: "#e6e6ea",
+      border: "1px solid #34343e",
+      borderRadius: "3px",
+      cursor: "pointer",
+    },
+    ".cm-search button:hover": { borderColor: "#7aa2f7" },
+    ".cm-selectionMatch": { backgroundColor: "#7aa2f733" },
+    ".cm-searchMatch": { backgroundColor: "#7aa2f733", outline: "1px solid #7aa2f7" },
+    ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "#c9a26b66" },
   },
   { dark: true },
 );
@@ -117,6 +140,9 @@ const editor = new EditorView({
       codeFolding(),
       foldGutter(),
       inkFold,
+      search({ top: true }),
+      highlightSelectionMatches(),
+      keymap.of(searchKeymap), // Ctrl/Cmd+F find, Ctrl/Cmd+H (Alt+Cmd+F on mac) replace
       theme,
       EditorView.updateListener.of((u) => {
         if (!u.docChanged) return;
