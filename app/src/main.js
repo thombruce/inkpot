@@ -293,6 +293,15 @@ const autosave = debounce(autosaveNow, 1000);
 window.addEventListener("blur", autosaveNow);
 window.addEventListener("beforeunload", autosaveNow);
 
+// Guard the window close: flush any pathed autosave first, then — if edits
+// remain unsaved (i.e. an untitled buffer with nowhere to autosave) — ask
+// before discarding. Tauri intercepts the OS close, so a browser beforeunload
+// prompt won't fire here; this is the real gate.
+window.__TAURI__.window?.getCurrentWindow().onCloseRequested(async (event) => {
+  await autosaveNow();
+  if (!(await confirmDiscard())) event.preventDefault();
+});
+
 async function saveFileAs() {
   const path = await dialog.save({
     defaultPath: currentPath ?? "untitled.ink",
