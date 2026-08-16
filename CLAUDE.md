@@ -19,7 +19,11 @@ stay in outline/edit.
 - `crates/ink-cli/` — thin CLI wrapper.
 - `app/src-tauri/` — Tauri v2 shell. Its own workspace (root `Cargo.toml`
   `exclude`s `app`), so `cargo test` stays fast and needs no webkit.
-- `app/src/` — bundler-built frontend (Vite). No JS framework.
+- `app/src/` — bundler-built frontend (Vite). No JS framework. Layout is a
+  flex row of three panes: outline rail, editor, preview. Editor and preview
+  share the space one at a time (toolbar toggle → `body.show-preview`); the
+  outline rail collapses (`body.hide-outline`). Both are pure CSS class
+  toggles in `main.js`/`style.css` — no grid tracks to juggle.
 
 ## Commands
 
