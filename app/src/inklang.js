@@ -35,7 +35,9 @@ function findClose(s, from, delim) {
 }
 
 const inkMode = StreamLanguage.define({
-  startState: () => ({ inMeta: false }),
+  // Mirrors parse.rs: meta starts active so a leading `key: value` block (document
+  // front matter) highlights; a blank line or non-meta line closes it.
+  startState: () => ({ inMeta: true }),
   blankLine: (state) => {
     state.inMeta = false; // a blank line closes the metadata zone
   },

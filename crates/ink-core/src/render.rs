@@ -160,12 +160,13 @@ fn edit(node: &Node, out: &mut String) {
         let sigil = sigil(node.visibility);
         let marker: String = std::iter::repeat(sigil).take(node.level as usize).collect();
         writeln!(out, "{marker} {}", node.title).ok();
-        for (k, v) in &node.meta {
-            writeln!(out, "{k}: {v}").ok();
-        }
-        if !node.meta.is_empty() {
-            out.push('\n');
-        }
+    }
+    // Meta round-trips for every node, including the root's document front matter.
+    for (k, v) in &node.meta {
+        writeln!(out, "{k}: {v}").ok();
+    }
+    if !node.meta.is_empty() {
+        out.push('\n');
     }
     for block in &node.body {
         match block {

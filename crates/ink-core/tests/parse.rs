@@ -49,6 +49,26 @@ fn metadata_parsed_but_not_prose() {
 }
 
 #[test]
+fn leading_frontmatter_is_document_metadata() {
+    // A `key: value` block at the top populates the root, not a chapter or body.
+    let root = parse("title: The Book\nauthor: Thom\n\n# Chapter One\n\nBody.\n");
+    assert_eq!(
+        root.meta,
+        vec![
+            ("title".to_string(), "The Book".to_string()),
+            ("author".to_string(), "Thom".to_string()),
+        ]
+    );
+    assert_eq!(root.children.len(), 1);
+    assert_eq!(root.children[0].title, "Chapter One");
+    // Front matter round-trips through the edit view (root meta re-serialized).
+    assert!(render(&root, View::Edit).starts_with("title: The Book\nauthor: Thom\n"));
+
+    // Front matter must start at line 1 — a leading blank closes the zone first.
+    assert!(parse("\ntitle: x\n\n# H\n").meta.is_empty());
+}
+
+#[test]
 fn criticmarkup_scanned() {
     let root = parse(SAMPLE);
     let kitchen = &root.children[0].children[0].children[0];

@@ -24,7 +24,9 @@ pub fn parse(src: &str) -> Node {
     let mut stack: Vec<Node> = vec![root];
     // Buffer of body lines for the node currently on top of the stack.
     let mut body_lines: Vec<&str> = Vec::new();
-    let mut in_meta = false; // are we in the meta zone right after a heading?
+    // Are we in a meta zone? Starts true so a leading `key: value` block becomes
+    // document front matter on the root; otherwise it opens right after a heading.
+    let mut in_meta = true;
     let mut offset = 0usize; // char offset at the start of the current line
 
     for raw in src.lines() {
@@ -58,8 +60,9 @@ pub fn parse(src: &str) -> Node {
             continue;
         }
 
-        // Meta zone: `key: value` lines directly after a heading, until a blank
-        // line or the first non-matching line.
+        // Meta zone: `key: value` lines at the top of the file (document front
+        // matter) or directly after a heading, until a blank line or the first
+        // non-matching line.
         if in_meta {
             if raw.trim().is_empty() {
                 in_meta = false;

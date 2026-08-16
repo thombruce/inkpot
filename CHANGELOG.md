@@ -14,6 +14,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - Live word count — document total in the toolbar and a per-section count in
   the outline (#16).
 - Recent-files list, and reopening the last-edited file on launch (#17).
+- Document front matter: a leading `key: value` block (title, author, …) parsed
+  as document-level metadata, kept in-file (#24).
 
 ### Changed
 

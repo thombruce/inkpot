@@ -104,3 +104,10 @@ the release notes (the workflow's `releaseBody` is static boilerplate).
 Open work is tracked in GitHub issues. One parser gotcha to keep in mind: the
 `.ink` parser silently drops a mis-classified metadata line — the
 blank-line-after-heading convention (documented in the README) avoids it.
+
+The meta zone also opens at the **top of the file**: a leading `key: value`
+block is document front matter, parsed onto the root node (`title`, `author`,
+etc.). Same three mirrors as any parser change — `parse.rs` (`in_meta` starts
+true), `inklang.js` (`inMeta: true`), and the `edit` renderer (round-trips root
+meta). A file that opens with a colon-bearing prose line is the same
+misclassification trap; front matter must start on line 1.

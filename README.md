@@ -57,6 +57,12 @@ characters, …). Never printed. **A blank line ends the metadata block** — pr
 that could look like `key: value` must be separated from its heading by a blank
 line (as it normally would be).
 
+A `key: value` block **at the very top of the file** (before any heading) is
+**document front matter** — the work's own metadata (`title`, `author`,
+`contact`, `byline`, …), kept in-file so an `.ink` document is self-contained.
+Same rules: it must start on line 1, and a blank line ends it. Keys are free-form
+(the set above is convention, not enforced).
+
 ### Markup
 
 - Visible: `**bold**`, `*italic*` — these print.
