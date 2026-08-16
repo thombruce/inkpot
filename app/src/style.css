@@ -7,6 +7,8 @@
   --scene: #c9a26b;
   --border: #34343e;
   font-family: system-ui, sans-serif;
+  /* Render native controls (the recent-files popup, scrollbars) dark. */
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -38,6 +40,19 @@ body {
   font-size: 12px;
 }
 .toolbar button:hover { border-color: var(--accent); }
+.toolbar .recent {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  max-width: 150px;
+}
+.toolbar .recent:hover { border-color: var(--accent); }
+.toolbar .recent:disabled { color: var(--dim); cursor: default; }
+.toolbar .recent option { background: var(--panel); color: var(--ink); }
 .toolbar button.active { border-color: var(--accent); color: var(--accent); }
 .toolbar .filename {
   margin-left: 8px;

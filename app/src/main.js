@@ -15,6 +15,7 @@ const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
+const recentEl = document.getElementById("recent");
 
 let currentPath = null; // path of the open file, or null if unsaved
 let dirty = false;
@@ -23,28 +24,37 @@ let draggedNode = null; // outline node being dragged, or null
 
 const INK_FILTERS = [{ name: "inkpot", extensions: ["ink", "md", "txt"] }];
 
-const SAMPLE = `# Chapter 1
+// Recent files: paths persisted in webview localStorage (survives restarts via
+// the app's data dir), most-recent first. The app opens the top one on launch.
+const RECENT_KEY = "inkpot.recent";
+const RECENT_MAX = 10;
 
-## The Arrival
+function getRecent() {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
 
-~~~ The Kitchen
-time: dawn
-pov: Alice
+function pushRecent(path) {
+  const list = [path, ...getRecent().filter((p) => p !== path)].slice(0, RECENT_MAX);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+  drawRecent();
+}
 
-She stood at the counter. {+Steam rose from the kettle.} The window was
-{~grey~pale with morning}. {/is this too early in the timeline?}
+function dropRecent(path) {
+  localStorage.setItem(RECENT_KEY, JSON.stringify(getRecent().filter((p) => p !== path)));
+  drawRecent();
+}
 
-~~~ The Hallway
-time: dawn
-
-They passed in the **narrow** hall without a *word*.
-
-# Chapter 2
-
-## Departure
-
-The train left at noon.
-`;
+function drawRecent() {
+  const list = getRecent();
+  recentEl.replaceChildren();
+  recentEl.appendChild(new Option(list.length ? "Recent…" : "No recent files", ""));
+  for (const p of list) recentEl.appendChild(new Option(p.split("/").pop(), p));
+  recentEl.disabled = list.length === 0;
+}
 
 function debounce(fn, ms) {
   let t;
@@ -135,7 +145,7 @@ const inkFold = foldService.of((state, lineStart) => {
 const editor = new EditorView({
   parent: document.getElementById("editor"),
   state: EditorState.create({
-    doc: SAMPLE,
+    doc: "",
     extensions: [
       minimalSetup,
       EditorView.lineWrapping,
@@ -328,15 +338,29 @@ async function newFile() {
   refresh();
 }
 
+// Load a path into the buffer (no discard guard — callers clear first). Returns
+// false if the file is gone/unreadable, dropping it from the recent list.
+async function loadPath(path) {
+  let text;
+  try {
+    text = await fs.readTextFile(path);
+  } catch {
+    dropRecent(path); // moved or deleted — forget it
+    return false;
+  }
+  setDoc(text);
+  currentPath = path;
+  markDirty(false);
+  pushRecent(path);
+  refresh();
+  return true;
+}
+
 async function openFile() {
   if (!(await confirmDiscard())) return;
   const path = await dialog.open({ multiple: false, filters: INK_FILTERS });
   if (!path) return; // cancelled
-  const text = await fs.readTextFile(path);
-  setDoc(text);
-  currentPath = path;
-  markDirty(false);
-  refresh();
+  await loadPath(path);
 }
 
 async function saveFile() {
@@ -379,6 +403,7 @@ async function saveFileAs() {
   await fs.writeTextFile(path, editor.state.doc.toString());
   currentPath = path;
   markDirty(false);
+  pushRecent(path);
 }
 
 const outlineBtn = document.getElementById("toggleOutline");
@@ -408,6 +433,13 @@ async function exportManuscript() {
   await fs.writeTextFile(path, text);
 }
 
+// Recent-files dropdown: pick one to open it (with the usual discard guard).
+recentEl.addEventListener("change", async () => {
+  const path = recentEl.value;
+  recentEl.selectedIndex = 0; // snap back to the "Recent…" label
+  if (path && (await confirmDiscard())) await loadPath(path);
+});
+
 document.getElementById("export").addEventListener("click", exportManuscript);
 document.getElementById("new").addEventListener("click", newFile);
 document.getElementById("open").addEventListener("click", openFile);
@@ -428,4 +460,9 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-refresh();
+// Startup: reopen the most recent file (blank buffer if none, or if it's gone).
+drawRecent();
+(async () => {
+  const last = getRecent()[0];
+  if (!(last && (await loadPath(last)))) refresh(); // loadPath refreshes on success
+})();

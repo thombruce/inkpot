@@ -13,11 +13,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - Export the manuscript as Markdown, via a save dialog (#20).
 - Live word count — document total in the toolbar and a per-section count in
   the outline (#16).
+- Recent-files list, and reopening the last-edited file on launch (#17).
 
 ### Changed
 
 - Manuscript render is now valid Markdown: visible headings emit `#`-by-depth
   ATX headings (previously stripped to bare titles) (#20).
+- Launch to a blank buffer or the last file instead of the built-in example
+  document (#17).
 
 ## [0.2.0] - 2026-08-16
 

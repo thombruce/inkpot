@@ -118,7 +118,8 @@ outline panel (click to jump, drag to rearrange scenes and chapters, and toggle
 any heading between visible `#` / scene `~` / excluded `%`), a formatted reading
 preview toggled from the editor (rendered headings, bold, and italics — no
 markers), and file open/save with autosave to the current file plus an
-unsaved-changes guard on untitled buffers.
+unsaved-changes guard on untitled buffers. It reopens your most recent file on
+launch and keeps a recent-files list.
 
 ## Installing a release
 
