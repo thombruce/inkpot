@@ -151,6 +151,7 @@ Early builds are **unsigned**, so the OS warns on first launch:
 cargo test                      # ink-core parser/render tests (app excluded)
 node app/src/reorder.test.mjs   # drag-reorder splice self-check
 node app/src/fold.test.mjs       # edit-view fold depth/section self-check
+node app/src/metacomplete.test.mjs # metadata-completion zone self-check
 ```
 
 The Tauri app is a separate workspace (heavy GUI deps), so `cargo test` at the

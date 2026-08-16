@@ -32,6 +32,7 @@ cargo test                                    # core tests (from repo root)
 cargo run -p ink-cli -- render --view=edit examples/sample.ink
 node app/src/reorder.test.mjs                 # reorder splice self-check
 node app/src/fold.test.mjs                     # fold depth/section self-check
+node app/src/metacomplete.test.mjs             # metadata-completion zone self-check
 cd app && npm run tauri dev                   # run the app (needs a display)
 cd app && npm run build                       # frontend only -> app/dist
 ```
@@ -60,9 +61,10 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   They agree with CodeMirror positions for BMP text; astral chars (emoji)
   drift — a known, accepted edge. Line offsets assume `\n` (normalize CRLF).
 - **The CodeMirror language mirrors the Rust parser** (`app/src/inklang.js`,
-  a `StreamLanguage`). Change one, change the other. `app/src/fold.js` mirrors
-  it too — the edit-view fold service reads heading depth off the marker run
-  (Model A) to fold each section; a heading-rule change touches all three.
+  a `StreamLanguage`). Change one, change the other. `app/src/fold.js` (fold
+  service, heading depth off the marker run) and `app/src/metacomplete.js`
+  (metadata-completion zone detection: heading + `key:` rules) mirror it too — a
+  heading- or meta-rule change touches all of them.
 - **Frontend uses `withGlobalTauri`** — `window.__TAURI__.{core,dialog,fs}`, no
   `@tauri-apps/api`/plugin npm packages. Keep it that way unless a global is
   missing.

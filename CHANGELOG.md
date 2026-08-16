@@ -16,6 +16,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - Recent-files list, and reopening the last-edited file on launch (#17).
 - Document front matter: a leading `key: value` block (title, author, …) parsed
   as document-level metadata, kept in-file (#24).
+- Metadata key autocomplete in the meta zones — document front matter
+  (title/author/…) and heading meta blocks (pov/time/…) (#22).
 
 ### Changed
 

@@ -2,9 +2,11 @@ import { EditorView, minimalSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
+import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
+import { DOC_KEYS, SCENE_KEYS, metaZone } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -123,6 +125,18 @@ const theme = EditorView.theme(
     ".cm-selectionMatch": { backgroundColor: "#7aa2f733" },
     ".cm-searchMatch": { backgroundColor: "#7aa2f733", outline: "1px solid #7aa2f7" },
     ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "#c9a26b66" },
+    // Autocomplete tooltip (metadata keys).
+    ".cm-tooltip": {
+      backgroundColor: "#26262e",
+      border: "1px solid #34343e",
+      color: "#e6e6ea",
+      borderRadius: "4px",
+    },
+    ".cm-tooltip-autocomplete ul li": { fontFamily: "ui-monospace, monospace" },
+    ".cm-tooltip-autocomplete ul li[aria-selected]": {
+      backgroundColor: "#7aa2f7",
+      color: "#1e1e24",
+    },
   },
   { dark: true },
 );
@@ -142,6 +156,23 @@ const inkFold = foldService.of((state, lineStart) => {
   return to > from ? { from, to } : null;
 });
 
+// Complete metadata keys inside a meta zone: document front matter at the top
+// (title/author/…) or a heading's meta block (pov/time/…). Only while typing the
+// key — caret before any colon, no leading indent.
+function completeMetaKey(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  const before = line.text.slice(0, context.pos - line.from);
+  if (!/^[\w-]*$/.test(before)) return null; // past the key (colon/space) or not a key token
+  if (!context.explicit && before.length === 0) return null; // don't pop on an empty line
+  const zone = metaZone((n) => context.state.doc.line(n).text, line.number);
+  if (!zone) return null;
+  const keys = zone === "front" ? DOC_KEYS : SCENE_KEYS;
+  return {
+    from: line.from,
+    options: keys.map((k) => ({ label: k, type: "property", apply: `${k}: ` })),
+  };
+}
+
 const editor = new EditorView({
   parent: document.getElementById("editor"),
   state: EditorState.create({
@@ -155,7 +186,8 @@ const editor = new EditorView({
       inkFold,
       search({ top: true }),
       highlightSelectionMatches(),
-      keymap.of(searchKeymap), // Ctrl/Cmd+F find, Ctrl/Cmd+H (Alt+Cmd+F on mac) replace
+      autocompletion({ override: [completeMetaKey] }),
+      keymap.of([...searchKeymap, ...completionKeymap]),
       theme,
       EditorView.updateListener.of((u) => {
         if (!u.docChanged) return;
