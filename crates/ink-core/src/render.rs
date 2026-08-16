@@ -22,6 +22,13 @@ pub fn render(root: &Node, view: View) -> String {
         View::Outline => outline(root, &mut out),
         View::Edit => edit(root, &mut out),
     }
+    if view == View::Manuscript {
+        // Each block trails a blank line; collapse the final run to one newline.
+        out.truncate(out.trim_end_matches('\n').len());
+        if !out.is_empty() {
+            out.push('\n');
+        }
+    }
     out
 }
 
@@ -39,9 +46,12 @@ fn manuscript(node: &Node, out: &mut String) {
     if node.visibility == Visibility::Excluded {
         return;
     }
-    // Visible headings print their title; scenes contribute body only.
+    // Visible headings print as Markdown ATX headings (depth = marker count,
+    // clamped to h6); scenes contribute body only. Emphasis stays `**`/`*`, so
+    // the whole manuscript is valid Markdown — convert onward with pandoc.
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
-        writeln!(out, "{}\n", node.title).ok();
+        let hashes = "#".repeat(node.level.min(6) as usize);
+        writeln!(out, "{hashes} {}\n", node.title).ok();
     }
     for block in &node.body {
         if let Block::Para(spans) = block {

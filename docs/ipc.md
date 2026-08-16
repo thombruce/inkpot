@@ -30,8 +30,15 @@ type OutlineNode = {
 Returns the manuscript rendered as reading-view **HTML** (`<h1>`–`<h6>`, `<p>`,
 `<strong>`, `<em>`) with CriticMarkup resolved and scenes/metadata/comments
 dropped. Text is escaped in Rust, so the frontend can assign it via `innerHTML`.
-(The plain-text `manuscript`/`outline`/`edit` views still exist in `ink-core`
-for the CLI; the app only needs this one.)
+(The plain-text `outline`/`edit` views still exist in `ink-core` for the CLI;
+the app renders HTML for preview and plain text for export.)
+
+### `manuscript(src: string) -> string`
+
+Returns the manuscript as **Markdown** (visible headings as `#`-by-depth ATX,
+`**`/`*` emphasis, CriticMarkup resolved, scenes/metadata/comments and excluded
+subtrees dropped) — the `ink-core` `View::Manuscript` render, for the frontend's
+Export. Convert to docx/PDF/etc. downstream with pandoc.
 
 ## What does NOT cross IPC
 

@@ -69,8 +69,9 @@ line (as it normally would be).
 
 ### Views
 
-- **Manuscript** — print view: visible headings + resolved CriticMarkup; no
-  scenes, metadata, or comments.
+- **Manuscript** — print view as Markdown: visible headings (`#` by depth),
+  `**`/`*` emphasis, resolved CriticMarkup; no scenes, metadata, or comments.
+  Convert onward with pandoc. (The app's Export writes this.)
 - **Outline** — every heading, visible and invisible, indented, with metadata keys.
 - **Edit** — everything, re-serialized.
 

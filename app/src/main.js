@@ -383,6 +383,22 @@ previewBtn.addEventListener("click", () => {
   previewBtn.textContent = showing ? "Edit" : "Preview";
 });
 
+// Export the rendered manuscript (visible headings + resolved markup, scenes
+// and excluded subtrees dropped) as plain text — parse/render stays in Rust.
+async function exportManuscript() {
+  const text = await invoke("manuscript", { src: editor.state.doc.toString() });
+  const base = currentPath
+    ? currentPath.split("/").pop().replace(/\.[^.]+$/, "")
+    : "manuscript";
+  const path = await dialog.save({
+    defaultPath: `${base}.md`,
+    filters: [{ name: "Markdown", extensions: ["md", "txt"] }],
+  });
+  if (!path) return; // cancelled
+  await fs.writeTextFile(path, text);
+}
+
+document.getElementById("export").addEventListener("click", exportManuscript);
 document.getElementById("new").addEventListener("click", newFile);
 document.getElementById("open").addEventListener("click", openFile);
 document.getElementById("save").addEventListener("click", saveFile);

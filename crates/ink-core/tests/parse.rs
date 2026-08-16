@@ -64,8 +64,10 @@ fn criticmarkup_scanned() {
 #[test]
 fn manuscript_hides_invisible_and_resolves_markup() {
     let out = render(&parse(SAMPLE), View::Manuscript);
-    // Visible chapter title present; scene title absent.
-    assert!(out.contains("Chapter 1"));
+    // Visible headings render as Markdown ATX headings (depth = marker count);
+    // scene titles are absent (scenes contribute body only).
+    assert!(out.contains("# Chapter 1"));
+    assert!(out.contains("## The Arrival"));
     assert!(!out.contains("The Kitchen"));
     // Insertion accepted, substitution applied, deletion + comments gone.
     assert!(out.contains("Steam rose from the kettle."));
@@ -75,6 +77,8 @@ fn manuscript_hides_invisible_and_resolves_markup() {
     assert!(!out.contains("remember to seed"));
     // Meta never prints.
     assert!(!out.contains("pov"));
+    // Exactly one trailing newline, no dangling blank line.
+    assert!(out.ends_with("noon.\n") && !out.ends_with("\n\n"));
 }
 
 #[test]
