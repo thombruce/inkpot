@@ -1,6 +1,8 @@
 import { EditorView, minimalSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
+import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
+import { headingDepth, sectionEndLine } from "./fold.js";
 import { spliceMove } from "./reorder.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -77,6 +79,21 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
+// Fold a heading's whole section (the body below it, down to the next heading of
+// depth <= its own). Reparses nothing — reads marker depth straight off the text.
+const inkFold = foldService.of((state, lineStart) => {
+  const head = state.doc.lineAt(lineStart).number;
+  const endLine = sectionEndLine(
+    (n) => headingDepth(state.doc.line(n).text),
+    state.doc.lines,
+    head,
+  );
+  if (endLine == null) return null;
+  const from = state.doc.line(head).to; // fold from end of the heading line
+  const to = state.doc.line(endLine).to;
+  return to > from ? { from, to } : null;
+});
+
 const editor = new EditorView({
   parent: document.getElementById("editor"),
   state: EditorState.create({
@@ -85,6 +102,9 @@ const editor = new EditorView({
       minimalSetup,
       EditorView.lineWrapping,
       ink(),
+      codeFolding(),
+      foldGutter(),
+      inkFold,
       theme,
       EditorView.updateListener.of((u) => {
         if (!u.docChanged) return;
