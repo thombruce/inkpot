@@ -43,12 +43,12 @@ body {
   color: var(--dim);
   font-size: 12px;
 }
+.toolbar #togglePreview { margin-left: auto; }
 
 .panes {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 260px 1fr 1fr;
+  display: flex;
 }
 
 .pane {
@@ -56,6 +56,14 @@ body {
   border-right: 1px solid var(--border);
 }
 .pane:last-child { border-right: none; }
+
+/* Outline is a fixed rail; editor/preview share the rest. Editor shows by
+   default; the toolbar toggle swaps to preview (body.show-preview). */
+.outline { flex: 0 0 260px; }
+.editor, .preview { flex: 1; border-right: none; }
+.preview { display: none; }
+body.show-preview .editor { display: none; }
+body.show-preview .preview { display: block; }
 
 /* Outline */
 .outline { padding: 8px 0; background: var(--panel); }

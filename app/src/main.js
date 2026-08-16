@@ -313,6 +313,12 @@ async function saveFileAs() {
   markDirty(false);
 }
 
+const previewBtn = document.getElementById("togglePreview");
+previewBtn.addEventListener("click", () => {
+  const showing = document.body.classList.toggle("show-preview");
+  previewBtn.textContent = showing ? "Edit" : "Preview";
+});
+
 document.getElementById("new").addEventListener("click", newFile);
 document.getElementById("open").addEventListener("click", openFile);
 document.getElementById("save").addEventListener("click", saveFile);
