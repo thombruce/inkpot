@@ -14,6 +14,11 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   their metadata. A toolbar toggle opens it beside the editor; `ink render
   --view=codex` renders it as plain text. Derived from what you already write,
   no new syntax (stage 1 of the codex epic, #9).
+- **Codex cross-references** — a metadata value that names an entity (e.g.
+  `location: London`, `characters: Alice`) becomes a link in the codex, and each
+  entity lists the scenes and entries that reference it ("Referenced by …").
+  Clicking a link jumps the editor to that heading. Resolution is
+  comma-aware and case-insensitive (stage 2 of #9).
 
 ## [0.3.1] - 2026-08-16
 

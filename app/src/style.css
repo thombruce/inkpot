@@ -185,6 +185,14 @@ body.show-codex .codex { display: block; }
 }
 .codex dt { color: var(--dim); }
 .codex dd { margin: 0; color: var(--ink); }
+/* Resolved cross-references (metadata values + backlinks) jump to the entity. */
+.codex .ref { color: var(--accent); cursor: pointer; }
+.codex .ref:hover { text-decoration: underline; }
+.codex .backlinks {
+  margin: 0.5em 0 0 1.25em;
+  font: 12px/1.5 system-ui, sans-serif;
+  color: var(--dim);
+}
 .codex .reading > :first-child,
 .codex h2 { margin-top: 0; }
 .codex:empty::after,

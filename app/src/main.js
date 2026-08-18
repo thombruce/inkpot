@@ -470,6 +470,15 @@ codexBtn.addEventListener("click", () => {
   setView(document.body.classList.contains("show-codex") ? "editor" : "codex");
 });
 
+// Codex links (resolved metadata refs + backlinks) carry the target heading's
+// char offset. The editor is hidden while the codex shows, so switch back first.
+codexEl.addEventListener("click", (e) => {
+  const link = e.target.closest("[data-jump]");
+  if (!link) return;
+  setView("editor");
+  jumpTo(Number(link.dataset.jump));
+});
+
 // Export the rendered manuscript (visible headings + resolved markup, scenes
 // and excluded subtrees dropped) as plain text — parse/render stays in Rust.
 async function exportManuscript() {

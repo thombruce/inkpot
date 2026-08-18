@@ -46,11 +46,14 @@ Export. Convert to docx/PDF/etc. downstream with pandoc.
 Returns the **codex** as HTML for the app's codex panel: the excluded (`%`)
 subtrees rendered as a grouped entity index. Each top-level `%` section is a
 `<section class="codex-section">`; entries nest as `<article class="entity">`
-with an `<h2>`–`<h6>` name (by depth), a `<dl>` of their metadata, and body
-prose as `<p>`. Text is escaped, so the frontend assigns it via `innerHTML`.
-Stage 1 of the codex (issue #9) — derived from what authors already write, no
-new syntax. (The plain-text `View::Codex` render backs `ink render
---view=codex` for the CLI.)
+with an `<h2>`–`<h6>` name (by depth), a `<dl>` of their metadata, body prose as
+`<p>`, and a "Referenced by" backlink list. A metadata value (comma-split,
+trimmed, case-folded) that names an entity resolves to a link, as does each
+backlink: `<a class="ref" data-jump="<char-offset>">`. The frontend reads
+`data-jump` to scroll the editor to that heading (see `main.js`). Text is
+escaped, so the frontend assigns it via `innerHTML`. The codex (issue #9) is
+derived from what authors already write, no new syntax. (The plain-text
+`View::Codex` render — no links — backs `ink render --view=codex` for the CLI.)
 
 ## What does NOT cross IPC
 
