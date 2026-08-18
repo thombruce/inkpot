@@ -47,9 +47,10 @@ Returns the **codex** as HTML for the app's codex panel: the excluded (`%`)
 subtrees rendered as a grouped entity index. Each top-level `%` section is a
 `<section class="codex-section">`; entries nest as `<article class="entity">`
 with an `<h2>`–`<h6>` name (by depth), a `<dl>` of their metadata, body prose as
-`<p>`, and a "Referenced by" backlink list. A metadata value (comma-split,
-trimmed, case-folded) that names an entity resolves to a link, as does each
-backlink: `<a class="ref" data-jump="<char-offset>">`. The frontend reads
+`<p>`, and a "Referenced by" backlink list. A name that resolves to an entity —
+a metadata value (comma-split, trimmed, case-folded) or a prose `[[wikilink]]` —
+becomes a backlink; resolved metadata values and each backlink render as
+`<a class="ref" data-jump="<char-offset>">`. The frontend reads
 `data-jump` to scroll the editor to that heading (see `main.js`). Text is
 escaped, so the frontend assigns it via `innerHTML`. The codex (issue #9) is
 derived from what authors already write, no new syntax. (The plain-text

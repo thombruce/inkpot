@@ -211,6 +211,19 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 continue;
             }
         }
+        // Wikilink [[Target]] — cross-reference to a codex entity by name.
+        if text[i..].starts_with("[[") {
+            if let Some(end) = find(text, i + 2, "]]") {
+                let target = text[i + 2..end].trim();
+                if !target.is_empty() {
+                    flush_plain!(i);
+                    out.push(Inline::Link(target.to_string()));
+                    i = end + 2;
+                    plain_start = i;
+                    continue;
+                }
+            }
+        }
         // Bold **...** (check before single *). Flanking: opener followed by
         // non-space, closer preceded by non-space.
         if text[i..].starts_with("**") && opens(text, i + 2) {
@@ -240,7 +253,7 @@ fn scan_inline(text: &str) -> Vec<Inline> {
 
 /// Chars that a backslash escapes into a literal (markers + backslash itself).
 fn is_escapable(ch: &str) -> bool {
-    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\")
+    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\" | "[" | "]")
 }
 
 /// Left-flanking opener: the char at `at` exists and is not whitespace.

@@ -72,6 +72,9 @@ Same rules: it must start on line 1, and a blank line ends it. Keys are free-for
   - `{~old~new}` — substitution; `new` prints
   - `{/comment}` — inline comment
 - `/` at the start of a line — a whole-line comment.
+- `[[Target]]` — a wikilink to a codex entity (a `%` heading of that name).
+  Prints as the bare name; in the codex it resolves to a link and adds the
+  scene to that entity's backlinks. Escape a literal `[` with `\[`.
 
 ### Views
 
