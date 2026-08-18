@@ -120,6 +120,19 @@ fn outline_lists_every_heading() {
     }
 }
 
+#[test]
+fn codex_indexes_excluded_subtrees_with_metadata() {
+    let src = "# Chapter\n\nProse.\n\n% Characters\n\n%% Alice\nrole: lead\nhome: London\n\n% Timeline\n\n%% 1989\nlocation: London\n";
+    let out = render(&parse(src), View::Codex);
+    // Excluded sections + nested entries + their metadata are indexed.
+    for s in ["Characters", "Alice", "role: lead", "home: London", "Timeline", "1989", "location: London"] {
+        assert!(out.contains(s), "codex missing {s}\n---\n{out}");
+    }
+    // Non-excluded content stays out of the codex.
+    assert!(!out.contains("Chapter"), "codex leaked visible heading");
+    assert!(!out.contains("Prose"), "codex leaked prose");
+}
+
 // A single Text span wrapped as an inline sequence (the common operand shape).
 fn txt(s: &str) -> Vec<Inline> {
     vec![Inline::Text(s.to_string())]

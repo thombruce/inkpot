@@ -12,6 +12,11 @@ pub enum View {
     Outline,
     /// Everything, re-serialized: sigils, meta, raw markup, comments.
     Edit,
+    /// Codex: the excluded (`%`) subtrees as a grouped entity index. Each
+    /// top-level `%` section (Characters, Locations, Timeline, …) is a heading;
+    /// its nested entries list their title + metadata. Stage 1 of the codex
+    /// (issue #9): derive an index from what authors already write, no new syntax.
+    Codex,
 }
 
 /// Render `root` as the given view.
@@ -21,6 +26,7 @@ pub fn render(root: &Node, view: View) -> String {
         View::Manuscript => manuscript(root, &mut out),
         View::Outline => outline(root, &mut out),
         View::Edit => edit(root, &mut out),
+        View::Codex => codex(root, &mut out),
     }
     if view == View::Manuscript {
         // Each block trails a blank line; collapse the final run to one newline.
@@ -152,6 +158,33 @@ fn outline(node: &Node, out: &mut String) {
     }
     for child in &node.children {
         outline(child, out);
+    }
+}
+
+/// Codex view: render each excluded (`%`) subtree as a grouped entity index.
+/// Non-excluded nodes are walked through (not shown) so a `% Notes` block nested
+/// under a visible chapter is still collected. Once inside an excluded root the
+/// whole subtree is codex, so it renders unconditionally.
+fn codex(node: &Node, out: &mut String) {
+    for child in &node.children {
+        if child.visibility == Visibility::Excluded {
+            codex_entry(child, 0, out);
+            out.push('\n');
+        } else {
+            codex(child, out);
+        }
+    }
+}
+
+fn codex_entry(node: &Node, depth: usize, out: &mut String) {
+    let indent = "  ".repeat(depth);
+    let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
+    writeln!(out, "{indent}{title}").ok();
+    for (k, v) in &node.meta {
+        writeln!(out, "{indent}  {k}: {v}").ok();
+    }
+    for child in &node.children {
+        codex_entry(child, depth + 1, out);
     }
 }
 
