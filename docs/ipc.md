@@ -41,6 +41,17 @@ Returns the manuscript as **Markdown** (visible headings as `#`-by-depth ATX,
 subtrees dropped) — the `ink-core` `View::Manuscript` render, for the frontend's
 Export. Convert to docx/PDF/etc. downstream with pandoc.
 
+### `codex(src: string) -> string`
+
+Returns the **codex** as HTML for the app's codex panel: the excluded (`%`)
+subtrees rendered as a grouped entity index. Each top-level `%` section is a
+`<section class="codex-section">`; entries nest as `<article class="entity">`
+with an `<h2>`–`<h6>` name (by depth), a `<dl>` of their metadata, and body
+prose as `<p>`. Text is escaped, so the frontend assigns it via `innerHTML`.
+Stage 1 of the codex (issue #9) — derived from what authors already write, no
+new syntax. (The plain-text `View::Codex` render backs `ink render
+--view=codex` for the CLI.)
+
 ## What does NOT cross IPC
 
 - **Syntax highlighting** — a CodeMirror language mode on the frontend

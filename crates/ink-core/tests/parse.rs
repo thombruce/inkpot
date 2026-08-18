@@ -133,6 +133,17 @@ fn codex_indexes_excluded_subtrees_with_metadata() {
     assert!(!out.contains("Prose"), "codex leaked prose");
 }
 
+#[test]
+fn codex_html_nests_entities_and_metadata() {
+    let src = "% Characters\n\n%% Alice\nrole: lead\n\nBaker & insomniac.\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    assert!(html.contains("<section class=\"codex-section\">"));
+    assert!(html.contains("<h2>Characters</h2>"));
+    assert!(html.contains("<article class=\"entity\"><h3>Alice</h3>"));
+    assert!(html.contains("<dt>role</dt><dd>lead</dd>"));
+    assert!(html.contains("<p>Baker &amp; insomniac.</p>"), "prose escaped: {html}");
+}
+
 // A single Text span wrapped as an inline sequence (the common operand shape).
 fn txt(s: &str) -> Vec<Inline> {
     vec![Inline::Text(s.to_string())]

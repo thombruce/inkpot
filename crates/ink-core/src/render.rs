@@ -123,6 +123,57 @@ fn manuscript_html(node: &Node, out: &mut String) {
     }
 }
 
+/// Render the codex — the excluded (`%`) subtrees — as HTML for the app's
+/// codex panel. Each top-level `%` section is a `<section>`; its entries nest as
+/// `<article class="entity">` with an `<h_>` name, a `<dl>` of metadata, and any
+/// body prose as `<p>`. Mirrors the plain-text [`View::Codex`] walk. Text is
+/// escaped, so the frontend assigns it via `innerHTML`.
+pub fn render_codex_html(root: &Node) -> String {
+    let mut out = String::new();
+    codex_html(root, &mut out);
+    out
+}
+
+fn codex_html(node: &Node, out: &mut String) {
+    for child in &node.children {
+        if child.visibility == Visibility::Excluded {
+            out.push_str("<section class=\"codex-section\">");
+            codex_html_entry(child, 0, out);
+            out.push_str("</section>");
+        } else {
+            codex_html(child, out);
+        }
+    }
+}
+
+fn codex_html_entry(node: &Node, depth: usize, out: &mut String) {
+    // Section title at h2, entities h3, deeper nesting steps down, capped at h6.
+    let lvl = (depth + 2).min(6);
+    let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
+    writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(title)).ok();
+    if !node.meta.is_empty() {
+        out.push_str("<dl>");
+        for (k, v) in &node.meta {
+            write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), escape(v)).ok();
+        }
+        out.push_str("</dl>");
+    }
+    for block in &node.body {
+        if let Block::Para(spans) = block {
+            let html = html_inlines(spans);
+            if !html.trim().is_empty() {
+                writeln!(out, "<p>{html}</p>").ok();
+            }
+        }
+    }
+    // Nested entries wrap so styling can indent them under their parent.
+    for child in &node.children {
+        out.push_str("<article class=\"entity\">");
+        codex_html_entry(child, depth + 1, out);
+        out.push_str("</article>");
+    }
+}
+
 fn html_inlines(spans: &[Inline]) -> String {
     spans.iter().filter_map(inline_html).collect()
 }

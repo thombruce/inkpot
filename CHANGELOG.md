@@ -7,6 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Codex view** — a knowledge-base index of the excluded (`%`) subtrees:
+  each `%` section (Characters, Locations, Timeline, …) with its entries and
+  their metadata. A toolbar toggle opens it beside the editor; `ink render
+  --view=codex` renders it as plain text. Derived from what you already write,
+  no new syntax (stage 1 of the codex epic, #9).
+
 ## [0.3.1] - 2026-08-16
 
 ### Added

@@ -15,6 +15,7 @@ const fs = window.__TAURI__.fs;
 
 const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
+const codexEl = document.getElementById("codex");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
 const recentEl = document.getElementById("recent");
@@ -68,12 +69,14 @@ function debounce(fn, ms) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  const [tree, html] = await Promise.all([
+  const [tree, html, codexHtml] = await Promise.all([
     invoke("outline", { src }),
     invoke("preview", { src }),
+    invoke("codex", { src }),
   ]);
   drawOutline(tree);
   previewEl.innerHTML = html;
+  codexEl.innerHTML = codexHtml;
   // Root carries the whole-document manuscript word count.
   wordcountEl.textContent = `${tree.words.toLocaleString()} words`;
 }, 150);
@@ -446,10 +449,25 @@ outlineBtn.addEventListener("click", () => {
   outlineBtn.classList.toggle("active", !hidden);
 });
 
+// Editor / preview / codex share one space; the toolbar toggles which shows.
+// Preview and codex are mutually exclusive (both hide the editor), so switching
+// one off returns to the editor and turning one on clears the other.
 const previewBtn = document.getElementById("togglePreview");
+const codexBtn = document.getElementById("toggleCodex");
+
+function setView(view) {
+  document.body.classList.toggle("show-preview", view === "preview");
+  document.body.classList.toggle("show-codex", view === "codex");
+  previewBtn.textContent = view === "preview" ? "Edit" : "Preview";
+  previewBtn.classList.toggle("active", view === "preview");
+  codexBtn.classList.toggle("active", view === "codex");
+}
+
 previewBtn.addEventListener("click", () => {
-  const showing = document.body.classList.toggle("show-preview");
-  previewBtn.textContent = showing ? "Edit" : "Preview";
+  setView(document.body.classList.contains("show-preview") ? "editor" : "preview");
+});
+codexBtn.addEventListener("click", () => {
+  setView(document.body.classList.contains("show-codex") ? "editor" : "codex");
 });
 
 // Export the rendered manuscript (visible headings + resolved markup, scenes
