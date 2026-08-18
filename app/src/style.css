@@ -166,6 +166,7 @@ body.show-codex .codex { display: block; }
 .reading p { margin: 0 0 1em; }
 .reading strong { font-weight: 700; }
 .reading em { font-style: italic; }
+.reading .wikilink { color: var(--accent); text-decoration: none; }
 
 /* Codex — the derived entity index. Reuses the reading pane; entities nest and
    their metadata lays out as a compact key/value grid. */

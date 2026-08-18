@@ -6,7 +6,7 @@
 pov: Alice
 characters: Alice, Bob
 
-She stood at the counter as morning came to London.
+She stood at the counter as morning came to [[London]]. [[Bob]] said nothing.
 
 % Characters
 

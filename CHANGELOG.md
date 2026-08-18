@@ -9,6 +9,11 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **`[[wikilinks]]`** — reference a codex entity from prose. `[[Alice]]` prints
+  as the bare name in the manuscript and adds the scene to Alice's codex
+  backlinks ("scenes mentioning Alice"). Highlighted in the editor and styled in
+  the reading preview; escape a literal `[` with `\[` (stage 3 of #9).
+
 - **Codex view** — a knowledge-base index of the excluded (`%`) subtrees:
   each `%` section (Characters, Locations, Timeline, …) with its entries and
   their metadata. A toolbar toggle opens it beside the editor; `ink render

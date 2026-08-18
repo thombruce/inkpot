@@ -162,6 +162,28 @@ fn codex_resolves_metadata_refs_and_backlinks() {
     assert!(plain.contains("<dd>villain</dd>"), "non-entity value should not link: {plain}");
 }
 
+#[test]
+fn wikilink_parses_prints_name_and_round_trips() {
+    let root = parse("She saw [[Alice]] leave.\n");
+    let Block::Para(spans) = &root.body[0] else { panic!("expected para") };
+    assert!(spans.contains(&Inline::Link("Alice".to_string())), "no link inline: {spans:?}");
+    // Manuscript prints the bare name (the link is part of the prose).
+    assert_eq!(render(&root, View::Manuscript), "She saw Alice leave.\n");
+    // Edit round-trips the brackets.
+    assert!(render(&root, View::Edit).contains("She saw [[Alice]] leave."));
+    // An escaped or unclosed bracket stays literal.
+    assert!(render(&parse("a \\[[b"), View::Manuscript).contains("a [[b"));
+    assert_eq!(render(&parse("open [[ only\n"), View::Manuscript), "open [[ only\n");
+}
+
+#[test]
+fn wikilink_in_prose_backlinks_to_entity() {
+    let src = "~~~ Scene\n\nAcross the room, [[Alice]] said nothing.\n\n% C\n\n%% Alice\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    assert!(html.contains("Referenced by"), "no backlink from prose: {html}");
+    assert!(html.contains(">Scene</a>"), "scene not backlinked: {html}");
+}
+
 // A single Text span wrapped as an inline sequence (the common operand shape).
 fn txt(s: &str) -> Vec<Inline> {
     vec![Inline::Text(s.to_string())]

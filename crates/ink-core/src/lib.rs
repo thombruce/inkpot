@@ -81,4 +81,7 @@ pub enum Inline {
     Sub { old: Vec<Inline>, new: Vec<Inline> },
     /// `{/comment}` — inline comment, never prints. Kept raw (never rendered).
     Comment(String),
+    /// `[[Target]]` — a wikilink to a codex entity by name. Prints as the target
+    /// text (the name is part of the prose); resolves in the codex to a backlink.
+    Link(String),
 }

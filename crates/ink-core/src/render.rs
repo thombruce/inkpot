@@ -182,9 +182,10 @@ fn collect_entities<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
     }
 }
 
-/// Walk every node; a metadata value naming an entity records a backlink from
-/// the holding node. Whole-tree, so a scene's `characters:` links its entities,
-/// not just entity-to-entity edges. Deduped per referrer; self-references skipped.
+/// Walk every node; a name that resolves to an entity — from a metadata value
+/// (comma-split) or a prose `[[wikilink]]` — records a backlink from the holding
+/// node. Whole-tree, so a scene's `characters:` or `[[Alice]]` links its
+/// entities, not just entity-to-entity edges. Deduped per referrer; self-skip.
 fn collect_backlinks(
     node: &Node,
     by_name: &HashMap<String, usize>,
@@ -193,19 +194,44 @@ fn collect_backlinks(
 ) {
     for child in &node.children {
         let from = child.heading_span.start;
+        let mut names: Vec<&str> = Vec::new();
         for (_k, v) in &child.meta {
-            for part in v.split(',') {
-                let Some(&idx) = by_name.get(&fold_name(part)) else { continue };
-                if entities[idx].heading_span.start == from {
-                    continue; // a node naming itself is not a backlink
-                }
-                let bl = &mut backlinks[idx];
-                if !bl.iter().any(|b| b.offset == from) {
-                    bl.push(Backref { title: child.title.clone(), offset: from });
-                }
+            names.extend(v.split(','));
+        }
+        for block in &child.body {
+            if let Block::Para(spans) = block {
+                collect_links(spans, &mut names);
+            }
+        }
+        for name in names {
+            let Some(&idx) = by_name.get(&fold_name(name)) else { continue };
+            if entities[idx].heading_span.start == from {
+                continue; // a node naming itself is not a backlink
+            }
+            let bl = &mut backlinks[idx];
+            if !bl.iter().any(|b| b.offset == from) {
+                bl.push(Backref { title: child.title.clone(), offset: from });
             }
         }
         collect_backlinks(child, by_name, entities, backlinks);
+    }
+}
+
+/// Collect the targets of every `[[wikilink]]` in an inline sequence, recursing
+/// into nested markup (bold/italic/criticmarkup).
+fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
+    for s in spans {
+        match s {
+            Inline::Link(t) => out.push(t),
+            Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) | Inline::Delete(cs) => {
+                collect_links(cs, out)
+            }
+            Inline::Sub { old, new } => {
+                collect_links(old, out);
+                collect_links(new, out);
+            }
+            Inline::Text(_) | Inline::Comment(_) => {}
+        }
     }
 }
 
@@ -302,6 +328,7 @@ fn inline_html(span: &Inline) -> Option<String> {
         Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs)),
         Inline::Insert(cs) => html_inlines(cs),
         Inline::Sub { new, .. } => html_inlines(new),
+        Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(s)),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -397,6 +424,7 @@ fn inline_print(span: &Inline) -> Option<String> {
         Inline::Italic(cs) => format!("*{}*", print_inlines(cs)),
         Inline::Insert(cs) => print_inlines(cs),
         Inline::Sub { new, .. } => print_inlines(new),
+        Inline::Link(s) => s.clone(),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -417,5 +445,6 @@ fn inline_source(span: &Inline) -> String {
             format!("{{~{}~{}}}", source_inlines(old), source_inlines(new))
         }
         Inline::Comment(s) => format!("{{/{s}}}"),
+        Inline::Link(s) => format!("[[{s}]]"),
     }
 }

@@ -17,6 +17,7 @@ const t = {
   sub: Tag.define(),
   strong: Tag.define(),
   emphasis: Tag.define(),
+  link: Tag.define(),
 };
 
 // Left-flanking opener: char at `at` exists and is not whitespace.
@@ -75,6 +76,9 @@ const inkMode = StreamLanguage.define({
     if (stream.match(/^\{~[^}]*\}/)) return "sub";
     if (stream.match(/^\{\/[^}]*\}/)) return "comment";
 
+    // Wikilink [[Target]] — cross-reference to a codex entity.
+    if (stream.match(/^\[\[[^\]]+\]\]/)) return "link";
+
     // Emphasis with flanking. Order matters: bold before italic.
     const s = stream.string, p = stream.pos;
     if (s.startsWith("**", p) && flankOpen(s, p + 2)) {
@@ -92,8 +96,8 @@ const inkMode = StreamLanguage.define({
       }
     }
 
-    // Plain run up to the next opener (stop at { * \ so those get their turn).
-    if (!stream.match(/^[^{*\\]+/)) stream.next();
+    // Plain run up to the next opener (stop at { * \ [ so those get their turn).
+    if (!stream.match(/^[^{*\\[]+/)) stream.next();
     return null;
   },
   tokenTable: {
@@ -107,6 +111,7 @@ const inkMode = StreamLanguage.define({
     sub: t.sub,
     strong: t.strong,
     emphasis: t.emphasis,
+    link: t.link,
   },
 });
 
@@ -123,6 +128,7 @@ const highlight = HighlightStyle.define([
   { tag: t.sub, color: "#d19a66" },
   { tag: t.strong, fontWeight: "bold", color: "#e6e6ea" },
   { tag: t.emphasis, fontStyle: "italic", color: "#e6e6ea" },
+  { tag: t.link, color: "#7aa2f7", textDecoration: "underline" },
 ]);
 
 export const ink = () => [inkMode, syntaxHighlighting(highlight)];
