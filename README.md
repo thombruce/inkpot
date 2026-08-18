@@ -166,8 +166,11 @@ root stays fast and webkit-free.
 
 ## Status
 
-**v0.2.0 released** — grab an installer from
+**v0.4.0 released** — grab an installer from
 [Releases](https://github.com/thombruce/inkpot/releases), or macOS via Homebrew
 (above). The full loop works: write, highlight, outline, rearrange, fold,
-preview, autosave, exclude sections. Builds are unsigned for now. Ongoing work
+preview, autosave, exclude sections, plus a **codex** knowledge base — a derived
+index of your `%` sections (characters, locations, timeline) with
+metadata/`[[wikilink]]` cross-references and per-entity backlinks
+(single-document; cross-file is #28). Builds are unsigned for now. Ongoing work
 is tracked as [issues](https://github.com/thombruce/inkpot/issues).

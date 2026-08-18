@@ -7,12 +7,9 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
-### Added
+## [0.4.0] - 2026-08-18
 
-- **`[[wikilinks]]`** — reference a codex entity from prose. `[[Alice]]` prints
-  as the bare name in the manuscript and adds the scene to Alice's codex
-  backlinks ("scenes mentioning Alice"). Highlighted in the editor and styled in
-  the reading preview; escape a literal `[` with `\[` (stage 3 of #9).
+### Added
 
 - **Codex view** — a knowledge-base index of the excluded (`%`) subtrees:
   each `%` section (Characters, Locations, Timeline, …) with its entries and
@@ -24,6 +21,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   entity lists the scenes and entries that reference it ("Referenced by …").
   Clicking a link jumps the editor to that heading. Resolution is
   comma-aware and case-insensitive (stage 2 of #9).
+- **`[[wikilinks]]`** — reference a codex entity from prose. `[[Alice]]` prints
+  as the bare name in the manuscript and adds the scene to Alice's codex
+  backlinks ("scenes mentioning Alice"). Highlighted in the editor and styled in
+  the reading preview; escape a literal `[` with `\[` (stage 3 of #9).
 
 ## [0.3.1] - 2026-08-16
 
