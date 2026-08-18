@@ -120,6 +120,48 @@ fn outline_lists_every_heading() {
     }
 }
 
+#[test]
+fn codex_indexes_excluded_subtrees_with_metadata() {
+    let src = "# Chapter\n\nProse.\n\n% Characters\n\n%% Alice\nrole: lead\nhome: London\n\n% Timeline\n\n%% 1989\nlocation: London\n";
+    let out = render(&parse(src), View::Codex);
+    // Excluded sections + nested entries + their metadata are indexed.
+    for s in ["Characters", "Alice", "role: lead", "home: London", "Timeline", "1989", "location: London"] {
+        assert!(out.contains(s), "codex missing {s}\n---\n{out}");
+    }
+    // Non-excluded content stays out of the codex.
+    assert!(!out.contains("Chapter"), "codex leaked visible heading");
+    assert!(!out.contains("Prose"), "codex leaked prose");
+}
+
+#[test]
+fn codex_html_nests_entities_and_metadata() {
+    let src = "% Characters\n\n%% Alice\nrole: lead\n\nBaker & insomniac.\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    assert!(html.contains("<section class=\"codex-section\">"));
+    assert!(html.contains("<h2>Characters</h2>"));
+    assert!(html.contains("<article class=\"entity\"><h3>Alice</h3>"));
+    assert!(html.contains("<dt>role</dt><dd>lead</dd>"));
+    assert!(html.contains("<p>Baker &amp; insomniac.</p>"), "prose escaped: {html}");
+}
+
+#[test]
+fn codex_resolves_metadata_refs_and_backlinks() {
+    // A scene names Alice; the timeline entry names London and Alice. Both are
+    // `%` entities, so those values become links and the entities get backlinks.
+    let src = "~~~ The Kitchen\ncharacters: Alice\n\nProse.\n\n% Characters\n\n%% Alice\nhome: London\n\n% Locations\n\n%% London\n\n% Timeline\n\n%% 1989\nlocation: London\ncharacters: Alice\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    // Alice's `home: London` resolves to the London entity (a link).
+    assert!(html.contains("<dt>home</dt><dd><a class=\"ref\" data-jump="), "home not linked: {html}");
+    assert!(html.contains(">London</a>"), "London not linked: {html}");
+    // London is referenced by Alice and 1989; Alice by the scene and 1989.
+    assert!(html.contains("Referenced by"), "no backlinks: {html}");
+    assert!(html.contains(">The Kitchen</a>"), "scene backlink missing: {html}");
+    assert!(html.contains(">1989</a>"), "timeline backlink missing: {html}");
+    // Case-insensitive, unknown values stay plain text.
+    let plain = ink_core::render_codex_html(&parse("% C\n\n%% Bob\nrole: villain\n"));
+    assert!(plain.contains("<dd>villain</dd>"), "non-entity value should not link: {plain}");
+}
+
 // A single Text span wrapped as an inline sequence (the common operand shape).
 fn txt(s: &str) -> Vec<Inline> {
     vec![Inline::Text(s.to_string())]

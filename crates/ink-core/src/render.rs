@@ -1,6 +1,7 @@
 //! Three read-only views over the [`Node`] tree.
 
 use crate::{Block, Inline, Node, Visibility};
+use std::collections::HashMap;
 use std::fmt::Write;
 
 /// Which projection of the document to render.
@@ -12,6 +13,11 @@ pub enum View {
     Outline,
     /// Everything, re-serialized: sigils, meta, raw markup, comments.
     Edit,
+    /// Codex: the excluded (`%`) subtrees as a grouped entity index. Each
+    /// top-level `%` section (Characters, Locations, Timeline, …) is a heading;
+    /// its nested entries list their title + metadata. Stage 1 of the codex
+    /// (issue #9): derive an index from what authors already write, no new syntax.
+    Codex,
 }
 
 /// Render `root` as the given view.
@@ -21,6 +27,7 @@ pub fn render(root: &Node, view: View) -> String {
         View::Manuscript => manuscript(root, &mut out),
         View::Outline => outline(root, &mut out),
         View::Edit => edit(root, &mut out),
+        View::Codex => codex(root, &mut out),
     }
     if view == View::Manuscript {
         // Each block trails a blank line; collapse the final run to one newline.
@@ -117,6 +124,173 @@ fn manuscript_html(node: &Node, out: &mut String) {
     }
 }
 
+/// A referrer: a node whose metadata names an entity. `offset` is its heading's
+/// char offset — the frontend jumps there via `data-jump`.
+struct Backref {
+    title: String,
+    offset: usize,
+}
+
+/// The codex cross-reference index. Entities are every `%` heading with a title;
+/// a metadata value resolves to one when a comma-separated, trimmed, case-folded
+/// part equals its title — no key whitelist, a value is a link iff it names an
+/// entity. `backlinks[i]` are the nodes that reference entity `i`.
+struct CodexIndex<'a> {
+    entities: Vec<&'a Node>,
+    by_name: HashMap<String, usize>,  // folded title -> entities idx (first wins)
+    by_offset: HashMap<usize, usize>, // heading offset -> entities idx
+    backlinks: Vec<Vec<Backref>>,
+}
+
+fn fold_name(s: &str) -> String {
+    s.trim().to_lowercase()
+}
+
+impl<'a> CodexIndex<'a> {
+    fn build(root: &'a Node) -> Self {
+        let mut entities = Vec::new();
+        collect_entities(root, &mut entities);
+        let mut by_name = HashMap::new();
+        let mut by_offset = HashMap::new();
+        for (i, e) in entities.iter().enumerate() {
+            // First entity of a name wins; a later duplicate is unreachable by
+            // reference. ponytail: name collisions resolve to the first; add
+            // disambiguation (e.g. [[wikilinks]] with a path) if it bites.
+            by_name.entry(fold_name(&e.title)).or_insert(i);
+            by_offset.insert(e.heading_span.start, i);
+        }
+        let mut backlinks: Vec<Vec<Backref>> = (0..entities.len()).map(|_| Vec::new()).collect();
+        collect_backlinks(root, &by_name, &entities, &mut backlinks);
+        CodexIndex { entities, by_name, by_offset, backlinks }
+    }
+
+    /// Resolve one metadata value part to the target entity's heading offset.
+    fn resolve(&self, part: &str) -> Option<usize> {
+        self.by_name
+            .get(&fold_name(part))
+            .map(|&i| self.entities[i].heading_span.start)
+    }
+}
+
+/// Every excluded (`%`) heading with a title, in document order.
+fn collect_entities<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
+    for child in &node.children {
+        if child.visibility == Visibility::Excluded && !child.title.is_empty() {
+            out.push(child);
+        }
+        collect_entities(child, out);
+    }
+}
+
+/// Walk every node; a metadata value naming an entity records a backlink from
+/// the holding node. Whole-tree, so a scene's `characters:` links its entities,
+/// not just entity-to-entity edges. Deduped per referrer; self-references skipped.
+fn collect_backlinks(
+    node: &Node,
+    by_name: &HashMap<String, usize>,
+    entities: &[&Node],
+    backlinks: &mut [Vec<Backref>],
+) {
+    for child in &node.children {
+        let from = child.heading_span.start;
+        for (_k, v) in &child.meta {
+            for part in v.split(',') {
+                let Some(&idx) = by_name.get(&fold_name(part)) else { continue };
+                if entities[idx].heading_span.start == from {
+                    continue; // a node naming itself is not a backlink
+                }
+                let bl = &mut backlinks[idx];
+                if !bl.iter().any(|b| b.offset == from) {
+                    bl.push(Backref { title: child.title.clone(), offset: from });
+                }
+            }
+        }
+        collect_backlinks(child, by_name, entities, backlinks);
+    }
+}
+
+/// Render the codex — the excluded (`%`) subtrees — as HTML for the app's codex
+/// panel. Each top-level `%` section is a `<section>`; its entries nest as
+/// `<article class="entity">` with an `<h_>` name, a `<dl>` of metadata, body
+/// prose, and a "Referenced by" list. Metadata values and backlinks that resolve
+/// to an entity are `<a class="ref" data-jump="offset">` links. Mirrors the
+/// plain-text [`View::Codex`] walk. Text is escaped for `innerHTML` assignment.
+pub fn render_codex_html(root: &Node) -> String {
+    let idx = CodexIndex::build(root);
+    let mut out = String::new();
+    codex_html(root, &idx, &mut out);
+    out
+}
+
+fn codex_html(node: &Node, idx: &CodexIndex, out: &mut String) {
+    for child in &node.children {
+        if child.visibility == Visibility::Excluded {
+            out.push_str("<section class=\"codex-section\">");
+            codex_html_entry(child, 0, idx, out);
+            out.push_str("</section>");
+        } else {
+            codex_html(child, idx, out);
+        }
+    }
+}
+
+fn codex_html_entry(node: &Node, depth: usize, idx: &CodexIndex, out: &mut String) {
+    // Section title at h2, entities h3, deeper nesting steps down, capped at h6.
+    let lvl = (depth + 2).min(6);
+    let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
+    writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(title)).ok();
+    if !node.meta.is_empty() {
+        out.push_str("<dl>");
+        for (k, v) in &node.meta {
+            write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), meta_value_html(v, idx)).ok();
+        }
+        out.push_str("</dl>");
+    }
+    for block in &node.body {
+        if let Block::Para(spans) = block {
+            let html = html_inlines(spans);
+            if !html.trim().is_empty() {
+                writeln!(out, "<p>{html}</p>").ok();
+            }
+        }
+    }
+    // Backlinks: nodes whose metadata names this entity.
+    if let Some(&i) = idx.by_offset.get(&node.heading_span.start) {
+        let bl = &idx.backlinks[i];
+        if !bl.is_empty() {
+            out.push_str("<div class=\"backlinks\">Referenced by ");
+            for (n, b) in bl.iter().enumerate() {
+                if n > 0 {
+                    out.push_str(", ");
+                }
+                let t = if b.title.is_empty() { "(untitled)" } else { &b.title };
+                write!(out, "<a class=\"ref\" data-jump=\"{}\">{}</a>", b.offset, escape(t)).ok();
+            }
+            out.push_str("</div>");
+        }
+    }
+    // Nested entries wrap so styling can indent them under their parent.
+    for child in &node.children {
+        out.push_str("<article class=\"entity\">");
+        codex_html_entry(child, depth + 1, idx, out);
+        out.push_str("</article>");
+    }
+}
+
+/// A metadata value's comma parts, each linked if it names an entity. Empty
+/// parts (a trailing comma) are dropped.
+fn meta_value_html(v: &str, idx: &CodexIndex) -> String {
+    v.split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(|part| match idx.resolve(part) {
+            Some(off) => format!("<a class=\"ref\" data-jump=\"{off}\">{}</a>", escape(part)),
+            None => escape(part),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn html_inlines(spans: &[Inline]) -> String {
     spans.iter().filter_map(inline_html).collect()
 }
@@ -152,6 +326,33 @@ fn outline(node: &Node, out: &mut String) {
     }
     for child in &node.children {
         outline(child, out);
+    }
+}
+
+/// Codex view: render each excluded (`%`) subtree as a grouped entity index.
+/// Non-excluded nodes are walked through (not shown) so a `% Notes` block nested
+/// under a visible chapter is still collected. Once inside an excluded root the
+/// whole subtree is codex, so it renders unconditionally.
+fn codex(node: &Node, out: &mut String) {
+    for child in &node.children {
+        if child.visibility == Visibility::Excluded {
+            codex_entry(child, 0, out);
+            out.push('\n');
+        } else {
+            codex(child, out);
+        }
+    }
+}
+
+fn codex_entry(node: &Node, depth: usize, out: &mut String) {
+    let indent = "  ".repeat(depth);
+    let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
+    writeln!(out, "{indent}{title}").ok();
+    for (k, v) in &node.meta {
+        writeln!(out, "{indent}  {k}: {v}").ok();
+    }
+    for child in &node.children {
+        codex_entry(child, depth + 1, out);
     }
 }
 

@@ -1,7 +1,9 @@
-//! Tauri shell: two stateless commands over `ink-core`. Text is canonical on
+//! Tauri shell: stateless commands over `ink-core` (parse in, render out). Text is canonical on
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
-use ink_core::{parse, render, render_html, word_count, Node, Span, View, Visibility};
+use ink_core::{
+    parse, render, render_codex_html, render_html, word_count, Node, Span, View, Visibility,
+};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -73,11 +75,17 @@ fn manuscript(src: String) -> String {
     render(&parse(&src), View::Manuscript)
 }
 
+/// Render the codex — the excluded (`%`) subtrees — as HTML for the codex panel.
+#[tauri::command]
+fn codex(src: String) -> String {
+    render_codex_html(&parse(&src))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![outline, preview, manuscript])
+        .invoke_handler(tauri::generate_handler![outline, preview, manuscript, codex])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

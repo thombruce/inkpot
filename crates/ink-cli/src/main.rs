@@ -1,4 +1,4 @@
-//! `ink render --view=manuscript|outline|edit <file.ink>`
+//! `ink render --view=manuscript|outline|edit|codex <file.ink>`
 
 use ink_core::{parse, render, View};
 use std::process::ExitCode;
@@ -20,6 +20,7 @@ fn main() -> ExitCode {
                 "manuscript" => View::Manuscript,
                 "outline" => View::Outline,
                 "edit" => View::Edit,
+                "codex" => View::Codex,
                 other => return err(format!("unknown view '{other}'")),
             };
         } else if arg.starts_with('-') {
@@ -30,7 +31,7 @@ fn main() -> ExitCode {
     }
 
     let Some(path) = path else {
-        return err("usage: ink render --view=manuscript|outline|edit <file.ink>".into());
+        return err("usage: ink render --view=manuscript|outline|edit|codex <file.ink>".into());
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,

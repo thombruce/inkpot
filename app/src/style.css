@@ -64,7 +64,7 @@ body {
   color: var(--dim);
   font-size: 12px;
 }
-.toolbar #togglePreview { margin-left: auto; }
+.toolbar #toggleCodex { margin-left: auto; }
 
 .panes {
   flex: 1;
@@ -82,10 +82,12 @@ body {
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
 body.hide-outline .outline { display: none; }
-.editor, .preview { flex: 1; border-right: none; }
-.preview { display: none; }
-body.show-preview .editor { display: none; }
+.editor, .preview, .codex { flex: 1; border-right: none; }
+.preview, .codex { display: none; }
+body.show-preview .editor,
+body.show-codex .editor { display: none; }
 body.show-preview .preview { display: block; }
+body.show-codex .codex { display: block; }
 
 /* Outline */
 .outline { padding: 8px 0; background: var(--panel); }
@@ -164,3 +166,38 @@ body.show-preview .preview { display: block; }
 .reading p { margin: 0 0 1em; }
 .reading strong { font-weight: 700; }
 .reading em { font-style: italic; }
+
+/* Codex — the derived entity index. Reuses the reading pane; entities nest and
+   their metadata lays out as a compact key/value grid. */
+.codex { background: var(--panel); }
+.codex .codex-section { margin-bottom: 1.5em; }
+.codex .entity {
+  margin: 0.75em 0 0.75em 1.25em;
+  padding-left: 1em;
+  border-left: 1px solid var(--border);
+}
+.codex dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0.4em 0;
+  font: 13px/1.5 system-ui, sans-serif;
+}
+.codex dt { color: var(--dim); }
+.codex dd { margin: 0; color: var(--ink); }
+/* Resolved cross-references (metadata values + backlinks) jump to the entity. */
+.codex .ref { color: var(--accent); cursor: pointer; }
+.codex .ref:hover { text-decoration: underline; }
+.codex .backlinks {
+  margin: 0.5em 0 0 1.25em;
+  font: 12px/1.5 system-ui, sans-serif;
+  color: var(--dim);
+}
+.codex .reading > :first-child,
+.codex h2 { margin-top: 0; }
+.codex:empty::after,
+.codex .reading:empty::after {
+  content: "No codex entries — add a section with the % marker (e.g. % Characters).";
+  color: var(--dim);
+  font: 14px/1.6 system-ui, sans-serif;
+}

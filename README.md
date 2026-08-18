@@ -80,17 +80,20 @@ Same rules: it must start on line 1, and a blank line ends it. Keys are free-for
   Convert onward with pandoc. (The app's Export writes this.)
 - **Outline** — every heading, visible and invisible, indented, with metadata keys.
 - **Edit** — everything, re-serialized.
+- **Codex** — the excluded (`%`) subtrees as a grouped entity index: each `%`
+  section (Characters, Locations, Timeline, …) with its entries and their
+  metadata. A knowledge base derived from what you already write, no new syntax.
 
 ## Repository layout
 
 ```
 crates/
-  ink-core/     Parser, tree, and the three view renderers. Zero UI deps.
+  ink-core/     Parser, tree, and the view renderers. Zero UI deps.
   ink-cli/      `ink render --view=… <file.ink>` — wraps ink-core.
 app/
-  src/          Frontend: CodeMirror editor, outline, preview (Vite, no framework).
-  src-tauri/    Tauri v2 desktop shell. Two stateless commands over ink-core.
-examples/       Sample .ink document.
+  src/          Frontend: CodeMirror editor, outline, preview, codex (Vite, no framework).
+  src-tauri/    Tauri v2 desktop shell. Stateless commands over ink-core (parse, render views).
+examples/       Sample .ink documents (sample.ink, codex.ink).
 docs/ipc.md     The Tauri IPC contract.
 ```
 
@@ -106,6 +109,7 @@ nothing to keep in sync. Rearranging a scene is a text splice, not a tree edit.
 cargo run -p ink-cli -- render --view=manuscript examples/sample.ink
 cargo run -p ink-cli -- render --view=outline    examples/sample.ink
 cargo run -p ink-cli -- render --view=edit       examples/sample.ink
+cargo run -p ink-cli -- render --view=codex      examples/codex.ink
 ```
 
 ### Desktop app
