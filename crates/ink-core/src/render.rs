@@ -24,10 +24,10 @@ pub enum View {
 pub fn render(root: &Node, view: View) -> String {
     let mut out = String::new();
     match view {
-        View::Manuscript => manuscript(root, &mut out),
-        View::Outline => outline(root, &mut out),
+        View::Manuscript => manuscript(root, &root_ctx(root), &mut out),
+        View::Outline => outline(root, &root_ctx(root), &mut out),
         View::Edit => edit(root, &mut out),
-        View::Codex => codex(root, &mut out),
+        View::Codex => codex(root, &root_ctx(root), &mut out),
     }
     if view == View::Manuscript {
         // Each block trails a blank line; collapse the final run to one newline.
@@ -48,7 +48,228 @@ fn sigil(v: Visibility) -> char {
     }
 }
 
-fn manuscript(node: &Node, out: &mut String) {
+/// Resolution context for `{{ … }}` interpolation at a node. `number` is the
+/// node's 1-based position among its non-excluded siblings, `total` their count
+/// (manuscript-authoritative: `%` subtrees never consume a number). `vars` is
+/// the metadata cascade — front matter plus every ancestor's `key: value`, this
+/// node's own last, nearest wins.
+struct Ctx {
+    number: i64,
+    total: i64,
+    vars: HashMap<String, String>,
+}
+
+/// The root's context: front matter as variables, no position.
+fn root_ctx(root: &Node) -> Ctx {
+    let mut vars = HashMap::new();
+    for (k, v) in &root.meta {
+        vars.insert(k.clone(), v.clone());
+    }
+    Ctx { number: 0, total: 0, vars }
+}
+
+/// One `Ctx` per child of `node`, in order: numbering over the non-excluded
+/// siblings, and the parent cascade extended with each child's own metadata.
+fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
+    let total = node
+        .children
+        .iter()
+        .filter(|c| c.visibility != Visibility::Excluded)
+        .count() as i64;
+    let mut number = 0i64;
+    node.children
+        .iter()
+        .map(|child| {
+            let n = if child.visibility != Visibility::Excluded {
+                number += 1;
+                number
+            } else {
+                0 // excluded nodes are outside manuscript numbering
+            };
+            let mut vars = ctx.vars.clone();
+            for (k, v) in &child.meta {
+                vars.insert(k.clone(), v.clone());
+            }
+            Ctx { number: n, total, vars }
+        })
+        .collect()
+}
+
+/// Resolve every heading's `{{…}}` interpolation, keyed by the heading's start
+/// offset (`heading_span.start`, unique per heading). For consumers that walk the
+/// [`Node`] tree themselves — the app's outline rail — and need the same resolved
+/// titles the rendered views show. The root heading (offset 0, no title) is not
+/// included; a heading without interpolation maps to its plain title.
+pub fn resolve_titles(root: &Node) -> HashMap<usize, String> {
+    let mut map = HashMap::new();
+    for (child, cctx) in root.children.iter().zip(child_ctxs(root, &root_ctx(root))) {
+        resolve_titles_walk(child, &cctx, &mut map);
+    }
+    map
+}
+
+fn resolve_titles_walk(node: &Node, ctx: &Ctx, map: &mut HashMap<usize, String>) {
+    map.insert(node.heading_span.start, substitute(&node.title, ctx));
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        resolve_titles_walk(child, &cctx, map);
+    }
+}
+
+/// Resolve `{{ … }}` interpolations in `text`. An unresolved expression (unknown
+/// variable, malformed arithmetic) is left verbatim — visible in the output as a
+/// signal it is unfinished, matching CriticMarkup's ethos. So a stray `{{foo}}`
+/// in ordinary prose just prints as-is.
+///
+/// A `\{{` renders a literal `{{`. This works for headings; in *prose* the
+/// parser strips the backslash before render (`{` is escapable), so a prose
+/// `\{{` cannot escape a *resolvable* var — but an unknown one passes through raw
+/// anyway, covering the common case.
+// ponytail: no Inline::Interp token — prose is scanned once, we substitute the
+// Text runs at render. Upgrade to a parse-time token (like `[[wikilinks]]`) only
+// if prose needs to escape a resolvable var.
+fn substitute(text: &str, ctx: &Ctx) -> String {
+    if !text.contains("{{") {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(pos) = rest.find("{{") {
+        if rest[..pos].ends_with('\\') {
+            out.push_str(&rest[..pos - 1]); // drop the escaping backslash
+            out.push_str("{{");
+            rest = &rest[pos + 2..];
+            continue;
+        }
+        out.push_str(&rest[..pos]);
+        let after = &rest[pos + 2..];
+        match after.find("}}") {
+            Some(end) => {
+                let expr = &after[..end];
+                match eval(expr, ctx) {
+                    Some(v) => out.push_str(&v),
+                    None => {
+                        out.push_str("{{");
+                        out.push_str(expr);
+                        out.push_str("}}");
+                    }
+                }
+                rest = &after[end + 2..];
+            }
+            None => {
+                out.push_str("{{");
+                out.push_str(after);
+                rest = "";
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Evaluate an interpolation expression. `Some` on success; `None` when a
+/// variable is unknown or the expression is malformed (the caller keeps the raw
+/// `{{…}}`). A bare metadata key yields its string value; anything else is
+/// integer arithmetic (`+ - * / ( )`, unary `-`) over `number`, `total`, and
+/// integer-valued metadata.
+fn eval(expr: &str, ctx: &Ctx) -> Option<String> {
+    let key = expr.trim();
+    // Built-ins win over metadata of the same name, so don't shortcut them here;
+    // the arithmetic path below resolves `number`/`total`.
+    if key != "number" && key != "total" {
+        if let Some(v) = ctx.vars.get(key) {
+            return Some(v.clone());
+        }
+    }
+    let mut p = ExprParser { b: expr.as_bytes(), i: 0, ctx };
+    let v = p.expr()?;
+    p.ws();
+    (p.i == p.b.len()).then(|| v.to_string())
+}
+
+/// Recursive-descent evaluator for the integer arithmetic subset. Deliberately
+/// tiny: no functions, strings, or conditionals — keep it that way.
+struct ExprParser<'a> {
+    b: &'a [u8],
+    i: usize,
+    ctx: &'a Ctx,
+}
+
+impl ExprParser<'_> {
+    fn ws(&mut self) {
+        while self.i < self.b.len() && self.b[self.i].is_ascii_whitespace() {
+            self.i += 1;
+        }
+    }
+    fn expr(&mut self) -> Option<i64> {
+        let mut v = self.term()?;
+        loop {
+            self.ws();
+            match self.b.get(self.i) {
+                Some(b'+') => { self.i += 1; v += self.term()?; }
+                Some(b'-') => { self.i += 1; v -= self.term()?; }
+                _ => return Some(v),
+            }
+        }
+    }
+    fn term(&mut self) -> Option<i64> {
+        let mut v = self.factor()?;
+        loop {
+            self.ws();
+            match self.b.get(self.i) {
+                Some(b'*') => { self.i += 1; v *= self.factor()?; }
+                Some(b'/') => {
+                    self.i += 1;
+                    let d = self.factor()?;
+                    if d == 0 {
+                        return None;
+                    }
+                    v /= d;
+                }
+                _ => return Some(v),
+            }
+        }
+    }
+    fn factor(&mut self) -> Option<i64> {
+        self.ws();
+        let &c = self.b.get(self.i)?;
+        match c {
+            b'-' => { self.i += 1; Some(-self.factor()?) }
+            b'(' => {
+                self.i += 1;
+                let v = self.expr()?;
+                self.ws();
+                (self.b.get(self.i) == Some(&b')')).then(|| {
+                    self.i += 1;
+                    v
+                })
+            }
+            b'0'..=b'9' => {
+                let start = self.i;
+                while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+                    self.i += 1;
+                }
+                std::str::from_utf8(&self.b[start..self.i]).ok()?.parse().ok()
+            }
+            c if c.is_ascii_alphabetic() || c == b'_' => {
+                let start = self.i;
+                while self.i < self.b.len()
+                    && (self.b[self.i].is_ascii_alphanumeric() || self.b[self.i] == b'_')
+                {
+                    self.i += 1;
+                }
+                let name = std::str::from_utf8(&self.b[start..self.i]).ok()?;
+                match name {
+                    "number" => Some(self.ctx.number),
+                    "total" => Some(self.ctx.total),
+                    _ => self.ctx.vars.get(name)?.trim().parse().ok(),
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+fn manuscript(node: &Node, ctx: &Ctx, out: &mut String) {
     // Excluded subtrees never reach the manuscript.
     if node.visibility == Visibility::Excluded {
         return;
@@ -58,18 +279,18 @@ fn manuscript(node: &Node, out: &mut String) {
     // the whole manuscript is valid Markdown — convert onward with pandoc.
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
         let hashes = "#".repeat(node.level.min(6) as usize);
-        writeln!(out, "{hashes} {}\n", node.title).ok();
+        writeln!(out, "{hashes} {}\n", substitute(&node.title, ctx)).ok();
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
-            let line = print_inlines(spans);
+            let line = print_inlines(spans, ctx);
             if !line.trim().is_empty() {
                 writeln!(out, "{}\n", line.trim()).ok();
             }
         }
     }
-    for child in &node.children {
-        manuscript(child, out);
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        manuscript(child, &cctx, out);
     }
 }
 
@@ -78,17 +299,21 @@ fn manuscript(node: &Node, out: &mut String) {
 /// substitutions count their replacement; visible heading titles are not counted
 /// (prose only, matching how writers tally). Mirrors `manuscript`'s resolution.
 pub fn word_count(node: &Node) -> usize {
+    word_count_ctx(node, &root_ctx(node))
+}
+
+fn word_count_ctx(node: &Node, ctx: &Ctx) -> usize {
     if node.visibility == Visibility::Excluded {
         return 0;
     }
     let mut n = 0;
     for block in &node.body {
         if let Block::Para(spans) = block {
-            n += print_inlines(spans).split_whitespace().count();
+            n += print_inlines(spans, ctx).split_whitespace().count();
         }
     }
-    for child in &node.children {
-        n += word_count(child);
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        n += word_count_ctx(child, &cctx);
     }
     n
 }
@@ -99,28 +324,28 @@ pub fn word_count(node: &Node) -> usize {
 /// within a paragraph become `<br>` (so verse lines survive).
 pub fn render_html(root: &Node) -> String {
     let mut out = String::new();
-    manuscript_html(root, &mut out);
+    manuscript_html(root, &root_ctx(root), &mut out);
     out
 }
 
-fn manuscript_html(node: &Node, out: &mut String) {
+fn manuscript_html(node: &Node, ctx: &Ctx, out: &mut String) {
     if node.visibility == Visibility::Excluded {
         return;
     }
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
         let lvl = node.level.min(6);
-        writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&node.title)).ok();
+        writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&substitute(&node.title, ctx))).ok();
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
-            let html = html_inlines(spans);
+            let html = html_inlines(spans, ctx);
             if !html.trim().is_empty() {
                 writeln!(out, "<p>{html}</p>").ok();
             }
         }
     }
-    for child in &node.children {
-        manuscript_html(child, out);
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        manuscript_html(child, &cctx, out);
     }
 }
 
@@ -160,7 +385,10 @@ impl<'a> CodexIndex<'a> {
             by_offset.insert(e.heading_span.start, i);
         }
         let mut backlinks: Vec<Vec<Backref>> = (0..entities.len()).map(|_| Vec::new()).collect();
-        collect_backlinks(root, &by_name, &entities, &mut backlinks);
+        // Referrer labels use the same resolved titles as the views, so a
+        // `# Chapter {{number}}` backlink reads "Chapter 3", not the raw formula.
+        let titles = resolve_titles(root);
+        collect_backlinks(root, &by_name, &entities, &titles, &mut backlinks);
         CodexIndex { entities, by_name, by_offset, backlinks }
     }
 
@@ -190,6 +418,7 @@ fn collect_backlinks(
     node: &Node,
     by_name: &HashMap<String, usize>,
     entities: &[&Node],
+    titles: &HashMap<usize, String>,
     backlinks: &mut [Vec<Backref>],
 ) {
     for child in &node.children {
@@ -210,10 +439,11 @@ fn collect_backlinks(
             }
             let bl = &mut backlinks[idx];
             if !bl.iter().any(|b| b.offset == from) {
-                bl.push(Backref { title: child.title.clone(), offset: from });
+                let title = titles.get(&from).cloned().unwrap_or_else(|| child.title.clone());
+                bl.push(Backref { title, offset: from });
             }
         }
-        collect_backlinks(child, by_name, entities, backlinks);
+        collect_backlinks(child, by_name, entities, titles, backlinks);
     }
 }
 
@@ -244,27 +474,31 @@ fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
 pub fn render_codex_html(root: &Node) -> String {
     let idx = CodexIndex::build(root);
     let mut out = String::new();
-    codex_html(root, &idx, &mut out);
+    codex_html(root, &root_ctx(root), &idx, &mut out);
     out
 }
 
-fn codex_html(node: &Node, idx: &CodexIndex, out: &mut String) {
-    for child in &node.children {
+fn codex_html(node: &Node, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
             out.push_str("<section class=\"codex-section\">");
-            codex_html_entry(child, 0, idx, out);
+            codex_html_entry(child, 0, &cctx, idx, out);
             out.push_str("</section>");
         } else {
-            codex_html(child, idx, out);
+            codex_html(child, &cctx, idx, out);
         }
     }
 }
 
-fn codex_html_entry(node: &Node, depth: usize, idx: &CodexIndex, out: &mut String) {
+fn codex_html_entry(node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
     // Section title at h2, entities h3, deeper nesting steps down, capped at h6.
     let lvl = (depth + 2).min(6);
-    let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
-    writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(title)).ok();
+    let title = if node.title.is_empty() {
+        "(untitled)".to_string()
+    } else {
+        substitute(&node.title, ctx)
+    };
+    writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&title)).ok();
     if !node.meta.is_empty() {
         out.push_str("<dl>");
         for (k, v) in &node.meta {
@@ -274,7 +508,7 @@ fn codex_html_entry(node: &Node, depth: usize, idx: &CodexIndex, out: &mut Strin
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
-            let html = html_inlines(spans);
+            let html = html_inlines(spans, ctx);
             if !html.trim().is_empty() {
                 writeln!(out, "<p>{html}</p>").ok();
             }
@@ -296,9 +530,9 @@ fn codex_html_entry(node: &Node, depth: usize, idx: &CodexIndex, out: &mut Strin
         }
     }
     // Nested entries wrap so styling can indent them under their parent.
-    for child in &node.children {
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         out.push_str("<article class=\"entity\">");
-        codex_html_entry(child, depth + 1, idx, out);
+        codex_html_entry(child, depth + 1, &cctx, idx, out);
         out.push_str("</article>");
     }
 }
@@ -317,17 +551,17 @@ fn meta_value_html(v: &str, idx: &CodexIndex) -> String {
         .join(", ")
 }
 
-fn html_inlines(spans: &[Inline]) -> String {
-    spans.iter().filter_map(inline_html).collect()
+fn html_inlines(spans: &[Inline], ctx: &Ctx) -> String {
+    spans.iter().filter_map(|s| inline_html(s, ctx)).collect()
 }
 
-fn inline_html(span: &Inline) -> Option<String> {
+fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
     Some(match span {
-        Inline::Text(s) => escape(s).replace('\n', "<br>"),
-        Inline::Bold(cs) => format!("<strong>{}</strong>", html_inlines(cs)),
-        Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs)),
-        Inline::Insert(cs) => html_inlines(cs),
-        Inline::Sub { new, .. } => html_inlines(new),
+        Inline::Text(s) => escape(&substitute(s, ctx)).replace('\n', "<br>"),
+        Inline::Bold(cs) => format!("<strong>{}</strong>", html_inlines(cs, ctx)),
+        Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs, ctx)),
+        Inline::Insert(cs) => html_inlines(cs, ctx),
+        Inline::Sub { new, .. } => html_inlines(new, ctx),
         Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(s)),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
@@ -338,12 +572,16 @@ fn escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-fn outline(node: &Node, out: &mut String) {
+fn outline(node: &Node, ctx: &Ctx, out: &mut String) {
     if node.level > 0 {
         let sigil = sigil(node.visibility);
         let indent = "  ".repeat((node.level - 1) as usize);
         let marker: String = std::iter::repeat(sigil).take(node.level as usize).collect();
-        let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
+        let title = if node.title.is_empty() {
+            "(untitled)".to_string()
+        } else {
+            substitute(&node.title, ctx)
+        };
         write!(out, "{indent}{marker} {title}").ok();
         if !node.meta.is_empty() {
             let keys = node.meta.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>().join(", ");
@@ -351,8 +589,8 @@ fn outline(node: &Node, out: &mut String) {
         }
         out.push('\n');
     }
-    for child in &node.children {
-        outline(child, out);
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        outline(child, &cctx, out);
     }
 }
 
@@ -360,26 +598,30 @@ fn outline(node: &Node, out: &mut String) {
 /// Non-excluded nodes are walked through (not shown) so a `% Notes` block nested
 /// under a visible chapter is still collected. Once inside an excluded root the
 /// whole subtree is codex, so it renders unconditionally.
-fn codex(node: &Node, out: &mut String) {
-    for child in &node.children {
+fn codex(node: &Node, ctx: &Ctx, out: &mut String) {
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
-            codex_entry(child, 0, out);
+            codex_entry(child, 0, &cctx, out);
             out.push('\n');
         } else {
-            codex(child, out);
+            codex(child, &cctx, out);
         }
     }
 }
 
-fn codex_entry(node: &Node, depth: usize, out: &mut String) {
+fn codex_entry(node: &Node, depth: usize, ctx: &Ctx, out: &mut String) {
     let indent = "  ".repeat(depth);
-    let title = if node.title.is_empty() { "(untitled)" } else { &node.title };
+    let title = if node.title.is_empty() {
+        "(untitled)".to_string()
+    } else {
+        substitute(&node.title, ctx)
+    };
     writeln!(out, "{indent}{title}").ok();
     for (k, v) in &node.meta {
         writeln!(out, "{indent}  {k}: {v}").ok();
     }
-    for child in &node.children {
-        codex_entry(child, depth + 1, out);
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        codex_entry(child, depth + 1, &cctx, out);
     }
 }
 
@@ -413,17 +655,17 @@ fn edit(node: &Node, out: &mut String) {
 }
 
 /// Inline sequence -> print output: visible markup kept, criticmarkup resolved.
-fn print_inlines(spans: &[Inline]) -> String {
-    spans.iter().filter_map(inline_print).collect()
+fn print_inlines(spans: &[Inline], ctx: &Ctx) -> String {
+    spans.iter().filter_map(|s| inline_print(s, ctx)).collect()
 }
 
-fn inline_print(span: &Inline) -> Option<String> {
+fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
     Some(match span {
-        Inline::Text(s) => s.clone(),
-        Inline::Bold(cs) => format!("**{}**", print_inlines(cs)),
-        Inline::Italic(cs) => format!("*{}*", print_inlines(cs)),
-        Inline::Insert(cs) => print_inlines(cs),
-        Inline::Sub { new, .. } => print_inlines(new),
+        Inline::Text(s) => substitute(s, ctx),
+        Inline::Bold(cs) => format!("**{}**", print_inlines(cs, ctx)),
+        Inline::Italic(cs) => format!("*{}*", print_inlines(cs, ctx)),
+        Inline::Insert(cs) => print_inlines(cs, ctx),
+        Inline::Sub { new, .. } => print_inlines(new, ctx),
         Inline::Link(s) => s.clone(),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })

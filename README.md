@@ -76,6 +76,25 @@ Same rules: it must start on line 1, and a blank line ends it. Keys are free-for
   Prints as the bare name; in the codex it resolves to a link and adds the
   scene to that entity's backlinks. Escape a literal `[` with `\[`.
 
+### Interpolation
+
+`{{ … }}` in a heading or prose is resolved at render time — every view that
+shows text (manuscript, HTML preview, outline rail, codex):
+
+- `{{number}}` — this heading's 1-based position among its siblings.
+- `{{total}}` — how many siblings there are.
+- `{{key}}` — a metadata value: the nearest one on this node or an ancestor,
+  falling back to document front matter. So `{{title}}` reaches the front matter
+  anywhere.
+- Integer arithmetic over the above: `+ - * / ( )` and unary `-`. E.g.
+  `# Chapter {{number}} of {{total}}`, or a countup to zero with
+  `# Chapter {{number - total}}`.
+
+Numbering is **manuscript-authoritative**: excluded (`%`) siblings never consume
+a number. An unresolved expression (unknown key, malformed arithmetic) is left
+verbatim — a visible `{{…}}` in the page marks it unfinished, like CriticMarkup.
+A `\{{` in a heading is a literal `{{`.
+
 ### Views
 
 - **Manuscript** — print view as Markdown: visible headings (`#` by depth),
