@@ -93,7 +93,9 @@ shows text (manuscript, HTML preview, outline rail, codex):
 Numbering is **manuscript-authoritative**: excluded (`%`) siblings never consume
 a number. An unresolved expression (unknown key, malformed arithmetic) is left
 verbatim — a visible `{{…}}` in the page marks it unfinished, like CriticMarkup.
-A `\{{` in a heading is a literal `{{`.
+A `\{{` in a heading is a literal `{{`. Interpolation is not resolved inside a
+`[[wikilink]]` target — that names an entity literally, so `[[{{key}}]]` stays
+raw.
 
 ### Views
 
