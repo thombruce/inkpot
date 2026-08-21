@@ -198,6 +198,9 @@ fn interpolation_resolves_numbering_and_metadata() {
     assert!(m2.contains("# -1\n") && m2.contains("# 0\n"), "{m2}");
     // Precedence + parens + unary minus.
     assert!(render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"));
+    // Overflow is left verbatim, not a panic (debug) or wrapped garbage (release).
+    assert!(render(&parse("# {{9999999999 * 9999999999}}\n"), View::Manuscript)
+        .contains("{{9999999999 * 9999999999}}"));
 
     // A `%` sibling is outside numbering (manuscript-authoritative).
     let ex = "# One {{number}}\n\n% Note\n\n# Two {{number}}\n";

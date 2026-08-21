@@ -205,8 +205,10 @@ impl ExprParser<'_> {
         loop {
             self.ws();
             match self.b.get(self.i) {
-                Some(b'+') => { self.i += 1; v += self.term()?; }
-                Some(b'-') => { self.i += 1; v -= self.term()?; }
+                // checked_* so an overflowing expression resolves to None and is
+                // left verbatim, never panicking (debug) or wrapping (release).
+                Some(b'+') => { self.i += 1; v = v.checked_add(self.term()?)?; }
+                Some(b'-') => { self.i += 1; v = v.checked_sub(self.term()?)?; }
                 _ => return Some(v),
             }
         }
@@ -216,15 +218,9 @@ impl ExprParser<'_> {
         loop {
             self.ws();
             match self.b.get(self.i) {
-                Some(b'*') => { self.i += 1; v *= self.factor()?; }
-                Some(b'/') => {
-                    self.i += 1;
-                    let d = self.factor()?;
-                    if d == 0 {
-                        return None;
-                    }
-                    v /= d;
-                }
+                Some(b'*') => { self.i += 1; v = v.checked_mul(self.factor()?)?; }
+                // checked_div covers both zero and the i64::MIN / -1 overflow.
+                Some(b'/') => { self.i += 1; v = v.checked_div(self.factor()?)?; }
                 _ => return Some(v),
             }
         }
@@ -233,7 +229,7 @@ impl ExprParser<'_> {
         self.ws();
         let &c = self.b.get(self.i)?;
         match c {
-            b'-' => { self.i += 1; Some(-self.factor()?) }
+            b'-' => { self.i += 1; self.factor()?.checked_neg() }
             b'(' => {
                 self.i += 1;
                 let v = self.expr()?;
