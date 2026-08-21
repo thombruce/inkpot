@@ -7,6 +7,13 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- `{{ … }}` interpolation in headings and prose, resolved at render time:
+  `{{number}}`/`{{total}}` for manuscript-authoritative heading numbering,
+  metadata keys (cascading to front matter), and integer arithmetic over them
+  (e.g. `# Chapter {{number - total}}`). Unknown expressions stay verbatim.
+
 ## [0.4.0] - 2026-08-18
 
 ### Added

@@ -18,6 +18,7 @@ const t = {
   strong: Tag.define(),
   emphasis: Tag.define(),
   link: Tag.define(),
+  interp: Tag.define(),
 };
 
 // Left-flanking opener: char at `at` exists and is not whitespace.
@@ -70,6 +71,9 @@ const inkMode = StreamLanguage.define({
       return null;
     }
 
+    // Interpolation {{expr}} — resolved at render time (numbering, metadata).
+    if (stream.match(/^\{\{[^}]*\}\}/)) return "interp";
+
     // CriticMarkup.
     if (stream.match(/^\{\+[^}]*\}/)) return "insert";
     if (stream.match(/^\{-[^}]*\}/)) return "del";
@@ -112,6 +116,7 @@ const inkMode = StreamLanguage.define({
     strong: t.strong,
     emphasis: t.emphasis,
     link: t.link,
+    interp: t.interp,
   },
 });
 
@@ -129,6 +134,8 @@ const highlight = HighlightStyle.define([
   { tag: t.strong, fontWeight: "bold", color: "#e6e6ea" },
   { tag: t.emphasis, fontStyle: "italic", color: "#e6e6ea" },
   { tag: t.link, color: "#7aa2f7", textDecoration: "underline" },
+  // A computed value, distinct from prose and from the blue of links.
+  { tag: t.interp, color: "#bb9af7" },
 ]);
 
 export const ink = () => [inkMode, syntaxHighlighting(highlight)];

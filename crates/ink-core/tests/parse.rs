@@ -184,6 +184,75 @@ fn wikilink_in_prose_backlinks_to_entity() {
     assert!(html.contains(">Scene</a>"), "scene not backlinked: {html}");
 }
 
+#[test]
+fn interpolation_resolves_numbering_and_metadata() {
+    // number = 1-based position among non-excluded siblings; total = their count.
+    let doc = "# Chapter {{number}}\n\n# Chapter {{number}} of {{total}}\n";
+    let m = render(&parse(doc), View::Manuscript);
+    assert!(m.contains("# Chapter 1\n"), "{m}");
+    assert!(m.contains("# Chapter 2 of 2\n"), "{m}");
+
+    // Arithmetic: the countdown 1-N..0 from `number - total`.
+    let cd = "# {{number - total}}\n\n# {{number - total}}\n";
+    let m2 = render(&parse(cd), View::Manuscript);
+    assert!(m2.contains("# -1\n") && m2.contains("# 0\n"), "{m2}");
+    // Precedence + parens + unary minus.
+    assert!(render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"));
+    // Overflow is left verbatim, not a panic (debug) or wrapped garbage (release).
+    assert!(render(&parse("# {{9999999999 * 9999999999}}\n"), View::Manuscript)
+        .contains("{{9999999999 * 9999999999}}"));
+
+    // A `%` sibling is outside numbering (manuscript-authoritative).
+    let ex = "# One {{number}}\n\n% Note\n\n# Two {{number}}\n";
+    let m3 = render(&parse(ex), View::Manuscript);
+    assert!(m3.contains("# One 1\n") && m3.contains("# Two 2\n"), "{m3}");
+
+    // Front-matter var cascades into prose; an unknown var stays raw.
+    let meta = "place: New York\n\n# Home\n\nThere in {{place}}, not {{gone}}.\n";
+    let m4 = render(&parse(meta), View::Manuscript);
+    assert!(m4.contains("There in New York, not {{gone}}."), "{m4}");
+
+    // Metadata used in arithmetic; a scene's own meta wins over front matter.
+    let arith = "base: 10\n\n# H\n\n{{base + number}}\n";
+    assert!(render(&parse(arith), View::Manuscript).contains("11"), "meta arithmetic");
+
+    // Heading `\{{` escapes to a literal (title is not scanned by the parser).
+    let esc = "# Literal \\{{number}}\n\n# x\n";
+    assert!(render(&parse(esc), View::Manuscript).contains("# Literal {{number}}\n"), "escape");
+
+    // A metadata key named like a built-in does not shadow it (built-ins win).
+    let shadow = "total: 99\n\n# H {{total}}\n\n# H2\n";
+    assert!(render(&parse(shadow), View::Manuscript).contains("# H 2\n"), "built-in wins");
+
+    // Edit view round-trips the raw source, unresolved.
+    assert!(render(&parse("# Chapter {{number}}\n"), View::Edit).contains("# Chapter {{number}}"));
+}
+
+#[test]
+fn interpolation_resolves_in_outline_and_codex() {
+    // resolve_titles gives the same resolved titles the views show, keyed by offset.
+    let titles =
+        ink_core::resolve_titles(&parse("# Chapter {{number}}\n\n# Chapter {{number}} of {{total}}\n"));
+    assert!(titles.values().any(|t| t == "Chapter 1"), "{titles:?}");
+    assert!(titles.values().any(|t| t == "Chapter 2 of 2"), "{titles:?}");
+
+    // Codex titles resolve, with the front-matter cascade reaching a `%` entry.
+    let cx = render(&parse("place: Paris\n\n% Places\n\n%% Home {{place}}\n"), View::Codex);
+    assert!(cx.contains("Home Paris"), "{cx}");
+
+    // Codex HTML resolves metadata interpolation in a note's body.
+    let html = ink_core::render_codex_html(&parse(
+        "place: Paris\n\n% Places\n\n%% Home\n\nSet in {{place}}.\n",
+    ));
+    assert!(html.contains("Set in Paris."), "{html}");
+
+    // A backlink label from a `{{number}}` heading shows the resolved title.
+    let bl = ink_core::render_codex_html(&parse(
+        "# Chapter {{number}}\n\n[[Alice]] appears.\n\n% C\n\n%% Alice\n",
+    ));
+    assert!(bl.contains(">Chapter 1</a>"), "backlink label unresolved: {bl}");
+}
+
 // A single Text span wrapped as an inline sequence (the common operand shape).
 fn txt(s: &str) -> Vec<Inline> {
     vec![Inline::Text(s.to_string())]
