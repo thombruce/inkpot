@@ -27,7 +27,7 @@ pub fn render(root: &Node, view: View) -> String {
         View::Manuscript => manuscript(root, &root_ctx(root), &mut out),
         View::Outline => outline(root, &root_ctx(root), &mut out),
         View::Edit => edit(root, &mut out),
-        View::Codex => codex(root, &root_ctx(root), &mut out),
+        View::Codex => codex(root, &root_ctx(root), &[], &mut out),
     }
     if view == View::Manuscript {
         // Each block trails a blank line; collapse the final run to one newline.
@@ -470,20 +470,37 @@ fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
 pub fn render_codex_html(root: &Node) -> String {
     let idx = CodexIndex::build(root);
     let mut out = String::new();
-    codex_html(root, &root_ctx(root), &idx, &mut out);
+    codex_html(root, &root_ctx(root), &idx, &[], &mut out);
     out
 }
 
-fn codex_html(node: &Node, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
+/// `scope` is the resolved titles of the visible (`#`/`~`) ancestors walked
+/// through to reach here — a `%% Synopsis` under `## Chapter 1` renders under
+/// scope `["Chapter 1"]`, so two same-named notes in different chapters read
+/// distinctly. Display only; reference resolution still keys on bare title.
+fn codex_html(node: &Node, ctx: &Ctx, idx: &CodexIndex, scope: &[String], out: &mut String) {
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
             out.push_str("<section class=\"codex-section\">");
+            if !scope.is_empty() {
+                write!(out, "<div class=\"codex-scope\">{}</div>", escape(&scope.join(" / "))).ok();
+            }
             codex_html_entry(child, 0, &cctx, idx, out);
             out.push_str("</section>");
         } else {
-            codex_html(child, &cctx, idx, out);
+            codex_html(child, &cctx, idx, &pushed_scope(scope, &child.title, &cctx), out);
         }
     }
+}
+
+/// Extend a scope with a visible ancestor's resolved title, dropping empties.
+fn pushed_scope(scope: &[String], title: &str, ctx: &Ctx) -> Vec<String> {
+    let mut inner = scope.to_vec();
+    let t = substitute(title, ctx);
+    if !t.is_empty() {
+        inner.push(t);
+    }
+    inner
 }
 
 fn codex_html_entry(node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
@@ -594,13 +611,16 @@ fn outline(node: &Node, ctx: &Ctx, out: &mut String) {
 /// Non-excluded nodes are walked through (not shown) so a `% Notes` block nested
 /// under a visible chapter is still collected. Once inside an excluded root the
 /// whole subtree is codex, so it renders unconditionally.
-fn codex(node: &Node, ctx: &Ctx, out: &mut String) {
+fn codex(node: &Node, ctx: &Ctx, scope: &[String], out: &mut String) {
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
+            if !scope.is_empty() {
+                writeln!(out, "[{}]", scope.join(" / ")).ok();
+            }
             codex_entry(child, 0, &cctx, out);
             out.push('\n');
         } else {
-            codex(child, &cctx, out);
+            codex(child, &cctx, &pushed_scope(scope, &child.title, &cctx), out);
         }
     }
 }

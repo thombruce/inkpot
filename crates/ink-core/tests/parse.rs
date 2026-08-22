@@ -145,6 +145,24 @@ fn codex_html_nests_entities_and_metadata() {
 }
 
 #[test]
+fn codex_scopes_repeated_notes_by_visible_ancestors() {
+    // Two `%% Synopsis`, one per chapter: each renders under its chapter's scope
+    // so they read distinctly instead of as two bare "Synopsis" lines.
+    let src = "# Chapter 1\n\n%% Synopsis\n\nA.\n\n# Chapter 2\n\n%% Synopsis\n\nB.\n\n% Characters\n";
+    let text = render(&parse(src), View::Codex);
+    assert!(text.contains("[Chapter 1]"), "missing chapter-1 scope: {text}");
+    assert!(text.contains("[Chapter 2]"), "missing chapter-2 scope: {text}");
+    let html = ink_core::render_codex_html(&parse(src));
+    assert!(html.contains("<div class=\"codex-scope\">Chapter 1</div>"), "no html scope: {html}");
+    // A root-level `%` (Characters) carries no scope breadcrumb.
+    assert!(!html.contains("<div class=\"codex-scope\">Characters"), "root entity mis-scoped: {html}");
+    // Nested scope joins ancestors.
+    let nested = "# Frankenstein\n\n## Chapter 1\n\n%%% Synopsis\n\nX.\n";
+    let nhtml = ink_core::render_codex_html(&parse(nested));
+    assert!(nhtml.contains("<div class=\"codex-scope\">Frankenstein / Chapter 1</div>"), "nested scope wrong: {nhtml}");
+}
+
+#[test]
 fn codex_resolves_metadata_refs_and_backlinks() {
     // A scene names Alice; the timeline entry names London and Alice. Both are
     // `%` entities, so those values become links and the entities get backlinks.

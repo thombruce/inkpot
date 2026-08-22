@@ -172,6 +172,13 @@ body.show-codex .codex { display: block; }
    their metadata lays out as a compact key/value grid. */
 .codex { background: var(--panel); }
 .codex .codex-section { margin-bottom: 1.5em; }
+/* Scope breadcrumb: the visible-heading ancestors a nested `%` note sits under. */
+.codex .codex-scope {
+  font: 11px/1.4 system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+}
 .codex .entity {
   margin: 0.75em 0 0.75em 1.25em;
   padding-left: 1em;
