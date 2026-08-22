@@ -3,6 +3,7 @@
 use crate::{Block, Inline, Node, Visibility};
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::rc::Rc;
 
 /// Which projection of the document to render.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,15 +58,26 @@ struct Ctx {
     number: i64,
     total: i64,
     vars: HashMap<String, String>,
+    // Shared, document-wide: fold(title)|fold(id) -> an entity's resolved title,
+    // for printing `[[links]]`. Rc so per-node Ctx clones stay cheap.
+    links: Rc<HashMap<String, String>>,
 }
 
-/// The root's context: front matter as variables, no position.
+/// The root's context: front matter as variables, no position. Carries the
+/// `[[link]]` title map, so prose rendering resolves link display text.
 fn root_ctx(root: &Node) -> Ctx {
+    Ctx { links: Rc::new(link_titles(root)), ..base_ctx(root) }
+}
+
+/// A root context without the link map. Used where link resolution isn't needed
+/// and would recurse — `link_titles` builds on `resolve_titles`, which must not
+/// re-enter `root_ctx`/`link_titles`.
+fn base_ctx(root: &Node) -> Ctx {
     let mut vars = HashMap::new();
     for (k, v) in &root.meta {
         vars.insert(k.clone(), v.clone());
     }
-    Ctx { number: 0, total: 0, vars }
+    Ctx { number: 0, total: 0, vars, links: Rc::new(HashMap::new()) }
 }
 
 /// One `Ctx` per child of `node`, in order: numbering over the non-excluded
@@ -90,9 +102,39 @@ fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
             for (k, v) in &child.meta {
                 vars.insert(k.clone(), v.clone());
             }
-            Ctx { number: n, total, vars }
+            Ctx { number: n, total, vars, links: ctx.links.clone() }
         })
         .collect()
+}
+
+/// Build the `[[link]]` resolution map: fold(title) and fold(id) of every codex
+/// entity (a `%` heading with a title) mapped to its resolved title. Ids win
+/// over titles on collision, matching `CodexIndex::resolve_idx`. Duplicate
+/// titles collapse to the same string, so no scope disambiguation is needed —
+/// they print identically.
+fn link_titles(root: &Node) -> HashMap<String, String> {
+    let mut entities = Vec::new();
+    collect_entities(root, &mut entities);
+    let resolved = resolve_titles(root);
+    let title_of = |e: &Node| {
+        resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone())
+    };
+    let mut m = HashMap::new();
+    for e in &entities {
+        m.entry(fold_name(&e.title)).or_insert_with(|| title_of(e));
+    }
+    for e in &entities {
+        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == "id") {
+            m.insert(fold_name(v), title_of(e));
+        }
+    }
+    m
+}
+
+/// The display text for a `[[target]]`: the resolved title of whatever it
+/// resolves to, or the target verbatim if nothing matches.
+fn link_text(target: &str, links: &HashMap<String, String>) -> String {
+    links.get(&fold_name(target)).cloned().unwrap_or_else(|| target.to_string())
 }
 
 /// Resolve every heading's `{{…}}` interpolation, keyed by the heading's start
@@ -102,7 +144,7 @@ fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
 /// included; a heading without interpolation maps to its plain title.
 pub fn resolve_titles(root: &Node) -> HashMap<usize, String> {
     let mut map = HashMap::new();
-    for (child, cctx) in root.children.iter().zip(child_ctxs(root, &root_ctx(root))) {
+    for (child, cctx) in root.children.iter().zip(child_ctxs(root, &base_ctx(root))) {
         resolve_titles_walk(child, &cctx, &mut map);
     }
     map
@@ -654,7 +696,7 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs, ctx)),
         Inline::Insert(cs) => html_inlines(cs, ctx),
         Inline::Sub { new, .. } => html_inlines(new, ctx),
-        Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(s)),
+        Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(&link_text(s, &ctx.links))),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -761,7 +803,7 @@ fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Italic(cs) => format!("*{}*", print_inlines(cs, ctx)),
         Inline::Insert(cs) => print_inlines(cs, ctx),
         Inline::Sub { new, .. } => print_inlines(new, ctx),
-        Inline::Link(s) => s.clone(),
+        Inline::Link(s) => link_text(s, &ctx.links),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }

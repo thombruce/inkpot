@@ -14,6 +14,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   regardless of its title, so renaming a `%` entity doesn't break links to it.
   `id` is document-global and reserved — it names the section itself, never an
   outgoing reference.
+- `[[wikilinks]]` now print the **resolved title** of the entity they point to in
+  every view (manuscript, HTML preview, codex), falling back to the raw target
+  when nothing matches. So `[[alice]]` reads "Alice Hargrove" in the manuscript,
+  not the raw handle.
 
 ## [0.6.0] - 2026-08-22
 

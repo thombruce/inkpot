@@ -63,6 +63,12 @@ A `key: value` block **at the very top of the file** (before any heading) is
 Same rules: it must start on line 1, and a blank line ends it. Keys are free-form
 (the set above is convention, not enforced).
 
+`id:` on a `%` entity is the one **reserved** key: it gives that entity a
+rename-proof handle. A `[[link]]` or metadata value matching an `id` resolves to
+that entity whatever its title reads (so renaming `% Alice` to `% Alicia` doesn't
+break `[[alice]]`). Ids are document-global and unique (first declaration wins);
+unlike a title, an `id` never counts as an outgoing reference to another entity.
+
 ### Markup
 
 - Visible: `**bold**`, `*italic*` — these print.
@@ -72,9 +78,10 @@ Same rules: it must start on line 1, and a blank line ends it. Keys are free-for
   - `{~old~new}` — substitution; `new` prints
   - `{/comment}` — inline comment
 - `/` at the start of a line — a whole-line comment.
-- `[[Target]]` — a wikilink to a codex entity (a `%` heading of that name).
-  Prints as the bare name; in the codex it resolves to a link and adds the
-  scene to that entity's backlinks. Escape a literal `[` with `\[`.
+- `[[Target]]` — a wikilink to a codex entity (a `%` heading of that name, or
+  its `id:`). Prints the entity's title in every view — `[[alice]]` shows "Alice
+  Hargrove" — falling back to the raw target if nothing matches; in the codex it
+  also adds the scene to that entity's backlinks. Escape a literal `[` with `\[`.
 
 ### Interpolation
 

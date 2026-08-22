@@ -163,6 +163,20 @@ fn codex_scopes_repeated_notes_by_visible_ancestors() {
 }
 
 #[test]
+fn wikilink_prints_resolved_title_across_views() {
+    // `[[alice]]` (an id handle) prints the entity's resolved title everywhere it
+    // renders; an unknown target stays verbatim; the edit view keeps the raw
+    // handle; word count follows the manuscript's resolution.
+    let src = "~~~ Scene\n[[alice]] met [[nobody]].\n\n% People\n\n%% Alice Hargrove\nid: alice\n";
+    let doc = parse(src);
+    assert_eq!(render(&doc, View::Manuscript), "Alice Hargrove met nobody.\n");
+    let html = ink_core::render_html(&doc);
+    assert!(html.contains("<a class=\"wikilink\">Alice Hargrove</a>"), "html link unresolved: {html}");
+    assert!(render(&doc, View::Edit).contains("[[alice]]"), "edit must round-trip the raw handle");
+    assert_eq!(word_count(&doc), 4, "word count should tally the resolved title");
+}
+
+#[test]
 fn codex_id_is_a_rename_proof_handle() {
     // Entity titled "Alice Hargrove" with id "alice". A scene links [[alice]] and
     // names `see: alice`. Both resolve by the id handle (no entity is *titled*
