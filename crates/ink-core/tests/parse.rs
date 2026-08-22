@@ -163,6 +163,22 @@ fn codex_scopes_repeated_notes_by_visible_ancestors() {
 }
 
 #[test]
+fn codex_id_is_a_rename_proof_handle() {
+    // Entity titled "Alice Hargrove" with id "alice". A scene links [[alice]] and
+    // names `see: alice`. Both resolve by the id handle (no entity is *titled*
+    // "alice"), so the entity gets a backlink — rename-proof. The `id:` line is
+    // rendered plain, never linked or self-referenced.
+    let src = "~~~ Kitchen\nsee: alice\n\n[[alice]] cooks.\n\n% People\n\n%% Alice Hargrove\nid: alice\nrole: lead\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    assert!(html.contains("<dt>id</dt><dd>alice</dd>"), "id should render plain, not linked: {html}");
+    assert!(html.contains("Referenced by"), "id reference produced no backlink: {html}");
+    assert!(html.contains(">Kitchen</a>"), "scene not backlinked via id: {html}");
+    // Sanity: an unknown handle stays unresolved (no phantom backlink).
+    let none = ink_core::render_codex_html(&parse("~~~ S\nsee: ghost\n\n% P\n\n%% Bob\nid: bob\n"));
+    assert!(!none.contains("Referenced by"), "unknown id should not backlink: {none}");
+}
+
+#[test]
 fn codex_resolves_references_to_nearest_scope() {
     // Each chapter has a `%% Synopsis` and a scene linking [[Synopsis]]. Nearest
     // scope wins: chapter 1's link resolves to chapter 1's Synopsis, not the

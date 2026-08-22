@@ -359,6 +359,7 @@ struct Backref {
 struct CodexIndex<'a> {
     entities: Vec<&'a Node>,
     by_name: HashMap<String, Vec<usize>>, // folded title -> entity indices, doc order
+    by_id: HashMap<String, usize>,        // folded `id:` meta -> entities idx (first wins)
     by_offset: HashMap<usize, usize>,     // heading offset -> entities idx
     scopes: HashMap<usize, Vec<String>>,  // heading offset -> folded visible-ancestor scope
     backlinks: Vec<Vec<Backref>>,
@@ -373,9 +374,14 @@ impl<'a> CodexIndex<'a> {
         let mut entities = Vec::new();
         collect_entities(root, &mut entities);
         let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut by_id = HashMap::new();
         let mut by_offset = HashMap::new();
         for (i, e) in entities.iter().enumerate() {
             by_name.entry(fold_name(&e.title)).or_default().push(i);
+            // `id:` is a rename-proof handle; first declaration of an id wins.
+            if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == "id") {
+                by_id.entry(fold_name(v)).or_insert(i);
+            }
             by_offset.insert(e.heading_span.start, i);
         }
         let mut scopes = HashMap::new();
@@ -384,7 +390,7 @@ impl<'a> CodexIndex<'a> {
         // `# Chapter {{number}}` backlink reads "Chapter 3", not the raw formula.
         let titles = resolve_titles(root);
         let backlinks = (0..entities.len()).map(|_| Vec::new()).collect();
-        let mut idx = CodexIndex { entities, by_name, by_offset, scopes, backlinks };
+        let mut idx = CodexIndex { entities, by_name, by_id, by_offset, scopes, backlinks };
         idx.backlinks = idx.compute_backlinks(root, &titles);
         idx
     }
@@ -404,12 +410,18 @@ impl<'a> CodexIndex<'a> {
         s
     }
 
-    /// Resolve a name to an entity index, nearest scope first: among same-named
+    /// Resolve a name to an entity index. An `id:` handle wins first and is
+    /// document-global (a stable handle is unique by design, so it ignores
+    /// scope). Otherwise resolve by title, nearest scope first: among same-named
     /// entities whose sits-in scope is a prefix of `ref_scope`, the deepest wins;
     /// a root-scoped (empty) entity is a prefix of everything. If none enclose the
     /// referrer, fall back to the first same-named entity (document order).
     fn resolve_idx(&self, name: &str, ref_scope: &[String]) -> Option<usize> {
-        let cands = self.by_name.get(&fold_name(name))?;
+        let key = fold_name(name);
+        if let Some(&i) = self.by_id.get(&key) {
+            return Some(i);
+        }
+        let cands = self.by_name.get(&key)?;
         let scope_of = |&i: &usize| {
             self.scopes.get(&self.entities[i].heading_span.start).map(Vec::as_slice).unwrap_or(&[])
         };
@@ -447,7 +459,10 @@ impl<'a> CodexIndex<'a> {
             let from = child.heading_span.start;
             let rscope = self.ref_scope(child, titles);
             let mut names: Vec<&str> = Vec::new();
-            for (_k, v) in &child.meta {
+            for (k, v) in &child.meta {
+                if k == "id" {
+                    continue; // `id` names this node, not an outgoing reference
+                }
                 names.extend(v.split(','));
             }
             for block in &child.body {
@@ -577,7 +592,9 @@ fn codex_html_entry(node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out:
         let rscope = idx.scopes.get(&node.heading_span.start).cloned().unwrap_or_default();
         out.push_str("<dl>");
         for (k, v) in &node.meta {
-            write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), meta_value_html(v, idx, &rscope)).ok();
+            // `id` names this entity; render it plain, never as a self-link.
+            let dd = if k == "id" { escape(v) } else { meta_value_html(v, idx, &rscope) };
+            write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), dd).ok();
         }
         out.push_str("</dl>");
     }
