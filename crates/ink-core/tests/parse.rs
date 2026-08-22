@@ -177,6 +177,22 @@ fn wikilink_prints_resolved_title_across_views() {
 }
 
 #[test]
+fn duplicate_id_first_declaration_wins_for_print_and_link() {
+    // Two entities share id "p". First declared wins for BOTH the printed title
+    // and the resolved backlink target — they must not diverge (last-wins on one
+    // side would print "Second" while linking "First").
+    let src = "~~~ S\n[[p]] appears.\n\n% First\nid: p\n\n% Second\nid: p\n";
+    let doc = parse(src);
+    assert_eq!(render(&doc, View::Manuscript), "First appears.\n");
+    let html = ink_core::render_codex_html(&doc);
+    let secs: Vec<&str> = html.split("<section").skip(1).collect();
+    let first = secs.iter().find(|s| s.contains(">First<")).expect("First section");
+    let second = secs.iter().find(|s| s.contains(">Second<")).expect("Second section");
+    assert!(first.contains("Referenced by"), "backlink should target the first id: {first}");
+    assert!(!second.contains("Referenced by"), "second id must not be a target: {second}");
+}
+
+#[test]
 fn codex_id_is_a_rename_proof_handle() {
     // Entity titled "Alice Hargrove" with id "alice". A scene links [[alice]] and
     // names `see: alice`. Both resolve by the id handle (no entity is *titled*

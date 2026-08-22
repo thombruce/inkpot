@@ -109,9 +109,12 @@ fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
 
 /// Build the `[[link]]` resolution map: fold(title) and fold(id) of every codex
 /// entity (a `%` heading with a title) mapped to its resolved title. Ids win
-/// over titles on collision, matching `CodexIndex::resolve_idx`. Duplicate
-/// titles collapse to the same string, so no scope disambiguation is needed —
-/// they print identically.
+/// over titles on collision, matching `CodexIndex::resolve_idx`; and on a
+/// duplicate id the *first* declaration wins, matching `by_id` — so the printed
+/// title never diverges from the link target. Duplicate titles collapse to one
+/// key too; for static titles that prints identically (an interpolated title
+/// resolves per-position, so a repeated `{{…}}` title would print its first
+/// occurrence — negligible, no one links such a title).
 fn link_titles(root: &Node) -> HashMap<String, String> {
     let mut entities = Vec::new();
     collect_entities(root, &mut entities);
@@ -123,11 +126,16 @@ fn link_titles(root: &Node) -> HashMap<String, String> {
     for e in &entities {
         m.entry(fold_name(&e.title)).or_insert_with(|| title_of(e));
     }
+    // Ids win over titles, first id wins over later ones. Build separately then
+    // extend so ids override a colliding title key without a later id clobbering
+    // an earlier one.
+    let mut ids = HashMap::new();
     for e in &entities {
         if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == "id") {
-            m.insert(fold_name(v), title_of(e));
+            ids.entry(fold_name(v)).or_insert_with(|| title_of(e));
         }
     }
+    m.extend(ids);
     m
 }
 
@@ -427,7 +435,8 @@ impl<'a> CodexIndex<'a> {
             by_offset.insert(e.heading_span.start, i);
         }
         let mut scopes = HashMap::new();
-        collect_scopes(root, &root_ctx(root), &[], &mut scopes);
+        // base_ctx: scope building only substitutes titles, never resolves links.
+        collect_scopes(root, &base_ctx(root), &[], &mut scopes);
         // Referrer labels use the same resolved titles as the views, so a
         // `# Chapter {{number}}` backlink reads "Chapter 3", not the raw formula.
         let titles = resolve_titles(root);
