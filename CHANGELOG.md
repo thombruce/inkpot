@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-22
+
 ### Added
 
 - Codex entries nested under a visible (`#`/`~`) heading now show a scope
