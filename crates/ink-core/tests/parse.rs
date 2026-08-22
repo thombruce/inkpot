@@ -163,6 +163,20 @@ fn codex_scopes_repeated_notes_by_visible_ancestors() {
 }
 
 #[test]
+fn codex_resolves_references_to_nearest_scope() {
+    // Each chapter has a `%% Synopsis` and a scene linking [[Synopsis]]. Nearest
+    // scope wins: chapter 1's link resolves to chapter 1's Synopsis, not the
+    // first-declared one. First-wins would backlink both scenes to Synopsis #1.
+    let src = "# Chapter 1\n\n## Recap 1\n[[Synopsis]] here.\n\n%% Synopsis\nAAA.\n\n# Chapter 2\n\n## Recap 2\n[[Synopsis]] here.\n\n%% Synopsis\nBBB.\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    let secs: Vec<&str> = html.split("<section").skip(1).collect();
+    let s_aaa = secs.iter().find(|s| s.contains("AAA")).expect("ch1 synopsis section");
+    let s_bbb = secs.iter().find(|s| s.contains("BBB")).expect("ch2 synopsis section");
+    assert!(s_aaa.contains("Recap 1") && !s_aaa.contains("Recap 2"), "ch1 synopsis mis-scoped: {s_aaa}");
+    assert!(s_bbb.contains("Recap 2") && !s_bbb.contains("Recap 1"), "ch2 synopsis mis-scoped: {s_bbb}");
+}
+
+#[test]
 fn codex_resolves_metadata_refs_and_backlinks() {
     // A scene names Alice; the timeline entry names London and Alice. Both are
     // `%` entities, so those values become links and the entities get backlinks.
