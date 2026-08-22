@@ -358,8 +358,9 @@ struct Backref {
 /// entity. `backlinks[i]` are the nodes that reference entity `i`.
 struct CodexIndex<'a> {
     entities: Vec<&'a Node>,
-    by_name: HashMap<String, usize>,  // folded title -> entities idx (first wins)
-    by_offset: HashMap<usize, usize>, // heading offset -> entities idx
+    by_name: HashMap<String, Vec<usize>>, // folded title -> entity indices, doc order
+    by_offset: HashMap<usize, usize>,     // heading offset -> entities idx
+    scopes: HashMap<usize, Vec<String>>,  // heading offset -> folded visible-ancestor scope
     backlinks: Vec<Vec<Backref>>,
 }
 
@@ -371,28 +372,102 @@ impl<'a> CodexIndex<'a> {
     fn build(root: &'a Node) -> Self {
         let mut entities = Vec::new();
         collect_entities(root, &mut entities);
-        let mut by_name = HashMap::new();
+        let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
         let mut by_offset = HashMap::new();
         for (i, e) in entities.iter().enumerate() {
-            // First entity of a name wins; a later duplicate is unreachable by
-            // reference. ponytail: name collisions resolve to the first; add
-            // disambiguation (e.g. [[wikilinks]] with a path) if it bites.
-            by_name.entry(fold_name(&e.title)).or_insert(i);
+            by_name.entry(fold_name(&e.title)).or_default().push(i);
             by_offset.insert(e.heading_span.start, i);
         }
-        let mut backlinks: Vec<Vec<Backref>> = (0..entities.len()).map(|_| Vec::new()).collect();
+        let mut scopes = HashMap::new();
+        collect_scopes(root, &root_ctx(root), &[], &mut scopes);
         // Referrer labels use the same resolved titles as the views, so a
         // `# Chapter {{number}}` backlink reads "Chapter 3", not the raw formula.
         let titles = resolve_titles(root);
-        collect_backlinks(root, &by_name, &entities, &titles, &mut backlinks);
-        CodexIndex { entities, by_name, by_offset, backlinks }
+        let backlinks = (0..entities.len()).map(|_| Vec::new()).collect();
+        let mut idx = CodexIndex { entities, by_name, by_offset, scopes, backlinks };
+        idx.backlinks = idx.compute_backlinks(root, &titles);
+        idx
     }
 
-    /// Resolve one metadata value part to the target entity's heading offset.
-    fn resolve(&self, part: &str) -> Option<usize> {
-        self.by_name
-            .get(&fold_name(part))
-            .map(|&i| self.entities[i].heading_span.start)
+    /// The folded visible-heading scope a reference *inside* `node` sees: the
+    /// node's own sits-in scope, plus the node itself when it is a visible
+    /// (`#`/`~`) heading — so a `[[Note]]` in a chapter's body reaches a `%` note
+    /// nested under that chapter, not just the chapter's siblings.
+    fn ref_scope(&self, node: &Node, titles: &HashMap<usize, String>) -> Vec<String> {
+        let mut s = self.scopes.get(&node.heading_span.start).cloned().unwrap_or_default();
+        if node.visibility != Visibility::Excluded {
+            let t = fold_name(titles.get(&node.heading_span.start).map_or(node.title.as_str(), |x| x));
+            if !t.is_empty() {
+                s.push(t);
+            }
+        }
+        s
+    }
+
+    /// Resolve a name to an entity index, nearest scope first: among same-named
+    /// entities whose sits-in scope is a prefix of `ref_scope`, the deepest wins;
+    /// a root-scoped (empty) entity is a prefix of everything. If none enclose the
+    /// referrer, fall back to the first same-named entity (document order).
+    fn resolve_idx(&self, name: &str, ref_scope: &[String]) -> Option<usize> {
+        let cands = self.by_name.get(&fold_name(name))?;
+        let scope_of = |&i: &usize| {
+            self.scopes.get(&self.entities[i].heading_span.start).map(Vec::as_slice).unwrap_or(&[])
+        };
+        cands
+            .iter()
+            .copied()
+            .filter(|i| ref_scope.starts_with(scope_of(i)))
+            .max_by_key(|i| scope_of(i).len())
+            .or_else(|| cands.first().copied())
+    }
+
+    /// Resolve one metadata value part to the target entity's heading offset,
+    /// scoped to the referring entity.
+    fn resolve(&self, part: &str, ref_scope: &[String]) -> Option<usize> {
+        self.resolve_idx(part, ref_scope).map(|i| self.entities[i].heading_span.start)
+    }
+
+    /// Walk every node; a name that resolves to an entity — from a metadata value
+    /// (comma-split) or a prose `[[wikilink]]` — records a backlink from the
+    /// holding node, resolved by nearest scope. Whole-tree, deduped per referrer,
+    /// self-skip.
+    fn compute_backlinks(&self, root: &Node, titles: &HashMap<usize, String>) -> Vec<Vec<Backref>> {
+        let mut backlinks: Vec<Vec<Backref>> = (0..self.entities.len()).map(|_| Vec::new()).collect();
+        self.walk_backlinks(root, titles, &mut backlinks);
+        backlinks
+    }
+
+    fn walk_backlinks(
+        &self,
+        node: &Node,
+        titles: &HashMap<usize, String>,
+        backlinks: &mut [Vec<Backref>],
+    ) {
+        for child in &node.children {
+            let from = child.heading_span.start;
+            let rscope = self.ref_scope(child, titles);
+            let mut names: Vec<&str> = Vec::new();
+            for (_k, v) in &child.meta {
+                names.extend(v.split(','));
+            }
+            for block in &child.body {
+                if let Block::Para(spans) = block {
+                    collect_links(spans, &mut names);
+                }
+            }
+            for name in names {
+                let Some(idx) = self.resolve_idx(name, &rscope) else { continue };
+                if self.entities[idx].heading_span.start == from {
+                    continue; // a node naming itself is not a backlink
+                }
+                let bl = &mut backlinks[idx];
+                if !bl.iter().any(|b| b.offset == from) {
+                    let title = titles.get(&from).cloned().unwrap_or_else(|| child.title.clone());
+                    bl.push(Backref { title, offset: from });
+                }
+            }
+            self.walk_backlinks(child, titles, backlinks);
+        }
     }
 }
 
@@ -406,40 +481,23 @@ fn collect_entities<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
     }
 }
 
-/// Walk every node; a name that resolves to an entity — from a metadata value
-/// (comma-split) or a prose `[[wikilink]]` — records a backlink from the holding
-/// node. Whole-tree, so a scene's `characters:` or `[[Alice]]` links its
-/// entities, not just entity-to-entity edges. Deduped per referrer; self-skip.
-fn collect_backlinks(
-    node: &Node,
-    by_name: &HashMap<String, usize>,
-    entities: &[&Node],
-    titles: &HashMap<usize, String>,
-    backlinks: &mut [Vec<Backref>],
-) {
-    for child in &node.children {
-        let from = child.heading_span.start;
-        let mut names: Vec<&str> = Vec::new();
-        for (_k, v) in &child.meta {
-            names.extend(v.split(','));
-        }
-        for block in &child.body {
-            if let Block::Para(spans) = block {
-                collect_links(spans, &mut names);
+/// Map each heading offset to the folded resolved titles of its visible (`#`/`~`)
+/// ancestors — its "sits-in" scope. Excluded (`%`) ancestors don't extend it, so
+/// notes nested under a `%` share their nearest visible chapter's scope.
+fn collect_scopes(node: &Node, ctx: &Ctx, scope: &[String], out: &mut HashMap<usize, Vec<String>>) {
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        out.insert(child.heading_span.start, scope.to_vec());
+        let inner = if child.visibility == Visibility::Excluded {
+            scope.to_vec()
+        } else {
+            let mut s = scope.to_vec();
+            let t = fold_name(&substitute(&child.title, &cctx));
+            if !t.is_empty() {
+                s.push(t);
             }
-        }
-        for name in names {
-            let Some(&idx) = by_name.get(&fold_name(name)) else { continue };
-            if entities[idx].heading_span.start == from {
-                continue; // a node naming itself is not a backlink
-            }
-            let bl = &mut backlinks[idx];
-            if !bl.iter().any(|b| b.offset == from) {
-                let title = titles.get(&from).cloned().unwrap_or_else(|| child.title.clone());
-                bl.push(Backref { title, offset: from });
-            }
-        }
-        collect_backlinks(child, by_name, entities, titles, backlinks);
+            s
+        };
+        collect_scopes(child, &cctx, &inner, out);
     }
 }
 
@@ -477,7 +535,8 @@ pub fn render_codex_html(root: &Node) -> String {
 /// `scope` is the resolved titles of the visible (`#`/`~`) ancestors walked
 /// through to reach here — a `%% Synopsis` under `## Chapter 1` renders under
 /// scope `["Chapter 1"]`, so two same-named notes in different chapters read
-/// distinctly. Display only; reference resolution still keys on bare title.
+/// distinctly, and references (`[[…]]`, metadata) resolve to the nearest such
+/// note by scope.
 fn codex_html(node: &Node, ctx: &Ctx, idx: &CodexIndex, scope: &[String], out: &mut String) {
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
@@ -513,9 +572,12 @@ fn codex_html_entry(node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out:
     };
     writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&title)).ok();
     if !node.meta.is_empty() {
+        // Meta values resolve from this entity's own scope (excluded, so its
+        // sits-in scope), matching how a `[[link]]` here would resolve.
+        let rscope = idx.scopes.get(&node.heading_span.start).cloned().unwrap_or_default();
         out.push_str("<dl>");
         for (k, v) in &node.meta {
-            write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), meta_value_html(v, idx)).ok();
+            write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), meta_value_html(v, idx, &rscope)).ok();
         }
         out.push_str("</dl>");
     }
@@ -552,11 +614,11 @@ fn codex_html_entry(node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out:
 
 /// A metadata value's comma parts, each linked if it names an entity. Empty
 /// parts (a trailing comma) are dropped.
-fn meta_value_html(v: &str, idx: &CodexIndex) -> String {
+fn meta_value_html(v: &str, idx: &CodexIndex, ref_scope: &[String]) -> String {
     v.split(',')
         .map(str::trim)
         .filter(|p| !p.is_empty())
-        .map(|part| match idx.resolve(part) {
+        .map(|part| match idx.resolve(part, ref_scope) {
             Some(off) => format!("<a class=\"ref\" data-jump=\"{off}\">{}</a>", escape(part)),
             None => escape(part),
         })

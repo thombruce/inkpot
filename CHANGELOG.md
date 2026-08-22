@@ -12,6 +12,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - Codex entries nested under a visible (`#`/`~`) heading now show a scope
   breadcrumb of their ancestor titles, so repeated notes (e.g. a `%% Synopsis`
   per chapter) read distinctly instead of as identical entries.
+- Codex references (`[[wikilinks]]` and metadata values) resolve to the
+  **nearest** same-named note by scope: a `[[Synopsis]]` inside a chapter links
+  that chapter's Synopsis, not the first one declared. Root-level entities still
+  resolve from anywhere.
 
 ## [0.5.0] - 2026-08-21
 
