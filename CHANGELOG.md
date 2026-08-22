@@ -7,6 +7,12 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- Codex entries nested under a visible (`#`/`~`) heading now show a scope
+  breadcrumb of their ancestor titles, so repeated notes (e.g. a `%% Synopsis`
+  per chapter) read distinctly instead of as identical entries.
+
 ## [0.5.0] - 2026-08-21
 
 ### Added
