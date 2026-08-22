@@ -7,6 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- `id:` metadata gives a section a rename-proof handle: codex references
+  (`[[wikilinks]]` and metadata values) resolve to an entity by its `id`
+  regardless of its title, so renaming a `%` entity doesn't break links to it.
+  `id` is document-global and reserved — it names the section itself, never an
+  outgoing reference.
+
 ## [0.6.0] - 2026-08-22
 
 ### Added
