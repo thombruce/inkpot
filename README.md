@@ -57,6 +57,12 @@ characters, …). Never printed. **A blank line ends the metadata block** — pr
 that could look like `key: value` must be separated from its heading by a blank
 line (as it normally would be).
 
+A **comma-separated value is a list**: `characters: Alice, Bob` is two values,
+each trimmed and resolved on its own, so both link to their `%` entities (and
+each gets a backlink). A value with no comma is a single value. (A value that
+needs a literal comma — `location: Paris, France` — is read as two; quoting is
+not yet supported.)
+
 A `key: value` block **at the very top of the file** (before any heading) is
 **document front matter** — the work's own metadata (`title`, `author`,
 `contact`, `byline`, …), kept in-file so an `.ink` document is self-contained.

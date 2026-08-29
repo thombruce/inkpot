@@ -241,6 +241,18 @@ fn codex_resolves_metadata_refs_and_backlinks() {
 }
 
 #[test]
+fn metadata_value_is_a_comma_separated_array() {
+    // A comma-separated value is an array: each trimmed part resolves on its own,
+    // so `characters: Alice, Bob` links both and leaves an unknown part plain.
+    let src = "~~~ Scene\ncharacters: Alice, Bob, Nobody\n\n% C\n\n%% Alice\n\n%% Bob\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    // Both named parts resolve: Alice and Bob each get a backlink from the scene.
+    // (The unknown part "Nobody" names no entity, so it adds no backlink.)
+    assert_eq!(html.matches(">Scene</a>").count(), 2, "both array parts should backlink the scene: {html}");
+    assert!(!html.contains(">Nobody</a>"), "unknown array part must stay plain: {html}");
+}
+
+#[test]
 fn wikilink_parses_prints_name_and_round_trips() {
     let root = parse("She saw [[Alice]] leave.\n");
     let Block::Para(spans) = &root.body[0] else { panic!("expected para") };
