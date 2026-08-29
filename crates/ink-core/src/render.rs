@@ -1,5 +1,6 @@
 //! Three read-only views over the [`Node`] tree.
 
+use crate::meta::{is_self_naming, ID};
 use crate::{Block, Inline, Node, Visibility};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -131,7 +132,7 @@ fn link_titles(root: &Node) -> HashMap<String, String> {
     // an earlier one.
     let mut ids = HashMap::new();
     for e in &entities {
-        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == "id") {
+        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
             ids.entry(fold_name(v)).or_insert_with(|| title_of(e));
         }
     }
@@ -429,7 +430,7 @@ impl<'a> CodexIndex<'a> {
         for (i, e) in entities.iter().enumerate() {
             by_name.entry(fold_name(&e.title)).or_default().push(i);
             // `id:` is a rename-proof handle; first declaration of an id wins.
-            if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == "id") {
+            if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
                 by_id.entry(fold_name(v)).or_insert(i);
             }
             by_offset.insert(e.heading_span.start, i);
@@ -511,7 +512,7 @@ impl<'a> CodexIndex<'a> {
             let rscope = self.ref_scope(child, titles);
             let mut names: Vec<&str> = Vec::new();
             for (k, v) in &child.meta {
-                if k == "id" {
+                if is_self_naming(k) {
                     continue; // `id` names this node, not an outgoing reference
                 }
                 names.extend(v.split(','));
@@ -644,7 +645,7 @@ fn codex_html_entry(node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out:
         out.push_str("<dl>");
         for (k, v) in &node.meta {
             // `id` names this entity; render it plain, never as a self-link.
-            let dd = if k == "id" { escape(v) } else { meta_value_html(v, idx, &rscope) };
+            let dd = if is_self_naming(k) { escape(v) } else { meta_value_html(v, idx, &rscope) };
             write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), dd).ok();
         }
         out.push_str("</dl>");
