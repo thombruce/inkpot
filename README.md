@@ -135,8 +135,9 @@ raw.
 The desktop app adds three **planning panels** that project from the same
 metadata — read-only, click an entry to jump to it in the editor:
 
-- **Timeline** — every heading with a `time:` value, in story-time order (ISO
-  `YYYY-MM-DD` dates sort chronologically).
+- **Timeline** — every heading with a `time:` value, in story-time order. ISO
+  `YYYY-MM-DD` dates sort chronologically; all-numeric `time:` values sort as
+  numbers, so a timeline of years (even negative or billions-large) orders right.
 - **Characters** — the `% Characters` section as a card list, with a
   **+ New character** button that scaffolds a `%% Name` entry.
 - **Map** — locations placed on an OpenStreetMap map; give a location's `%` note

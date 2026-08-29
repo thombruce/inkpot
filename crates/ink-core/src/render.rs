@@ -2,6 +2,7 @@
 
 use crate::meta::{is_self_naming, ID};
 use crate::{Block, Inline, Node, Visibility};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::rc::Rc;
@@ -600,8 +601,9 @@ pub fn render_codex_html(root: &Node) -> String {
 }
 
 /// The timeline: every heading carrying a `time:` metadata value, ordered by
-/// that value. ISO dates (`YYYY-MM-DD`) sort chronologically as plain strings;
-/// other time values sort lexically among themselves (a known limit — see #45).
+/// that value. If every value is a number, they sort numerically (so a cosmic
+/// timeline of years — negative and billions-large — orders correctly); otherwise
+/// they sort lexically, which keeps ISO `YYYY-MM-DD` dates in chronological order.
 /// Each entry links to its heading via `data-jump`, like the codex. Headings
 /// without a `time:` value don't appear (they can't be placed). Text is escaped
 /// for `innerHTML` assignment.
@@ -609,8 +611,18 @@ pub fn render_timeline_html(root: &Node) -> String {
     let titles = resolve_titles(root);
     let mut entries: Vec<(&str, String, usize)> = Vec::new(); // (time, title, heading offset)
     collect_timed(root, &titles, &mut entries);
-    // Stable sort by the time string keeps same-time headings in document order.
-    entries.sort_by(|a, b| a.0.cmp(b.0));
+    // Numeric timelines (years — including negatives and billions, e.g. a cosmic
+    // history) must sort as numbers: a lexical sort mis-orders unpadded magnitudes
+    // (`1000` before `900`) and inverts negatives (`-1000` before `-13700000000`).
+    // If every value parses as a number, sort numerically; otherwise keep the
+    // lexical order (ISO `YYYY-MM-DD` dates aren't numbers, so they still sort
+    // chronologically). A mixed doc falls back to lexical. Both sorts are stable,
+    // so same-time headings keep document order.
+    if entries.iter().all(|(t, ..)| parse_number(t).is_some()) {
+        entries.sort_by(|a, b| parse_number(a.0).partial_cmp(&parse_number(b.0)).unwrap_or(Ordering::Equal));
+    } else {
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+    }
     let mut out = String::new();
     out.push_str("<ol class=\"timeline\">");
     for (time, title, offset) in entries {
@@ -625,6 +637,14 @@ pub fn render_timeline_html(root: &Node) -> String {
     }
     out.push_str("</ol>");
     out
+}
+
+/// A `time:` value as a number, if it is one — for numeric timeline ordering.
+/// Finite only: NaN/inf can't participate in a total order, so they count as
+/// non-numeric (the timeline then falls back to lexical sorting).
+fn parse_number(s: &str) -> Option<f64> {
+    let n = s.trim().parse::<f64>().ok()?;
+    n.is_finite().then_some(n)
 }
 
 /// Collect (`time` value, resolved title, heading offset) for every descendant

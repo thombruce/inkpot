@@ -7,6 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Fixed
+
+- The **timeline sorts all-numeric `time:` values as numbers**, so a timeline of
+  years — including negatives and very large magnitudes (e.g. `-13700000000` for
+  the Big Bang) — orders correctly. Previously all values sorted as text, which
+  mis-ordered unpadded numbers and inverted negatives. ISO `YYYY-MM-DD` dates are
+  unaffected (they still sort chronologically as text).
+
 ## [0.7.0] - 2026-08-29
 
 ### Added
