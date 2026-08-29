@@ -41,6 +41,29 @@ const scenes = [
   assert.equal(p.Alice.location, "Rome");
 }
 
+// exits removes a character from that scene onward (death / departure).
+{
+  const s = [
+    { location: "London", characters: ["Bob"], exits: [] },
+    { location: "Rome", characters: ["Alice"], exits: ["Bob"] }, // Bob is written out
+    { location: "Rome", characters: ["Alice"], exits: [] },
+  ];
+  assert.equal(characterPositions(s, coordsOf, 0).Bob.location, "London", "present before exit");
+  assert.equal(characterPositions(s, coordsOf, 1).Bob, undefined, "gone at the exit scene");
+  assert.equal(characterPositions(s, coordsOf, 2).Bob, undefined, "still gone after");
+}
+
+// Naming an exited character again re-adds them (flashback / fake-out); the exit
+// still wins at its own scene.
+{
+  const s = [
+    { location: "London", characters: ["Bob"], exits: ["Bob"] },
+    { location: "Rome", characters: ["Bob"], exits: [] },
+  ];
+  assert.equal(characterPositions(s, coordsOf, 0).Bob, undefined, "exit wins at its scene");
+  assert.equal(characterPositions(s, coordsOf, 1).Bob.location, "Rome", "re-added later");
+}
+
 // Grouping: co-located characters collapse to one marker with both names.
 {
   const p = characterPositions(scenes, coordsOf, 0);

@@ -18,6 +18,22 @@ characters: Alice
 
 By evening she was across the water, and [[Bob]] was not.
 
+~~~ The Pursuit
+time: 3
+location: Paris
+pov: Alice
+characters: Alice, Bob
+
+By morning [[Bob]] had arrived.
+
+~~~ The Return
+time: 4
+location: London
+pov: Alice
+characters: Alice, Bob
+
+That afternoon, they returned to [[London]] together.
+
 % Characters
 
 %% Alice

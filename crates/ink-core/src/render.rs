@@ -726,6 +726,9 @@ pub struct SceneEntry {
     pub title: String,
     pub location: String,
     pub characters: Vec<String>,
+    /// Characters who leave the story at this scene (`exits:`) — the time-scrub
+    /// drops them from here onward.
+    pub exits: Vec<String>,
     pub offset: usize,
 }
 
@@ -742,7 +745,16 @@ pub fn scene_timeline(root: &Node) -> Vec<SceneEntry> {
 }
 
 fn collect_scenes(node: &Node, titles: &HashMap<usize, String>, out: &mut Vec<SceneEntry>) {
-    use crate::meta::{CHARACTERS, LOCATION, TIME};
+    use crate::meta::{CHARACTERS, EXITS, LOCATION, TIME};
+    // A metadata value as a trimmed, non-empty, comma-split list.
+    let list = |child: &Node, key: &str| -> Vec<String> {
+        child
+            .meta
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+            .unwrap_or_default()
+    };
     for child in &node.children {
         if let Some((_, time)) = child.meta.iter().find(|(k, _)| k == TIME) {
             if !time.is_empty() {
@@ -754,15 +766,14 @@ fn collect_scenes(node: &Node, titles: &HashMap<usize, String>, out: &mut Vec<Sc
                     .find(|(k, _)| k == LOCATION)
                     .map(|(_, v)| v.trim().to_string())
                     .unwrap_or_default();
-                let characters = child
-                    .meta
-                    .iter()
-                    .find(|(k, _)| k == CHARACTERS)
-                    .map(|(_, v)| {
-                        v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
-                    })
-                    .unwrap_or_default();
-                out.push(SceneEntry { time: time.clone(), title, location, characters, offset });
+                out.push(SceneEntry {
+                    time: time.clone(),
+                    title,
+                    location,
+                    characters: list(child, CHARACTERS),
+                    exits: list(child, EXITS),
+                    offset,
+                });
             }
         }
         collect_scenes(child, titles, out);

@@ -110,6 +110,7 @@ type Scene = {
   title: string;        // resolved heading title
   location: string;     // the `location:` value (may be "")
   characters: string[]; // the `characters:` value, comma-split
+  exits: string[];      // the `exits:` value — characters who leave here
   offset: number;       // heading char offset
 };
 ```
@@ -117,7 +118,8 @@ type Scene = {
 Every heading with a `time:` value, ordered like the timeline (numeric if all
 values are numbers, else lexical). The frontend joins `location` to a `map`
 marker by folded name to get coordinates, then walks the list up to the cursor
-index to place each character at their most-recent located scene. The join and
+index to place each character at their most-recent located scene; a scene's
+`exits` removes those characters from that point on. The join and
 per-cursor computation are client-side (`app/src/timescrub.js`) — no IPC per
 slider tick.
 

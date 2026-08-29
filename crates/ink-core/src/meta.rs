@@ -41,6 +41,12 @@ pub const LOCATION: &str = "location";
 /// time-scrub places each at the scene's [`LOCATION`] as the cursor passes it.
 pub const CHARACTERS: &str = "characters";
 
+/// Who leaves the story at a scene — a comma-separated list of character names
+/// (death, departure, written out). The time-scrub removes them from that scene
+/// onward, so they stop appearing on the map. Naming one again in a later
+/// [`CHARACTERS`] re-adds them (a flashback or fake-out).
+pub const EXITS: &str = "exits";
+
 /// Does this metadata key *name its own section* rather than reference another
 /// entity? Such keys are excluded from backlinks and rendered as plain text,
 /// never resolved as a `[[link]]`. Today the only one is [`ID`].

@@ -127,11 +127,12 @@ struct Scene {
     title: String,
     location: String,
     characters: Vec<String>,
+    exits: Vec<String>,
     offset: usize,
 }
 
-/// Time-ordered scenes (headings with a `time:` value) with their `location:`
-/// and `characters:`, for the time-scrub.
+/// Time-ordered scenes (headings with a `time:` value) with their `location:`,
+/// `characters:`, and `exits:`, for the time-scrub.
 #[tauri::command]
 fn scenes(src: String) -> Vec<Scene> {
     scene_timeline(&parse(&src))
@@ -141,6 +142,7 @@ fn scenes(src: String) -> Vec<Scene> {
             title: s.title,
             location: s.location,
             characters: s.characters,
+            exits: s.exits,
             offset: s.offset,
         })
         .collect()
