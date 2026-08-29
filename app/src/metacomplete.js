@@ -18,6 +18,7 @@ export function metaZone(lineTextAt, lineNum) {
   for (let n = lineNum - 1; n >= 1; n--) {
     const t = lineTextAt(n);
     if (HEADING.test(t)) return "scene";
+    if (/^[ \t]+\S/.test(t)) continue; // multiline value continuation — still in meta
     if (t.trim() === "" || !META.test(t)) return null;
   }
   return "front";

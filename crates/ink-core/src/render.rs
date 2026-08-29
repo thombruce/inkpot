@@ -779,8 +779,17 @@ fn edit(node: &Node, out: &mut String) {
         writeln!(out, "{marker} {}", node.title).ok();
     }
     // Meta round-trips for every node, including the root's document front matter.
+    // A multiline value (embedded newlines) re-serializes as `key:` + indented
+    // continuation lines — the form the parser reads back into one value.
     for (k, v) in &node.meta {
-        writeln!(out, "{k}: {v}").ok();
+        if v.contains('\n') {
+            writeln!(out, "{k}:").ok();
+            for part in v.split('\n') {
+                writeln!(out, "  {part}").ok();
+            }
+        } else {
+            writeln!(out, "{k}: {v}").ok();
+        }
     }
     if !node.meta.is_empty() {
         out.push('\n');

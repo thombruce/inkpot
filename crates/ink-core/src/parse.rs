@@ -27,6 +27,9 @@ pub fn parse(src: &str) -> Node {
     // Are we in a meta zone? Starts true so a leading `key: value` block becomes
     // document front matter on the root; otherwise it opens right after a heading.
     let mut in_meta = true;
+    // While Some(i), the last meta pair (index i on the current node) has an empty
+    // value opened for a multiline block; indented lines extend it.
+    let mut multiline_idx: Option<usize> = None;
     let mut offset = 0usize; // char offset at the start of the current line
 
     for raw in src.lines() {
@@ -60,6 +63,7 @@ pub fn parse(src: &str) -> Node {
                 node_span: Span { start: line_start, end: doc_len },
             });
             in_meta = true;
+            multiline_idx = None;
             continue;
         }
 
@@ -67,12 +71,30 @@ pub fn parse(src: &str) -> Node {
         // matter) or directly after a heading, until a blank line or the first
         // non-matching line.
         if in_meta {
+            // A key with an empty value opens a multiline block: indented lines
+            // extend it (trimmed, newline-joined). Any non-indented line closes it.
+            if let Some(i) = multiline_idx {
+                if is_indented(raw) {
+                    let value = &mut stack.last_mut().unwrap().meta[i].1;
+                    if !value.is_empty() {
+                        value.push('\n');
+                    }
+                    value.push_str(raw.trim());
+                    continue;
+                }
+                multiline_idx = None; // dedent ends the block; re-classify this line
+            }
             if raw.trim().is_empty() {
                 in_meta = false;
                 continue; // swallow the blank separator
             }
             if let Some((k, v)) = meta_line(raw) {
-                stack.last_mut().unwrap().meta.push((k, v));
+                let node = stack.last_mut().unwrap();
+                let empty = v.is_empty();
+                node.meta.push((k, v));
+                if empty {
+                    multiline_idx = Some(node.meta.len() - 1);
+                }
                 continue;
             }
             in_meta = false; // fall through: this line is body
@@ -132,6 +154,12 @@ fn heading(line: &str) -> Option<(u8, Visibility, String)> {
     let after = &line[idx..];
     let title = after.strip_prefix(' ')?.trim().to_string();
     Some((count, visibility, title))
+}
+
+/// A non-blank line that begins with whitespace — a continuation of a multiline
+/// metadata value (a `key:` with an empty value, followed by indented lines).
+fn is_indented(line: &str) -> bool {
+    !line.trim().is_empty() && line.starts_with([' ', '\t'])
 }
 
 /// `key: value` where key is a single token. None otherwise. The single-token

@@ -20,6 +20,10 @@ assert.equal(metaZone(at(["# Chapter", "", ""]), 3), null);
 assert.equal(metaZone(at(["# Chapter", "body prose here", ""]), 3), null);
 // Front matter closed by a blank, then a heading -> the heading's zone wins.
 assert.equal(metaZone(at(["title: x", "", "# Chapter", ""]), 4), "scene");
+// A multiline value's indented continuation lines don't close the zone: a key
+// completion below still sees front matter.
+assert.equal(metaZone(at(["contact:", "  221B Baker St", "  London", ""]), 4), "front");
+assert.equal(metaZone(at(["# C", "loc:", "  Riverside", ""]), 4), "scene");
 
 // The Shunn front-matter fields are seeded.
 for (const k of ["title", "author", "byline", "contact"]) {

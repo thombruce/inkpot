@@ -63,6 +63,17 @@ each gets a backlink). A value with no comma is a single value. (A value that
 needs a literal comma — `location: Paris, France` — is read as two; quoting is
 not yet supported.)
 
+A **value can span multiple lines**: leave the value after the colon empty and
+put the text on the following **indented** lines — they join into one value
+(each line trimmed, newline-separated) until a blank or non-indented line. Handy
+for a postal `contact:` or a longer note:
+
+```
+contact:
+  221B Baker Street
+  London NW1 6XE
+```
+
 A `key: value` block **at the very top of the file** (before any heading) is
 **document front matter** — the work's own metadata (`title`, `author`,
 `contact`, `byline`, …), kept in-file so an `.ink` document is self-contained.
