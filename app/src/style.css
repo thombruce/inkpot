@@ -82,12 +82,14 @@ body {
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
 body.hide-outline .outline { display: none; }
-.editor, .preview, .codex { flex: 1; border-right: none; }
-.preview, .codex { display: none; }
+.editor, .preview, .codex, .timeline { flex: 1; border-right: none; }
+.preview, .codex, .timeline { display: none; }
 body.show-preview .editor,
-body.show-codex .editor { display: none; }
+body.show-codex .editor,
+body.show-timeline .editor { display: none; }
 body.show-preview .preview { display: block; }
 body.show-codex .codex { display: block; }
+body.show-timeline .timeline { display: block; }
 
 /* Outline */
 .outline { padding: 8px 0; background: var(--panel); }
@@ -206,6 +208,33 @@ body.show-codex .codex { display: block; }
 .codex:empty::after,
 .codex .reading:empty::after {
   content: "No codex entries — add a section with the % marker (e.g. % Characters).";
+  color: var(--dim);
+  font: 14px/1.6 system-ui, sans-serif;
+}
+
+/* Timeline: headings with a time: value, in story-time order. */
+.timeline .timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.timeline li {
+  display: flex;
+  gap: 1em;
+  align-items: baseline;
+  padding: 0.35em 0;
+  border-bottom: 1px solid var(--border);
+}
+.timeline time {
+  flex: 0 0 9em;
+  color: var(--dim);
+  font: 12px/1.5 ui-monospace, monospace;
+}
+.timeline .ref { color: var(--accent); cursor: pointer; }
+.timeline .ref:hover { text-decoration: underline; }
+/* An empty <ol class="timeline"> still renders; hint when it has no entries. */
+.timeline .timeline:empty::after {
+  content: "No timeline entries — give a scene a time: value (e.g. time: 1987-05-02).";
   color: var(--dim);
   font: 14px/1.6 system-ui, sans-serif;
 }

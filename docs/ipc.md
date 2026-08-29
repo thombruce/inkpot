@@ -56,6 +56,16 @@ escaped, so the frontend assigns it via `innerHTML`. The codex (issue #9) is
 derived from what authors already write, no new syntax. (The plain-text
 `View::Codex` render — no links — backs `ink render --view=codex` for the CLI.)
 
+### `timeline(src: string) -> string`
+
+Returns the **timeline** as HTML for the app's timeline panel: an `<ol class="timeline">`
+of every heading that carries a `time:` metadata value, ordered by that value.
+ISO dates (`YYYY-MM-DD`) sort chronologically as plain strings; other values sort
+lexically among themselves (a known limit — see #45). Each `<li>` is a `<time>`
+plus an `<a class="ref" data-jump="<char-offset>">` linking to the heading (the
+frontend reads `data-jump` to scroll the editor there, same as the codex).
+Headings without a `time:` value don't appear. Text is escaped for `innerHTML`.
+
 ## What does NOT cross IPC
 
 - **Syntax highlighting** — a CodeMirror language mode on the frontend

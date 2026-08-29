@@ -599,6 +599,53 @@ pub fn render_codex_html(root: &Node) -> String {
     out
 }
 
+/// The timeline: every heading carrying a `time:` metadata value, ordered by
+/// that value. ISO dates (`YYYY-MM-DD`) sort chronologically as plain strings;
+/// other time values sort lexically among themselves (a known limit — see #45).
+/// Each entry links to its heading via `data-jump`, like the codex. Headings
+/// without a `time:` value don't appear (they can't be placed). Text is escaped
+/// for `innerHTML` assignment.
+pub fn render_timeline_html(root: &Node) -> String {
+    let titles = resolve_titles(root);
+    let mut entries: Vec<(&str, String, usize)> = Vec::new(); // (time, title, heading offset)
+    collect_timed(root, &titles, &mut entries);
+    // Stable sort by the time string keeps same-time headings in document order.
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    let mut out = String::new();
+    out.push_str("<ol class=\"timeline\">");
+    for (time, title, offset) in entries {
+        let name = if title.is_empty() { "(untitled)" } else { &title };
+        write!(
+            out,
+            "<li><time>{}</time> <a class=\"ref\" data-jump=\"{offset}\">{}</a></li>",
+            escape(time),
+            escape(name)
+        )
+        .ok();
+    }
+    out.push_str("</ol>");
+    out
+}
+
+/// Collect (`time` value, resolved title, heading offset) for every descendant
+/// heading that has a non-empty `time:` metadata value, in document order.
+fn collect_timed<'a>(
+    node: &'a Node,
+    titles: &HashMap<usize, String>,
+    out: &mut Vec<(&'a str, String, usize)>,
+) {
+    for child in &node.children {
+        if let Some((_, v)) = child.meta.iter().find(|(k, _)| k == crate::meta::TIME) {
+            if !v.is_empty() {
+                let start = child.heading_span.start;
+                let title = titles.get(&start).cloned().unwrap_or_else(|| child.title.clone());
+                out.push((v.as_str(), title, start));
+            }
+        }
+        collect_timed(child, titles, out);
+    }
+}
+
 /// `scope` is the resolved titles of the visible (`#`/`~`) ancestors walked
 /// through to reach here — a `%% Synopsis` under `## Chapter 1` renders under
 /// scope `["Chapter 1"]`, so two same-named notes in different chapters read
