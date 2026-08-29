@@ -6,7 +6,7 @@ import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
-import { DOC_KEYS, SCENE_KEYS, metaZone, valueSegment } from "./metacomplete.js";
+import { DOC_KEYS, SCENE_KEYS, metaZone, valueSegment, HEADING } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -191,6 +191,10 @@ function completeMetaKey(context) {
 // entities), and only once past the colon. Reads the `entityTitles` snapshot.
 function completeMetaValue(context) {
   const line = context.state.doc.lineAt(context.pos);
+  // metaZone reports the prior open zone; it can't tell the current line is itself
+  // a heading (a colon in a title — "Chapter 1: The Meeting" — would look like a
+  // value with no blank line before it). Bail on heading lines explicitly.
+  if (HEADING.test(line.text)) return null;
   if (metaZone((n) => context.state.doc.line(n).text, line.number) !== "scene") return null;
   const seg = valueSegment(line.text, context.pos - line.from);
   if (!seg) return null; // still in the key

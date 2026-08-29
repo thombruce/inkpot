@@ -7,7 +7,7 @@
 export const DOC_KEYS = ["title", "author", "byline", "contact"];
 export const SCENE_KEYS = ["pov", "time", "characters", "location"];
 
-const HEADING = /^([#~%])\1*\s/; // uniform marker run + space (Model A)
+export const HEADING = /^([#~%])\1*\s/; // uniform marker run + space (Model A)
 const META = /^([\w-]+):(.*)$/; // `key: value` — single-token key, matching meta_line
 
 // Which meta zone contains the in-progress line `lineNum` (1-based)? Replays the
