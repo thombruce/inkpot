@@ -6,7 +6,7 @@ import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
-import { DOC_KEYS, SCENE_KEYS, metaZone } from "./metacomplete.js";
+import { DOC_KEYS, SCENE_KEYS, metaZone, valueSegment } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -67,6 +67,15 @@ function debounce(fn, ms) {
   };
 }
 
+// Codex entity names (titles of `%` excluded headings), refreshed each parse.
+// Feeds value completion; a plain snapshot, so the completion source stays sync.
+let entityTitles = [];
+function collectEntities(node, out) {
+  if (node.visibility === "excluded" && node.title) out.push(node.title);
+  for (const child of node.children) collectEntities(child, out);
+  return out;
+}
+
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
   const [tree, html, codexHtml] = await Promise.all([
@@ -74,6 +83,7 @@ const refresh = debounce(async () => {
     invoke("preview", { src }),
     invoke("codex", { src }),
   ]);
+  entityTitles = [...new Set(collectEntities(tree, []))];
   drawOutline(tree);
   previewEl.innerHTML = html;
   codexEl.innerHTML = codexHtml;
@@ -176,6 +186,23 @@ function completeMetaKey(context) {
   };
 }
 
+// Complete codex entity names inside a scene meta value: `characters: Ali|` or
+// after a comma. Only in a heading's meta block (front matter names the work, not
+// entities), and only once past the colon. Reads the `entityTitles` snapshot.
+function completeMetaValue(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  if (metaZone((n) => context.state.doc.line(n).text, line.number) !== "scene") return null;
+  const seg = valueSegment(line.text, context.pos - line.from);
+  if (!seg) return null; // still in the key
+  if (!context.explicit && seg.typed.length === 0) return null;
+  const q = seg.typed.toLowerCase();
+  const options = entityTitles
+    .filter((t) => t.toLowerCase().includes(q))
+    .map((t) => ({ label: t, type: "variable" }));
+  if (options.length === 0) return null;
+  return { from: line.from + seg.fromCol, options };
+}
+
 const editor = new EditorView({
   parent: document.getElementById("editor"),
   state: EditorState.create({
@@ -189,7 +216,7 @@ const editor = new EditorView({
       inkFold,
       search({ top: true }),
       highlightSelectionMatches(),
-      autocompletion({ override: [completeMetaKey] }),
+      autocompletion({ override: [completeMetaKey, completeMetaValue] }),
       // Tab accepts the highlighted completion; a no-op (falls through) when the
       // tooltip is closed. Enter also accepts, via completionKeymap.
       keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap]),
