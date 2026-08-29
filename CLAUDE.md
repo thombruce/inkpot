@@ -20,10 +20,18 @@ stay in outline/edit.
 - `app/src-tauri/` — Tauri v2 shell. Its own workspace (root `Cargo.toml`
   `exclude`s `app`), so `cargo test` stays fast and needs no webkit.
 - `app/src/` — bundler-built frontend (Vite). No JS framework. Layout is a
-  flex row of three panes: outline rail, editor, preview. Editor and preview
-  share the space one at a time (toolbar toggle → `body.show-preview`); the
-  outline rail collapses (`body.hide-outline`). Both are pure CSS class
-  toggles in `main.js`/`style.css` — no grid tracks to juggle.
+  flex row: the outline rail plus a shared main area that shows **one** of
+  editor / preview / codex / timeline / characters / map at a time. The toolbar
+  toggles a `body.show-*` class per view (`show-preview`, `show-codex`,
+  `show-timeline`, `show-characters`, `show-map`); the outline rail collapses
+  (`body.hide-outline`). All pure CSS class toggles in `main.js`/`style.css` —
+  no grid tracks to juggle.
+- **Adding a planning view follows one pattern** (timeline/characters/map are
+  the examples): a pure projection in `ink-core` (`render_timeline_html`,
+  `render_characters_html`, `map_markers`) → a stateless `#[tauri::command]` →
+  a panel + toolbar toggle, refreshed each parse in `main.js`'s `refresh()`.
+  Views that emit `data-jump` offsets share one click-to-scroll handler. Read
+  the view keys from `ink-core::meta` (below), never scattered string literals.
 
 ## Commands
 
@@ -71,7 +79,15 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   heading- or meta-rule change touches all of them.
 - **Frontend uses `withGlobalTauri`** — `window.__TAURI__.{core,dialog,fs}`, no
   `@tauri-apps/api`/plugin npm packages. Keep it that way unless a global is
-  missing.
+  missing. Bundled *rendering* deps are a separate matter: CodeMirror, and
+  **Leaflet** (the map view) — the one non-editor rendering dep, pulling OSM
+  tiles over the network. The map is the only feature that isn't fully offline.
+- **Reserved metadata keys live in one place, `ink-core::meta`** — `id` (the
+  self-naming handle) plus the view keys that have earned core behavior (`time`
+  for the timeline, `coords` for the map). Behavior references these, not
+  `k == "id"` literals; a view key gets a constant only once core reads it. The
+  editor's key-completion seed (`SCENE_KEYS` in `metacomplete.js`) is the
+  frontend mirror — add a new suggested key there too.
 
 ## Conventions
 
