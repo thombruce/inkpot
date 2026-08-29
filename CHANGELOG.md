@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-29
+
 ### Added
 
 - `id:` metadata gives a section a rename-proof handle: codex references
