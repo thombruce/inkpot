@@ -34,4 +34,20 @@ import { scaffoldCharacter } from "./character.js";
   assert.equal(text.slice(selFrom, selTo), "Bob");
 }
 
+// A deeper `%% Characters` section is matched, and the entry nests one marker
+// deeper (`%%%`) — not a stray top-level `% Characters` (the manual-test bug).
+{
+  const src = "# Book\n\n## Chapter 1\n\n%% Characters\n\n%%% Alice\n";
+  const { text } = scaffoldCharacter(src);
+  assert.ok(text.includes("%%% New Character\nrole: "), `not nested under %%: \n${text}`);
+  assert.ok(!/^% Characters$/m.test(text), `spurious top-level section: \n${text}`);
+  assert.equal(text.match(/Characters$/gm).length, 1, "section duplicated");
+}
+
+// Matching is case-insensitive, mirroring the render's case-folded section name.
+{
+  const { text } = scaffoldCharacter("%% characters\n");
+  assert.ok(text.includes("%%% New Character"), `case-insensitive match failed:\n${text}`);
+}
+
 console.log("character: all assertions passed");
