@@ -132,6 +132,17 @@ raw.
   section (Characters, Locations, Timeline, …) with its entries and their
   metadata. A knowledge base derived from what you already write, no new syntax.
 
+The desktop app adds three **planning panels** that project from the same
+metadata — read-only, click an entry to jump to it in the editor:
+
+- **Timeline** — every heading with a `time:` value, in story-time order (ISO
+  `YYYY-MM-DD` dates sort chronologically).
+- **Characters** — the `% Characters` section as a card list, with a
+  **+ New character** button that scaffolds a `%% Name` entry.
+- **Map** — locations placed on an OpenStreetMap map; give a location's `%` note
+  a `coords: <lat>, <lon>` value and it appears as a marker. (Needs a network
+  connection for the basemap.)
+
 ## Repository layout
 
 ```
@@ -139,7 +150,7 @@ crates/
   ink-core/     Parser, tree, and the view renderers. Zero UI deps.
   ink-cli/      `ink render --view=… <file.ink>` — wraps ink-core.
 app/
-  src/          Frontend: CodeMirror editor, outline, preview, codex (Vite, no framework).
+  src/          Frontend: CodeMirror editor, outline, preview, codex, timeline, characters, map (Vite, no framework).
   src-tauri/    Tauri v2 desktop shell. Stateless commands over ink-core (parse, render views).
 examples/       Sample .ink documents (sample.ink, codex.ink).
 docs/ipc.md     The Tauri IPC contract.
