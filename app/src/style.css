@@ -82,14 +82,16 @@ body {
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
 body.hide-outline .outline { display: none; }
-.editor, .preview, .codex, .timeline { flex: 1; border-right: none; }
-.preview, .codex, .timeline { display: none; }
+.editor, .preview, .codex, .timeline, .characters { flex: 1; border-right: none; }
+.preview, .codex, .timeline, .characters { display: none; }
 body.show-preview .editor,
 body.show-codex .editor,
-body.show-timeline .editor { display: none; }
+body.show-timeline .editor,
+body.show-characters .editor { display: none; }
 body.show-preview .preview { display: block; }
 body.show-codex .codex { display: block; }
 body.show-timeline .timeline { display: block; }
+body.show-characters .characters { display: flex; flex-direction: column; }
 
 /* Outline */
 .outline { padding: 8px 0; background: var(--panel); }
@@ -173,41 +175,60 @@ body.show-timeline .timeline { display: block; }
 /* Codex — the derived entity index. Reuses the reading pane; entities nest and
    their metadata lays out as a compact key/value grid. */
 .codex { background: var(--panel); }
-.codex .codex-section { margin-bottom: 1.5em; }
+/* Codex and Characters panels render the same entity HTML; styles are shared. */
+.codex .codex-section,
+.characters .codex-section { margin-bottom: 1.5em; }
 /* Scope breadcrumb: the visible-heading ancestors a nested `%` note sits under. */
-.codex .codex-scope {
+.codex .codex-scope,
+.characters .codex-scope {
   font: 11px/1.4 system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--dim);
 }
-.codex .entity {
+.codex .entity,
+.characters .entity {
   margin: 0.75em 0 0.75em 1.25em;
   padding-left: 1em;
   border-left: 1px solid var(--border);
 }
-.codex dl {
+.codex dl,
+.characters dl {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 2px 12px;
   margin: 0.4em 0;
   font: 13px/1.5 system-ui, sans-serif;
 }
-.codex dt { color: var(--dim); }
-.codex dd { margin: 0; color: var(--ink); }
+.codex dt, .characters dt { color: var(--dim); }
+.codex dd, .characters dd { margin: 0; color: var(--ink); }
 /* Resolved cross-references (metadata values + backlinks) jump to the entity. */
-.codex .ref { color: var(--accent); cursor: pointer; }
-.codex .ref:hover { text-decoration: underline; }
-.codex .backlinks {
+.codex .ref, .characters .ref { color: var(--accent); cursor: pointer; }
+.codex .ref:hover, .characters .ref:hover { text-decoration: underline; }
+.codex .backlinks,
+.characters .backlinks {
   margin: 0.5em 0 0 1.25em;
   font: 12px/1.5 system-ui, sans-serif;
   color: var(--dim);
 }
-.codex .reading > :first-child,
-.codex h2 { margin-top: 0; }
+.codex .reading > :first-child, .codex h2,
+.characters .reading > :first-child, .characters h2 { margin-top: 0; }
 .codex:empty::after,
 .codex .reading:empty::after {
   content: "No codex entries — add a section with the % marker (e.g. % Characters).";
+  color: var(--dim);
+  font: 14px/1.6 system-ui, sans-serif;
+}
+
+/* Characters panel: a toolbar strip above the scrolling card list. */
+.characters .characters-bar {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.characters #characters { flex: 1; overflow: auto; }
+.characters #characters:empty::after {
+  content: "No characters yet — add a % Characters section, or click + New character.";
   color: var(--dim);
   font: 14px/1.6 system-ui, sans-serif;
 }

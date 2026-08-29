@@ -261,6 +261,19 @@ fn multiline_metadata_value_and_round_trip() {
 }
 
 #[test]
+fn characters_panel_renders_only_the_characters_section() {
+    let src = "%% \n\n% Characters\n\n%% Alice\nrole: protagonist\n\nBaker.\n\n% Locations\n\n%% London\n";
+    let html = ink_core::render_characters_html(&parse(src));
+    // Alice (a character) and her fields show; London (a location) does not.
+    assert!(html.contains(">Alice</h"), "character missing: {html}");
+    assert!(html.contains("<dt>role</dt><dd>protagonist</dd>"), "field missing: {html}");
+    assert!(html.contains("Baker."), "body missing: {html}");
+    assert!(!html.contains(">London</h"), "location leaked into characters: {html}");
+    // No `% Characters` section -> empty output.
+    assert_eq!(ink_core::render_characters_html(&parse("% Locations\n\n%% Paris\n")), "");
+}
+
+#[test]
 fn timeline_orders_headings_by_time() {
     // Scenes carry a `time:`; the timeline lists them in time order (ISO dates
     // sort chronologically as strings), not document order. A heading with no

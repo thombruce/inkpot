@@ -646,6 +646,32 @@ fn collect_timed<'a>(
     }
 }
 
+/// The character index: the codex section whose title is "Characters", rendered
+/// as entity cards for the character panel. Reuses the codex entry rendering, so
+/// each character shows its metadata, body, and backlinks and links jump via
+/// `data-jump`. Empty (no output) if the document has no `% Characters` section.
+/// The section name match is case-folded; other `%` sections are ignored here.
+pub fn render_characters_html(root: &Node) -> String {
+    let idx = CodexIndex::build(root);
+    let mut out = String::new();
+    characters_walk(root, &root_ctx(root), &idx, &mut out);
+    out
+}
+
+fn characters_walk(node: &Node, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        if child.visibility == Visibility::Excluded {
+            if fold_name(&child.title) == "characters" {
+                out.push_str("<section class=\"codex-section\">");
+                codex_html_entry(child, 0, &cctx, idx, out);
+                out.push_str("</section>");
+            }
+        } else {
+            characters_walk(child, &cctx, idx, out);
+        }
+    }
+}
+
 /// `scope` is the resolved titles of the visible (`#`/`~`) ancestors walked
 /// through to reach here — a `%% Synopsis` under `## Chapter 1` renders under
 /// scope `["Chapter 1"]`, so two same-named notes in different chapters read
