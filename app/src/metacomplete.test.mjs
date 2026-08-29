@@ -1,6 +1,6 @@
 // Run: node app/src/metacomplete.test.mjs
 import assert from "node:assert/strict";
-import { metaZone, DOC_KEYS, SCENE_KEYS } from "./metacomplete.js";
+import { metaZone, valueSegment, DOC_KEYS, SCENE_KEYS } from "./metacomplete.js";
 
 // 1-based line-text accessor over an array.
 const at = (arr) => (n) => arr[n - 1];
@@ -33,5 +33,17 @@ for (const k of ["title", "author", "byline", "contact"]) {
   assert.ok(DOC_KEYS.includes(k), `DOC_KEYS missing ${k}`);
 }
 assert.ok(SCENE_KEYS.includes("pov"));
+
+// valueSegment: the entity-name part being typed in a value.
+// No colon yet -> null (key completion territory).
+assert.equal(valueSegment("charac", 6), null);
+// First value: segment starts after the colon + one space.
+assert.deepEqual(valueSegment("characters: A", 13), { typed: "A", fromCol: 12 });
+// After a comma: segment is the part after the last comma, leading space skipped.
+assert.deepEqual(valueSegment("characters: Alice, B", 20), { typed: "B", fromCol: 19 });
+// Empty value (just typed the colon): empty segment at the value start.
+assert.deepEqual(valueSegment("pov:", 4), { typed: "", fromCol: 4 });
+// A multi-word entity name is captured whole (spaces within the segment).
+assert.deepEqual(valueSegment("location: The Wat", 17), { typed: "The Wat", fromCol: 10 });
 
 console.log("metacomplete: all assertions passed");

@@ -7,7 +7,7 @@
 export const DOC_KEYS = ["title", "author", "byline", "contact"];
 export const SCENE_KEYS = ["pov", "time", "characters", "location"];
 
-const HEADING = /^([#~%])\1*\s/; // uniform marker run + space (Model A)
+export const HEADING = /^([#~%])\1*\s/; // uniform marker run + space (Model A)
 const META = /^([\w-]+):(.*)$/; // `key: value` — single-token key, matching meta_line
 
 // Which meta zone contains the in-progress line `lineNum` (1-based)? Replays the
@@ -39,4 +39,21 @@ export function metaZone(lineTextAt, lineNum) {
     inMeta = false; // a blank or non-meta line closes the zone
   }
   return inMeta ? zone : null;
+}
+
+// The entity-name segment being typed in a metadata *value* — the text after the
+// last comma (values are comma-separated lists; see meta_value_html in render.rs).
+// Given the line text and the caret column, returns `{ typed, fromCol }` where
+// `fromCol` is the column the segment starts at (for the completion's `from`), or
+// null if the caret is not past a `key:` colon. Front-matter vs scene gating is
+// the caller's job (via metaZone).
+export function valueSegment(lineText, caretCol) {
+  const before = lineText.slice(0, caretCol);
+  const colon = before.indexOf(":");
+  if (colon === -1) return null; // still typing the key
+  const seg = before.slice(colon + 1);
+  const lastComma = seg.lastIndexOf(",");
+  const part = seg.slice(lastComma + 1);
+  const leading = part.length - part.trimStart().length;
+  return { typed: part.trim(), fromCol: colon + 1 + lastComma + 1 + leading };
 }
