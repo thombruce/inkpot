@@ -16,6 +16,7 @@ const fs = window.__TAURI__.fs;
 const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
 const codexEl = document.getElementById("codex");
+const timelineEl = document.getElementById("timeline");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
 const recentEl = document.getElementById("recent");
@@ -78,15 +79,17 @@ function collectEntities(node, out) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  const [tree, html, codexHtml] = await Promise.all([
+  const [tree, html, codexHtml, timelineHtml] = await Promise.all([
     invoke("outline", { src }),
     invoke("preview", { src }),
     invoke("codex", { src }),
+    invoke("timeline", { src }),
   ]);
   entityTitles = [...new Set(collectEntities(tree, []))];
   drawOutline(tree);
   previewEl.innerHTML = html;
   codexEl.innerHTML = codexHtml;
+  timelineEl.innerHTML = timelineHtml;
   // Root carries the whole-document manuscript word count.
   wordcountEl.textContent = `${tree.words.toLocaleString()} words`;
 }, 150);
@@ -480,18 +483,21 @@ outlineBtn.addEventListener("click", () => {
   outlineBtn.classList.toggle("active", !hidden);
 });
 
-// Editor / preview / codex share one space; the toolbar toggles which shows.
-// Preview and codex are mutually exclusive (both hide the editor), so switching
-// one off returns to the editor and turning one on clears the other.
+// Editor / preview / codex / timeline share one space; the toolbar toggles which
+// shows. They are mutually exclusive (each hides the editor), so switching one
+// off returns to the editor and turning one on clears the others.
 const previewBtn = document.getElementById("togglePreview");
 const codexBtn = document.getElementById("toggleCodex");
+const timelineBtn = document.getElementById("toggleTimeline");
 
 function setView(view) {
   document.body.classList.toggle("show-preview", view === "preview");
   document.body.classList.toggle("show-codex", view === "codex");
+  document.body.classList.toggle("show-timeline", view === "timeline");
   previewBtn.textContent = view === "preview" ? "Edit" : "Preview";
   previewBtn.classList.toggle("active", view === "preview");
   codexBtn.classList.toggle("active", view === "codex");
+  timelineBtn.classList.toggle("active", view === "timeline");
 }
 
 previewBtn.addEventListener("click", () => {
@@ -500,15 +506,20 @@ previewBtn.addEventListener("click", () => {
 codexBtn.addEventListener("click", () => {
   setView(document.body.classList.contains("show-codex") ? "editor" : "codex");
 });
-
-// Codex links (resolved metadata refs + backlinks) carry the target heading's
-// char offset. The editor is hidden while the codex shows, so switch back first.
-codexEl.addEventListener("click", (e) => {
-  const link = e.target.closest("[data-jump]");
-  if (!link) return;
-  setView("editor");
-  jumpTo(Number(link.dataset.jump));
+timelineBtn.addEventListener("click", () => {
+  setView(document.body.classList.contains("show-timeline") ? "editor" : "timeline");
 });
+
+// Codex and timeline links carry the target heading's char offset. The editor is
+// hidden while they show, so switch back first, then scroll to the heading.
+for (const panel of [codexEl, timelineEl]) {
+  panel.addEventListener("click", (e) => {
+    const link = e.target.closest("[data-jump]");
+    if (!link) return;
+    setView("editor");
+    jumpTo(Number(link.dataset.jump));
+  });
+}
 
 // Export the rendered manuscript (visible headings + resolved markup, scenes
 // and excluded subtrees dropped) as plain text — parse/render stays in Rust.

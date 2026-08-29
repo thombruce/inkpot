@@ -9,9 +9,10 @@
 //!   *self-naming* key (see [`is_self_naming`]): excluded from outgoing
 //!   references/backlinks and rendered plain, never as a `[[link]]`. This is the
 //!   only reserved key with behavior in `ink-core` today.
-//! - **View keys** — `time`, `location`, `characters`, `pov`: free-form as far
-//!   as core is concerned; the app's structured views (timeline/map, see #45)
-//!   read them. No core behavior, so no core constant until they earn one.
+//! - **View keys** — `time`, `location`, `characters`, `pov`: read by the app's
+//!   structured views (timeline/map, see #45). A view key earns a constant here
+//!   once core grows behavior for it: `time` has one now (the timeline render
+//!   orders headings by it); the rest stay free-form until they do.
 //! - **Export keys** — `title`, `author`, `contact`, `byline`: front-matter
 //!   metadata for manuscript export (Shunn/pandoc, see #23). Likewise no core
 //!   behavior yet.
@@ -23,6 +24,10 @@
 /// The rename-proof section handle. Names its own `%` codex entity so a
 /// `[[link]]` or metadata reference survives a title rename.
 pub const ID: &str = "id";
+
+/// When a heading happens, in story time. The timeline view orders headings by
+/// this value; ISO dates (`YYYY-MM-DD`) sort chronologically as plain strings.
+pub const TIME: &str = "time";
 
 /// Does this metadata key *name its own section* rather than reference another
 /// entity? Such keys are excluded from backlinks and rendered as plain text,

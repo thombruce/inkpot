@@ -261,6 +261,24 @@ fn multiline_metadata_value_and_round_trip() {
 }
 
 #[test]
+fn timeline_orders_headings_by_time() {
+    // Scenes carry a `time:`; the timeline lists them in time order (ISO dates
+    // sort chronologically as strings), not document order. A heading with no
+    // `time:` is left out.
+    let src = "~ Second\ntime: 1987-05-02\n\n~ First\ntime: 1987-05-01\n\n# Untimed\n\n~ Third\ntime: 1987-05-03\n";
+    let html = ink_core::render_timeline_html(&parse(src));
+    // Ordered First, Second, Third regardless of the document's Second-First order.
+    let first = html.find(">First<").expect("First missing");
+    let second = html.find(">Second<").expect("Second missing");
+    let third = html.find(">Third<").expect("Third missing");
+    assert!(first < second && second < third, "not time-ordered: {html}");
+    // The time value and a jump link are shown; the untimed heading is absent.
+    assert!(html.contains("<time>1987-05-01</time>"), "time missing: {html}");
+    assert!(html.contains("data-jump="), "no jump link: {html}");
+    assert!(!html.contains(">Untimed<"), "untimed heading should not appear: {html}");
+}
+
+#[test]
 fn metadata_value_is_a_comma_separated_array() {
     // A comma-separated value is an array: each trimmed part resolves on its own,
     // so `characters: Alice, Bob` links both and leaves an unknown part plain.

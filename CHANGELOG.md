@@ -27,6 +27,9 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - **Autocomplete codex entity names** in a scene's metadata values: typing after
   a key like `characters:` or `location:` (or after a comma) suggests the titles
   of your `%` entities, so references stay consistent without retyping names.
+- **Timeline view** (toolbar → Timeline): every heading with a `time:` value,
+  listed in story-time order — ISO dates (`YYYY-MM-DD`) sort chronologically.
+  Click an entry to jump to that scene in the editor.
 
 ## [0.6.0] - 2026-08-22
 
