@@ -24,8 +24,9 @@ export function characterPositions(scenes, coordsOf, cursor) {
         positions[name] = { location: scene.location, lat: coords.lat, lon: coords.lon };
       }
     }
-    // Exits take effect from the scene *after* the one they mark.
-    if (i < cursor) for (const name of scene.exits ?? []) delete positions[name];
+    // Exits take effect from the scene *after* the one they mark, so the last
+    // scene reached (`end`, the clamped cursor) still shows its exiting cast.
+    if (i < end) for (const name of scene.exits ?? []) delete positions[name];
   }
   return positions;
 }

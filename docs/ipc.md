@@ -120,9 +120,8 @@ values are numbers, else lexical). The frontend joins `location` to a `map`
 marker by folded name to get coordinates, then walks the list up to the cursor
 index to place each character at their most-recent located scene; a scene's
 `exits` marks a character's last appearance — shown in that scene, dropped from
-the next one on. The join and
-per-cursor computation are client-side (`app/src/timescrub.js`) — no IPC per
-slider tick.
+the next one on. The join and per-cursor computation are client-side
+(`app/src/timescrub.js`) — no IPC per slider tick.
 
 ## What does NOT cross IPC
 

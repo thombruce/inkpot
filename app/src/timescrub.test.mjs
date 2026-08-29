@@ -41,6 +41,15 @@ const scenes = [
   assert.equal(p.Alice.location, "Rome");
 }
 
+// Overshooting the end still shows the final scene's exiting cast (the clamped
+// last scene is a "finale", so its exit doesn't apply).
+{
+  const s = [
+    { location: "London", characters: ["Alice", "Bob"], exits: ["Bob"] }, // last & only scene
+  ];
+  assert.equal(characterPositions(s, coordsOf, 99).Bob.location, "London", "finale cast shown even past the end");
+}
+
 // exits marks a character's last scene: present there, gone from the next on.
 {
   const s = [
