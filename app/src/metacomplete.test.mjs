@@ -33,6 +33,7 @@ for (const k of ["title", "author", "byline", "contact"]) {
   assert.ok(DOC_KEYS.includes(k), `DOC_KEYS missing ${k}`);
 }
 assert.ok(SCENE_KEYS.includes("pov"));
+assert.ok(SCENE_KEYS.includes("coords"), "coords should be a suggested key (map view)");
 
 // valueSegment: the entity-name part being typed in a value.
 // No colon yet -> null (key completion territory).

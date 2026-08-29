@@ -646,6 +646,51 @@ fn collect_timed<'a>(
     }
 }
 
+/// A location marker for the map view: an entity's resolved title, its geographic
+/// position, and the heading offset to jump to (like the codex `data-jump`).
+pub struct MapMarker {
+    pub title: String,
+    pub lat: f64,
+    pub lon: f64,
+    pub offset: usize,
+}
+
+/// Every codex entity (a `%` heading with a title) that carries a parseable
+/// `coords:` value, as map markers. Entities without valid coordinates are
+/// skipped — a location is on the map iff it says where it is. Not filtered to a
+/// "Locations" section: any entity with coordinates is placeable.
+pub fn map_markers(root: &Node) -> Vec<MapMarker> {
+    let titles = resolve_titles(root);
+    let mut entities = Vec::new();
+    collect_entities(root, &mut entities);
+    entities
+        .iter()
+        .filter_map(|e| {
+            let (_, v) = e.meta.iter().find(|(k, _)| k == crate::meta::COORDS)?;
+            let (lat, lon) = parse_coords(v)?;
+            let offset = e.heading_span.start;
+            let title = titles.get(&offset).cloned().unwrap_or_else(|| e.title.clone());
+            Some(MapMarker { title, lat, lon, offset })
+        })
+        .collect()
+}
+
+/// Parse a `coords:` value as `lat, lon` in decimal degrees. Requires exactly two
+/// comma-separated numbers in valid geographic range; anything else is None (so a
+/// stray non-coordinate value just leaves the entity off the map).
+fn parse_coords(v: &str) -> Option<(f64, f64)> {
+    let parts: Vec<&str> = v.split(',').map(str::trim).collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let lat = parts[0].parse::<f64>().ok()?;
+    let lon = parts[1].parse::<f64>().ok()?;
+    if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lon) {
+        return None;
+    }
+    Some((lat, lon))
+}
+
 /// The character index: the codex section whose title is "Characters", rendered
 /// as entity cards for the character panel. Reuses the codex entry rendering, so
 /// each character shows its metadata, body, and backlinks and links jump via

@@ -261,6 +261,18 @@ fn multiline_metadata_value_and_round_trip() {
 }
 
 #[test]
+fn map_markers_from_coords_metadata() {
+    let src = "% Locations\n\n%% London\ncoords: 51.5074, -0.1278\n\n%% Nowhere\n\n%% Bad\ncoords: not, coords\n\n%% OutOfRange\ncoords: 200, 0\n";
+    let markers = ink_core::map_markers(&parse(src));
+    // Only London has a valid pair: Nowhere has none, Bad won't parse, OutOfRange is off-globe.
+    assert_eq!(markers.len(), 1, "expected only London: {:?}", markers.iter().map(|m| &m.title).collect::<Vec<_>>());
+    let m = &markers[0];
+    assert_eq!(m.title, "London");
+    assert!((m.lat - 51.5074).abs() < 1e-9 && (m.lon - -0.1278).abs() < 1e-9, "coords off: {},{}", m.lat, m.lon);
+    assert!(m.offset > 0, "offset should point at the heading");
+}
+
+#[test]
 fn characters_panel_renders_only_the_characters_section() {
     let src = "%% \n\n% Characters\n\n%% Alice\nrole: protagonist\n\nBaker.\n\n% Locations\n\n%% London\n";
     let html = ink_core::render_characters_html(&parse(src));

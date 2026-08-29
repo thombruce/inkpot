@@ -2,8 +2,8 @@
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
 use ink_core::{
-    parse, render, render_characters_html, render_codex_html, render_html, render_timeline_html,
-    resolve_titles, word_count, Node, Span, View, Visibility,
+    map_markers, parse, render, render_characters_html, render_codex_html, render_html,
+    render_timeline_html, resolve_titles, word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -102,12 +102,30 @@ fn characters(src: String) -> String {
     render_characters_html(&parse(&src))
 }
 
+/// A location marker for the map view: title, position, and jump offset.
+#[derive(Serialize)]
+struct Marker {
+    title: String,
+    lat: f64,
+    lon: f64,
+    offset: usize,
+}
+
+/// Location entities with a parseable `coords:` value, as map markers.
+#[tauri::command]
+fn map(src: String) -> Vec<Marker> {
+    map_markers(&parse(&src))
+        .into_iter()
+        .map(|m| Marker { title: m.title, lat: m.lat, lon: m.lon, offset: m.offset })
+        .collect()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex, timeline, characters
+            outline, preview, manuscript, codex, timeline, characters, map
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

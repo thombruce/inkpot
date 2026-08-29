@@ -19,6 +19,7 @@
       <span id="wordcount" class="wordcount"></span>
       <button id="toggleCodex" title="Codex — characters, locations, notes">Codex</button>
       <button id="toggleCharacters" title="Characters — your cast at a glance">Characters</button>
+      <button id="toggleMap" title="Map — locations by their coordinates">Map</button>
       <button id="toggleTimeline" title="Timeline — scenes in story-time order">Timeline</button>
       <button id="togglePreview">Preview</button>
     </header>
@@ -41,6 +42,9 @@
           <button id="newCharacter">+ New character</button>
         </div>
         <div id="characters" class="reading" aria-live="polite"></div>
+      </section>
+      <section class="pane map">
+        <div id="map" aria-label="Map of locations"></div>
       </section>
     </main>
     <script type="module" src="./main.js"></script>
