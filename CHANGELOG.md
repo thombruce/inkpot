@@ -18,6 +18,12 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   every view (manuscript, HTML preview, codex), falling back to the raw target
   when nothing matches. So `[[alice]]` reads "Alice Hargrove" in the manuscript,
   not the raw handle.
+- Metadata values can **span multiple lines**: leave the value after the colon
+  empty and put the text on the following indented lines (e.g. a postal
+  `contact:` block). They join into one value until a blank or non-indented line.
+- A **comma-separated metadata value is a list** — `characters: Alice, Bob`
+  resolves each part on its own, so both link to their `%` entities. (Already the
+  behaviour; now documented and covered by a test.)
 
 ## [0.6.0] - 2026-08-22
 
