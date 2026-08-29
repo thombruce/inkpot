@@ -7,6 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Time-scrub on the map**: a time slider steps through your scenes in
+  story-time order, placing each character at their most recent `location:` as
+  the cursor advances — so you can watch the cast move across the map. Give
+  scenes a `time:`, `location:`, and `characters:`, and locations a `coords:`.
+  The slider walks scenes in order, so it works with any `time:` format.
+
 ## [0.7.1] - 2026-08-29
 
 ### Fixed

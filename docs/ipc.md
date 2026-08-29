@@ -100,6 +100,27 @@ Every codex entity (a `%` heading with a title) that carries a parseable
 read-only; the OpenStreetMap basemap needs network (markers still position
 offline, without tile imagery).
 
+### `scenes(src: string) -> Scene[]`
+
+Returns the time-ordered scenes for the **time-scrub** (the map's time slider):
+
+```ts
+type Scene = {
+  time: string;         // the raw `time:` value
+  title: string;        // resolved heading title
+  location: string;     // the `location:` value (may be "")
+  characters: string[]; // the `characters:` value, comma-split
+  offset: number;       // heading char offset
+};
+```
+
+Every heading with a `time:` value, ordered like the timeline (numeric if all
+values are numbers, else lexical). The frontend joins `location` to a `map`
+marker by folded name to get coordinates, then walks the list up to the cursor
+index to place each character at their most-recent located scene. The join and
+per-cursor computation are client-side (`app/src/timescrub.js`) — no IPC per
+slider tick.
+
 ## What does NOT cross IPC
 
 - **Syntax highlighting** — a CodeMirror language mode on the frontend

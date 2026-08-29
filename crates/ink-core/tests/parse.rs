@@ -277,6 +277,23 @@ fn timeline_sorts_numeric_times_as_numbers() {
 }
 
 #[test]
+fn scene_timeline_collects_time_location_characters_in_order() {
+    // Scenes carry time/location/characters; scene_timeline returns them in time
+    // order (numeric here), each with its parsed fields — the time-scrub's input.
+    let src = "~ Later\ntime: 20\nlocation: Rome\ncharacters: Alice, Bob\n\n~ Early\ntime: 10\nlocation: London\ncharacters: Alice\n\n# Untimed\nlocation: Nowhere\n";
+    let scenes = ink_core::scene_timeline(&parse(src));
+    // Only the two timed scenes, Early before Later.
+    assert_eq!(scenes.len(), 2, "untimed heading excluded");
+    assert_eq!(scenes[0].title, "Early");
+    assert_eq!(scenes[0].location, "London");
+    assert_eq!(scenes[0].characters, vec!["Alice"]);
+    assert_eq!(scenes[1].title, "Later");
+    assert_eq!(scenes[1].characters, vec!["Alice", "Bob"]);
+    // Offsets are heading positions: "Early" is physically after "Later" here.
+    assert!(scenes[0].offset > scenes[1].offset, "offsets should be heading positions");
+}
+
+#[test]
 fn map_markers_from_coords_metadata() {
     let src = "% Locations\n\n%% London\ncoords: 51.5074, -0.1278\n\n%% Nowhere\n\n%% Bad\ncoords: not, coords\n\n%% OutOfRange\ncoords: 200, 0\n";
     let markers = ink_core::map_markers(&parse(src));

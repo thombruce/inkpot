@@ -611,18 +611,7 @@ pub fn render_timeline_html(root: &Node) -> String {
     let titles = resolve_titles(root);
     let mut entries: Vec<(&str, String, usize)> = Vec::new(); // (time, title, heading offset)
     collect_timed(root, &titles, &mut entries);
-    // Numeric timelines (years — including negatives and billions, e.g. a cosmic
-    // history) must sort as numbers: a lexical sort mis-orders unpadded magnitudes
-    // (`1000` before `900`) and inverts negatives (`-1000` before `-13700000000`).
-    // If every value parses as a number, sort numerically; otherwise keep the
-    // lexical order (ISO `YYYY-MM-DD` dates aren't numbers, so they still sort
-    // chronologically). A mixed doc falls back to lexical. Both sorts are stable,
-    // so same-time headings keep document order.
-    if entries.iter().all(|(t, ..)| parse_number(t).is_some()) {
-        entries.sort_by(|a, b| parse_number(a.0).partial_cmp(&parse_number(b.0)).unwrap_or(Ordering::Equal));
-    } else {
-        entries.sort_by(|a, b| a.0.cmp(b.0));
-    }
+    sort_by_time(&mut entries, |e| e.0);
     let mut out = String::new();
     out.push_str("<ol class=\"timeline\">");
     for (time, title, offset) in entries {
@@ -645,6 +634,23 @@ pub fn render_timeline_html(root: &Node) -> String {
 fn parse_number(s: &str) -> Option<f64> {
     let n = s.trim().parse::<f64>().ok()?;
     n.is_finite().then_some(n)
+}
+
+/// Sort items by their `time:` value. Numeric timelines (years — negative, large)
+/// must sort as numbers: a lexical sort mis-orders unpadded magnitudes (`1000`
+/// before `900`) and inverts negatives (`-1000` before `-13700000000`). If every
+/// value is a number, sort numerically; otherwise lexically (ISO `YYYY-MM-DD`
+/// dates aren't numbers, so they keep chronological order). Mixed → lexical.
+/// Stable, so same-time items keep document order. Shared by the timeline and the
+/// scene projection so both order identically.
+fn sort_by_time<T>(items: &mut [T], time_of: impl Fn(&T) -> &str) {
+    if items.iter().all(|it| parse_number(time_of(it)).is_some()) {
+        items.sort_by(|a, b| {
+            parse_number(time_of(a)).partial_cmp(&parse_number(time_of(b))).unwrap_or(Ordering::Equal)
+        });
+    } else {
+        items.sort_by(|a, b| time_of(a).cmp(time_of(b)));
+    }
 }
 
 /// Collect (`time` value, resolved title, heading offset) for every descendant
@@ -709,6 +715,58 @@ fn parse_coords(v: &str) -> Option<(f64, f64)> {
         return None;
     }
     Some((lat, lon))
+}
+
+/// A scene for the time-scrub: its `time:`, `location:`, and `characters:`, plus
+/// the resolved title and heading offset. Everything the frontend needs to place
+/// characters on the map as a time cursor advances (`location` joins to a map
+/// marker by name; each character sits at their latest located scene).
+pub struct SceneEntry {
+    pub time: String,
+    pub title: String,
+    pub location: String,
+    pub characters: Vec<String>,
+    pub offset: usize,
+}
+
+/// Every heading carrying a `time:` value, in the same order as the timeline,
+/// each with its `location:` and `characters:` (comma-split). Drives the
+/// time-scrub. A scene missing `location:`/`characters:` still appears (empty
+/// fields); the frontend decides what it can place.
+pub fn scene_timeline(root: &Node) -> Vec<SceneEntry> {
+    let titles = resolve_titles(root);
+    let mut scenes = Vec::new();
+    collect_scenes(root, &titles, &mut scenes);
+    sort_by_time(&mut scenes, |s| s.time.as_str());
+    scenes
+}
+
+fn collect_scenes(node: &Node, titles: &HashMap<usize, String>, out: &mut Vec<SceneEntry>) {
+    use crate::meta::{CHARACTERS, LOCATION, TIME};
+    for child in &node.children {
+        if let Some((_, time)) = child.meta.iter().find(|(k, _)| k == TIME) {
+            if !time.is_empty() {
+                let offset = child.heading_span.start;
+                let title = titles.get(&offset).cloned().unwrap_or_else(|| child.title.clone());
+                let location = child
+                    .meta
+                    .iter()
+                    .find(|(k, _)| k == LOCATION)
+                    .map(|(_, v)| v.trim().to_string())
+                    .unwrap_or_default();
+                let characters = child
+                    .meta
+                    .iter()
+                    .find(|(k, _)| k == CHARACTERS)
+                    .map(|(_, v)| {
+                        v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+                    })
+                    .unwrap_or_default();
+                out.push(SceneEntry { time: time.clone(), title, location, characters, offset });
+            }
+        }
+        collect_scenes(child, titles, out);
+    }
 }
 
 /// The character index: the codex section whose title is "Characters", rendered
