@@ -25,7 +25,7 @@ pov: Alice
 characters: Alice, Bob
 exits: Bob
 
-By morning [[Bob]] had arrived. Alas, this is where his story ended.
+By morning [[Bob]] had arrived. Alas, this is where his story ended. [[Alice]] murdered [[Bob]] in cold blood.
 
 ~~~ The Return
 time: 4
