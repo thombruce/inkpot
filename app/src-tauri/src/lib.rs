@@ -3,7 +3,7 @@
 
 use ink_core::{
     map_markers, parse, render, render_characters_html, render_codex_html, render_html,
-    render_timeline_html, resolve_titles, word_count, Node, Span, View, Visibility,
+    render_timeline_html, resolve_titles, scene_timeline, word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -120,12 +120,40 @@ fn map(src: String) -> Vec<Marker> {
         .collect()
 }
 
+/// A scene for the time-scrub: time, title, location, characters, jump offset.
+#[derive(Serialize)]
+struct Scene {
+    time: String,
+    title: String,
+    location: String,
+    characters: Vec<String>,
+    exits: Vec<String>,
+    offset: usize,
+}
+
+/// Time-ordered scenes (headings with a `time:` value) with their `location:`,
+/// `characters:`, and `exits:`, for the time-scrub.
+#[tauri::command]
+fn scenes(src: String) -> Vec<Scene> {
+    scene_timeline(&parse(&src))
+        .into_iter()
+        .map(|s| Scene {
+            time: s.time,
+            title: s.title,
+            location: s.location,
+            characters: s.characters,
+            exits: s.exits,
+            offset: s.offset,
+        })
+        .collect()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex, timeline, characters, map
+            outline, preview, manuscript, codex, timeline, characters, map, scenes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

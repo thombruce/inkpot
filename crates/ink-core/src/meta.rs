@@ -9,10 +9,10 @@
 //!   *self-naming* key (see [`is_self_naming`]): excluded from outgoing
 //!   references/backlinks and rendered plain, never as a `[[link]]`. This is the
 //!   only reserved key with behavior in `ink-core` today.
-//! - **View keys** — `time`, `location`, `characters`, `pov`, `coords`: read by
-//!   the app's structured views (timeline/map, see #45). A view key earns a
-//!   constant here once core grows behavior for it: `time` (timeline ordering)
-//!   and `coords` (map marker placement) have one; the rest stay free-form.
+//! - **View keys** — `time`, `location`, `characters`, `coords`, `pov`: read by
+//!   the app's structured views (timeline/map/time-scrub, see #45). A view key
+//!   earns a constant here once core grows behavior for it: `time`, `location`,
+//!   `characters`, and `coords` have one; `pov` stays free-form until read.
 //! - **Export keys** — `title`, `author`, `contact`, `byline`: front-matter
 //!   metadata for manuscript export (Shunn/pandoc, see #23). Likewise no core
 //!   behavior yet.
@@ -32,6 +32,21 @@ pub const TIME: &str = "time";
 /// A location entity's geographic position, `lat, lon` (decimal degrees). The
 /// map view places a marker for each entity that has a parseable pair.
 pub const COORDS: &str = "coords";
+
+/// Where a scene takes place — a location entity's name. The time-scrub joins it
+/// to that location's [`COORDS`] to place characters on the map.
+pub const LOCATION: &str = "location";
+
+/// Who is present in a scene — a comma-separated list of character names. The
+/// time-scrub places each at the scene's [`LOCATION`] as the cursor passes it.
+pub const CHARACTERS: &str = "characters";
+
+/// Characters whose *last* scene this is — a comma-separated list (death,
+/// departure, written out). The time-scrub shows them in this scene, then drops
+/// them from the next one on, so the marker sits on the character's finale (and
+/// travels with it if the scene is reordered). Naming one again in a later
+/// [`CHARACTERS`] re-adds them (a flashback or fake-out).
+pub const EXITS: &str = "exits";
 
 /// Does this metadata key *name its own section* rather than reference another
 /// entity? Such keys are excluded from backlinks and rendered as plain text,

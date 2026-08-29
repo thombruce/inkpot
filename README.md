@@ -142,7 +142,12 @@ metadata — read-only, click an entry to jump to it in the editor:
   **+ New character** button that scaffolds a `%% Name` entry.
 - **Map** — locations placed on an OpenStreetMap map; give a location's `%` note
   a `coords: <lat>, <lon>` value and it appears as a marker. (Needs a network
-  connection for the basemap.)
+  connection for the basemap.) A **time slider** scrubs through your scenes in
+  story-time order and shows each character at their most recent `location:` — so
+  you can watch the cast move as the story unfolds (scenes need `time:`,
+  `location:`, and `characters:`). A scene can list `exits:` for characters whose
+  last scene it is (death, departure) — they show in that scene, then drop off the
+  map from the next one on.
 
 ## Repository layout
 

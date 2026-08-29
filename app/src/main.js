@@ -11,6 +11,7 @@ import { spliceMove } from "./reorder.js";
 import { scaffoldCharacter } from "./character.js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { characterPositions, occupiedLocations } from "./timescrub.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -82,9 +83,22 @@ let entityTitles = [];
 let mapMarkers = [];
 let leafletMap = null;
 let markerLayer = null;
+let characterLayer = null;
 // Signature of the markers last fitted into view. Refit only when the set
 // changes, so returning to the map keeps the user's pan/zoom.
 let fittedKey = null;
+// Time-scrub: the time-ordered scenes, and the cursor as an index into them
+// (null = the latest scene, so the map opens with everyone at their last place).
+let sceneList = [];
+let scrubIndex = null;
+
+// A location's coords by name, fold-matched to a map marker (case/space folded,
+// like codex resolution). null if the name has no coordinate-bearing marker.
+function coordsOf(name) {
+  const key = name.toLowerCase().trim();
+  const m = mapMarkers.find((mk) => mk.title.toLowerCase().trim() === key);
+  return m ? { lat: m.lat, lon: m.lon } : null;
+}
 
 function initMap() {
   leafletMap = L.map("map").setView([20, 0], 2);
@@ -93,7 +107,9 @@ function initMap() {
     attribution: "© OpenStreetMap contributors",
   }).addTo(leafletMap);
   markerLayer = L.layerGroup().addTo(leafletMap);
+  characterLayer = L.layerGroup().addTo(leafletMap); // above the location layer
   drawMarkers();
+  drawScrub();
 }
 
 // Render the marker snapshot onto the map (no-op until the map exists). Each
@@ -127,6 +143,60 @@ function drawMarkers() {
     fittedKey = key;
   }
 }
+
+const scrubBar = document.getElementById("scrubBar");
+const scrubInput = document.getElementById("scrub");
+const scrubLabel = document.getElementById("scrubLabel");
+
+// The cursor's scene index (clamped): the slider's value, defaulting to the last
+// scene when the user hasn't scrubbed.
+function scrubCursor() {
+  const last = sceneList.length - 1;
+  if (last < 0) return -1;
+  return Math.min(scrubIndex ?? last, last);
+}
+
+// Reflect the current scene set in the slider (range, value, visibility) and
+// redraw the character markers. Called after each parse and on map show.
+function updateScrub() {
+  const last = sceneList.length - 1;
+  // Only worth showing if some scene can actually place a character on the map.
+  const placeable = sceneList.some((s) => s.characters.length && coordsOf(s.location));
+  scrubBar.hidden = !placeable;
+  if (!placeable) {
+    if (characterLayer) characterLayer.clearLayers();
+    return;
+  }
+  scrubInput.max = String(last);
+  scrubInput.value = String(scrubCursor());
+  drawScrub();
+}
+
+// Draw character markers for the current cursor: one amber marker per occupied
+// location, labelled with who is there, plus the cursor's scene in the readout.
+function drawScrub() {
+  if (!characterLayer) return;
+  characterLayer.clearLayers();
+  const cursor = scrubCursor();
+  if (cursor < 0) return;
+  const scene = sceneList[cursor];
+  scrubLabel.textContent = scene ? `${scene.time} — ${scene.title || "(untitled)"}` : "";
+  for (const loc of occupiedLocations(characterPositions(sceneList, coordsOf, cursor))) {
+    L.circleMarker([loc.lat, loc.lon], {
+      radius: 7,
+      color: "#e0af68",
+      fillColor: "#e0af68",
+      fillOpacity: 0.9,
+    })
+      .bindTooltip(loc.names.join(", "), { permanent: true, direction: "top", className: "scrub-tip" })
+      .addTo(characterLayer);
+  }
+}
+
+scrubInput.addEventListener("input", () => {
+  scrubIndex = Number(scrubInput.value);
+  drawScrub();
+});
 function collectEntities(node, out) {
   if (node.visibility === "excluded" && node.title) out.push(node.title);
   for (const child of node.children) collectEntities(child, out);
@@ -135,14 +205,16 @@ function collectEntities(node, out) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  const [tree, html, codexHtml, timelineHtml, charactersHtml, markers] = await Promise.all([
-    invoke("outline", { src }),
-    invoke("preview", { src }),
-    invoke("codex", { src }),
-    invoke("timeline", { src }),
-    invoke("characters", { src }),
-    invoke("map", { src }),
-  ]);
+  const [tree, html, codexHtml, timelineHtml, charactersHtml, markers, sceneData] =
+    await Promise.all([
+      invoke("outline", { src }),
+      invoke("preview", { src }),
+      invoke("codex", { src }),
+      invoke("timeline", { src }),
+      invoke("characters", { src }),
+      invoke("map", { src }),
+      invoke("scenes", { src }),
+    ]);
   entityTitles = [...new Set(collectEntities(tree, []))];
   drawOutline(tree);
   previewEl.innerHTML = html;
@@ -150,7 +222,9 @@ const refresh = debounce(async () => {
   timelineEl.innerHTML = timelineHtml;
   charactersEl.innerHTML = charactersHtml;
   mapMarkers = markers;
+  sceneList = sceneData;
   drawMarkers();
+  updateScrub();
   // Root carries the whole-document manuscript word count.
   wordcountEl.textContent = `${tree.words.toLocaleString()} words`;
 }, 150);
@@ -572,6 +646,7 @@ function setView(view) {
     else {
       leafletMap.invalidateSize();
       drawMarkers();
+      drawScrub();
     }
   }
 }

@@ -45,6 +45,12 @@
       </section>
       <section class="pane map">
         <div id="map" aria-label="Map of locations"></div>
+        <div class="scrub-bar" id="scrubBar" hidden>
+          <label for="scrub">Time</label>
+          <input type="range" id="scrub" min="0" max="0" value="0" step="1"
+                 aria-label="Story time — scrub to see who is where" />
+          <span id="scrubLabel" class="scrub-label"></span>
+        </div>
       </section>
     </main>
     <script type="module" src="./main.js"></script>
