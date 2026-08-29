@@ -60,8 +60,9 @@ derived from what authors already write, no new syntax. (The plain-text
 
 Returns the **timeline** as HTML for the app's timeline panel: an `<ol class="timeline">`
 of every heading that carries a `time:` metadata value, ordered by that value.
-ISO dates (`YYYY-MM-DD`) sort chronologically as plain strings; other values sort
-lexically among themselves (a known limit — see #45). Each `<li>` is a `<time>`
+If every value is a number, they sort numerically (so signed year counts — a
+cosmic timeline from `-13700000000` onward — order correctly); otherwise they
+sort lexically, which keeps ISO `YYYY-MM-DD` dates chronological. Each `<li>` is a `<time>`
 plus an `<a class="ref" data-jump="<char-offset>">` linking to the heading (the
 frontend reads `data-jump` to scroll the editor there, same as the codex).
 Headings without a `time:` value don't appear. Text is escaped for `innerHTML`.

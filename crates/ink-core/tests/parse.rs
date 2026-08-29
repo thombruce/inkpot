@@ -261,6 +261,22 @@ fn multiline_metadata_value_and_round_trip() {
 }
 
 #[test]
+fn timeline_sorts_numeric_times_as_numbers() {
+    // Years as signed integers (a cosmic history): must order by numeric value,
+    // not lexically — lexical puts 1000 BC (-1000) before the Big Bang
+    // (-13700000000), and 1000 before 900.
+    let src = "~ Now\ntime: 2026\n\n~ BigBang\ntime: -13700000000\n\n~ Fall\ntime: -1000\n\n~ Year900\ntime: 900\n\n~ Year1000\ntime: 1000\n";
+    let html = ink_core::render_timeline_html(&parse(src));
+    let pos = |name: &str| html.find(&format!(">{name}<")).unwrap_or_else(|| panic!("missing {name}: {html}"));
+    assert!(pos("BigBang") < pos("Fall"), "Big Bang should precede 1000 BC: {html}");
+    assert!(pos("Fall") < pos("Year900"), "1000 BC should precede 900 AD");
+    assert!(pos("Year900") < pos("Year1000"), "900 should precede 1000 (not lexical)");
+    assert!(pos("Year1000") < pos("Now"), "1000 should precede 2026");
+    // The raw value is shown, negatives intact.
+    assert!(html.contains("<time>-13700000000</time>"), "negative time not shown: {html}");
+}
+
+#[test]
 fn map_markers_from_coords_metadata() {
     let src = "% Locations\n\n%% London\ncoords: 51.5074, -0.1278\n\n%% Nowhere\n\n%% Bad\ncoords: not, coords\n\n%% OutOfRange\ncoords: 200, 0\n";
     let markers = ink_core::map_markers(&parse(src));
