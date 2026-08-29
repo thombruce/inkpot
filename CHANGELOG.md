@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-29
+
 ### Added
 
 - **Time-scrub on the map**: a time slider steps through your scenes in
