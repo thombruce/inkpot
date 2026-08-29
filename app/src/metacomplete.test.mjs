@@ -24,6 +24,9 @@ assert.equal(metaZone(at(["title: x", "", "# Chapter", ""]), 4), "scene");
 // completion below still sees front matter.
 assert.equal(metaZone(at(["contact:", "  221B Baker St", "  London", ""]), 4), "front");
 assert.equal(metaZone(at(["# C", "loc:", "  Riverside", ""]), 4), "scene");
+// But an indented line under a NON-empty value is body (parser closes meta), so
+// the zone is closed — matches parse.rs, not just "any indented line continues".
+assert.equal(metaZone(at(["key: value", "    indented text", ""]), 3), null);
 
 // The Shunn front-matter fields are seeded.
 for (const k of ["title", "author", "byline", "contact"]) {
