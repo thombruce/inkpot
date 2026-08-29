@@ -82,9 +82,12 @@ let entityTitles = [];
 let mapMarkers = [];
 let leafletMap = null;
 let markerLayer = null;
+// Signature of the markers last fitted into view. Refit only when the set
+// changes, so returning to the map keeps the user's pan/zoom.
+let fittedKey = null;
 
 function initMap() {
-  leafletMap = L.map("map", { attributionControl: true }).setView([20, 0], 2);
+  leafletMap = L.map("map").setView([20, 0], 2);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "© OpenStreetMap contributors",
@@ -94,16 +97,18 @@ function initMap() {
 }
 
 // Render the marker snapshot onto the map (no-op until the map exists). Each
-// marker jumps to its heading on click, like the codex/timeline links.
+// marker jumps to its heading on click, like the codex/timeline links. Colour
+// tracks the app's --accent so it matches the palette.
 function drawMarkers() {
   if (!markerLayer) return;
   markerLayer.clearLayers();
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#7aa2f7";
   const points = [];
   for (const m of mapMarkers) {
     const marker = L.circleMarker([m.lat, m.lon], {
       radius: 6,
-      color: "#7aa2f7",
-      fillColor: "#7aa2f7",
+      color: accent,
+      fillColor: accent,
       fillOpacity: 0.8,
     });
     marker.bindTooltip(m.title || "(untitled)");
@@ -114,7 +119,13 @@ function drawMarkers() {
     marker.addTo(markerLayer);
     points.push([m.lat, m.lon]);
   }
-  if (points.length) leafletMap.fitBounds(points, { padding: [40, 40], maxZoom: 12 });
+  // Fit only when the markers changed and the map is visible (fitBounds on a
+  // hidden/0-size container mis-measures); an unchanged set keeps the view.
+  const key = points.map((p) => p.join()).join(";");
+  if (points.length && key !== fittedKey && document.body.classList.contains("show-map")) {
+    leafletMap.fitBounds(points, { padding: [40, 40], maxZoom: 12 });
+    fittedKey = key;
+  }
 }
 function collectEntities(node, out) {
   if (node.visibility === "excluded" && node.title) out.push(node.title);
