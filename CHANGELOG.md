@@ -34,6 +34,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   focused card list — each character's fields, notes, and backlinks — with a
   **+ New character** button that scaffolds a `%% Name` template into the section.
   Click a character to jump to its note.
+- **Map view** (toolbar → Map): locations placed on an OpenStreetMap map. Give a
+  location's `%` note a `coords: <lat>, <lon>` value and it appears as a marker;
+  click a marker to jump to the note. Read-only for now; the basemap needs a
+  network connection.
 
 ## [0.6.0] - 2026-08-22
 

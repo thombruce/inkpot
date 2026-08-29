@@ -78,6 +78,27 @@ no `% Characters` section. Text is escaped for `innerHTML`. The panel's one writ
 scaffolding a new `%% Name` entry — is a frontend text splice (`app/src/character.js`),
 not an IPC call; text stays canonical.
 
+### `map(src: string) -> Marker[]`
+
+Returns the map markers as **structured JSON** (not HTML — Leaflet places markers
+from coordinates):
+
+```ts
+type Marker = {
+  title: string;   // the entity's resolved title
+  lat: number;     // decimal degrees
+  lon: number;
+  offset: number;  // heading char offset — the frontend jumps the editor here
+};
+```
+
+Every codex entity (a `%` heading with a title) that carries a parseable
+`coords: <lat>, <lon>` value becomes a marker; entities without valid coordinates
+(missing, unparseable, or out of geographic range) are omitted. Not filtered to a
+`% Locations` section — any entity with coordinates is placeable. The map view is
+read-only; the OpenStreetMap basemap needs network (markers still position
+offline, without tile imagery).
+
 ## What does NOT cross IPC
 
 - **Syntax highlighting** — a CodeMirror language mode on the frontend

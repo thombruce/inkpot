@@ -82,16 +82,20 @@ body {
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
 body.hide-outline .outline { display: none; }
-.editor, .preview, .codex, .timeline, .characters { flex: 1; border-right: none; }
-.preview, .codex, .timeline, .characters { display: none; }
+.editor, .preview, .codex, .timeline, .characters, .map { flex: 1; border-right: none; }
+.preview, .codex, .timeline, .characters, .map { display: none; }
 body.show-preview .editor,
 body.show-codex .editor,
 body.show-timeline .editor,
-body.show-characters .editor { display: none; }
+body.show-characters .editor,
+body.show-map .editor { display: none; }
 body.show-preview .preview { display: block; }
 body.show-codex .codex { display: block; }
 body.show-timeline .timeline { display: block; }
 body.show-characters .characters { display: flex; flex-direction: column; }
+body.show-map .map { display: block; }
+/* Leaflet needs an explicitly sized container. */
+.map, #map { height: 100%; }
 
 /* Outline */
 .outline { padding: 8px 0; background: var(--panel); }

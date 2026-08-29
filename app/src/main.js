@@ -9,6 +9,8 @@ import { headingDepth, sectionEndLine } from "./fold.js";
 import { DOC_KEYS, SCENE_KEYS, metaZone, valueSegment, HEADING } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 import { scaffoldCharacter } from "./character.js";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -73,6 +75,47 @@ function debounce(fn, ms) {
 // Codex entity names (titles of `%` excluded headings), refreshed each parse.
 // Feeds value completion; a plain snapshot, so the completion source stays sync.
 let entityTitles = [];
+
+// Map state: the latest markers from the `map` command, and the Leaflet map +
+// marker layer (created lazily the first time the map view is shown — Leaflet
+// needs a sized, visible container). `drawMarkers` re-renders from the snapshot.
+let mapMarkers = [];
+let leafletMap = null;
+let markerLayer = null;
+
+function initMap() {
+  leafletMap = L.map("map", { attributionControl: true }).setView([20, 0], 2);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "© OpenStreetMap contributors",
+  }).addTo(leafletMap);
+  markerLayer = L.layerGroup().addTo(leafletMap);
+  drawMarkers();
+}
+
+// Render the marker snapshot onto the map (no-op until the map exists). Each
+// marker jumps to its heading on click, like the codex/timeline links.
+function drawMarkers() {
+  if (!markerLayer) return;
+  markerLayer.clearLayers();
+  const points = [];
+  for (const m of mapMarkers) {
+    const marker = L.circleMarker([m.lat, m.lon], {
+      radius: 6,
+      color: "#7aa2f7",
+      fillColor: "#7aa2f7",
+      fillOpacity: 0.8,
+    });
+    marker.bindTooltip(m.title || "(untitled)");
+    marker.on("click", () => {
+      setView("editor");
+      jumpTo(m.offset);
+    });
+    marker.addTo(markerLayer);
+    points.push([m.lat, m.lon]);
+  }
+  if (points.length) leafletMap.fitBounds(points, { padding: [40, 40], maxZoom: 12 });
+}
 function collectEntities(node, out) {
   if (node.visibility === "excluded" && node.title) out.push(node.title);
   for (const child of node.children) collectEntities(child, out);
@@ -81,12 +124,13 @@ function collectEntities(node, out) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  const [tree, html, codexHtml, timelineHtml, charactersHtml] = await Promise.all([
+  const [tree, html, codexHtml, timelineHtml, charactersHtml, markers] = await Promise.all([
     invoke("outline", { src }),
     invoke("preview", { src }),
     invoke("codex", { src }),
     invoke("timeline", { src }),
     invoke("characters", { src }),
+    invoke("map", { src }),
   ]);
   entityTitles = [...new Set(collectEntities(tree, []))];
   drawOutline(tree);
@@ -94,6 +138,8 @@ const refresh = debounce(async () => {
   codexEl.innerHTML = codexHtml;
   timelineEl.innerHTML = timelineHtml;
   charactersEl.innerHTML = charactersHtml;
+  mapMarkers = markers;
+  drawMarkers();
   // Root carries the whole-document manuscript word count.
   wordcountEl.textContent = `${tree.words.toLocaleString()} words`;
 }, 150);
@@ -494,17 +540,29 @@ const previewBtn = document.getElementById("togglePreview");
 const codexBtn = document.getElementById("toggleCodex");
 const timelineBtn = document.getElementById("toggleTimeline");
 const charactersBtn = document.getElementById("toggleCharacters");
+const mapBtn = document.getElementById("toggleMap");
 
 function setView(view) {
   document.body.classList.toggle("show-preview", view === "preview");
   document.body.classList.toggle("show-codex", view === "codex");
   document.body.classList.toggle("show-timeline", view === "timeline");
   document.body.classList.toggle("show-characters", view === "characters");
+  document.body.classList.toggle("show-map", view === "map");
   previewBtn.textContent = view === "preview" ? "Edit" : "Preview";
   previewBtn.classList.toggle("active", view === "preview");
   codexBtn.classList.toggle("active", view === "codex");
   timelineBtn.classList.toggle("active", view === "timeline");
   charactersBtn.classList.toggle("active", view === "characters");
+  mapBtn.classList.toggle("active", view === "map");
+  // Leaflet needs a visible, sized container: create it on first show, and
+  // recompute its size on later shows (it was display:none in between).
+  if (view === "map") {
+    if (!leafletMap) initMap();
+    else {
+      leafletMap.invalidateSize();
+      drawMarkers();
+    }
+  }
 }
 
 previewBtn.addEventListener("click", () => {
@@ -518,6 +576,9 @@ timelineBtn.addEventListener("click", () => {
 });
 charactersBtn.addEventListener("click", () => {
   setView(document.body.classList.contains("show-characters") ? "editor" : "characters");
+});
+mapBtn.addEventListener("click", () => {
+  setView(document.body.classList.contains("show-map") ? "editor" : "map");
 });
 
 // Codex, timeline, and character links carry the target heading's char offset.
