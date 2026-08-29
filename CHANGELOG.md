@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-29
+
 ### Fixed
 
 - The **timeline sorts all-numeric `time:` values as numbers**, so a timeline of
