@@ -30,6 +30,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - **Timeline view** (toolbar → Timeline): every heading with a `time:` value,
   listed in story-time order — ISO dates (`YYYY-MM-DD`) sort chronologically.
   Click an entry to jump to that scene in the editor.
+- **Characters panel** (toolbar → Characters): your `% Characters` section as a
+  focused card list — each character's fields, notes, and backlinks — with a
+  **+ New character** button that scaffolds a `%% Name` template into the section.
+  Click a character to jump to its note.
 
 ## [0.6.0] - 2026-08-22
 

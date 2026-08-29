@@ -66,6 +66,18 @@ plus an `<a class="ref" data-jump="<char-offset>">` linking to the heading (the
 frontend reads `data-jump` to scroll the editor there, same as the codex).
 Headings without a `time:` value don't appear. Text is escaped for `innerHTML`.
 
+### `characters(src: string) -> string`
+
+Returns the **character panel** as HTML: the `%` section whose title case-folds to
+`characters`, rendered as entity cards with the same per-entity markup as `codex`
+(`<section class="codex-section">`, `<article class="entity">`, `<dl>` metadata,
+body `<p>`, "Referenced by" backlinks, `data-jump` links) — but **without** the
+`codex-scope` breadcrumb (the panel is a focused cast list, so the visible-ancestor
+context is dropped). Other `%` sections are omitted; empty (no output) if there is
+no `% Characters` section. Text is escaped for `innerHTML`. The panel's one write —
+scaffolding a new `%% Name` entry — is a frontend text splice (`app/src/character.js`),
+not an IPC call; text stays canonical.
+
 ## What does NOT cross IPC
 
 - **Syntax highlighting** — a CodeMirror language mode on the frontend

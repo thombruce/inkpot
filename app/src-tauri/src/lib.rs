@@ -2,8 +2,8 @@
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
 use ink_core::{
-    parse, render, render_codex_html, render_html, render_timeline_html, resolve_titles,
-    word_count, Node, Span, View, Visibility,
+    parse, render, render_characters_html, render_codex_html, render_html, render_timeline_html,
+    resolve_titles, word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -96,11 +96,19 @@ fn timeline(src: String) -> String {
     render_timeline_html(&parse(&src))
 }
 
+/// Render the character panel — the `% Characters` section's entities — as HTML.
+#[tauri::command]
+fn characters(src: String) -> String {
+    render_characters_html(&parse(&src))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![outline, preview, manuscript, codex, timeline])
+        .invoke_handler(tauri::generate_handler![
+            outline, preview, manuscript, codex, timeline, characters
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

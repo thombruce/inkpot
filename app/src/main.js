@@ -8,6 +8,7 @@ import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
 import { DOC_KEYS, SCENE_KEYS, metaZone, valueSegment, HEADING } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
+import { scaffoldCharacter } from "./character.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -17,6 +18,7 @@ const outlineEl = document.getElementById("outline");
 const previewEl = document.getElementById("preview");
 const codexEl = document.getElementById("codex");
 const timelineEl = document.getElementById("timeline");
+const charactersEl = document.getElementById("characters");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
 const recentEl = document.getElementById("recent");
@@ -79,17 +81,19 @@ function collectEntities(node, out) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  const [tree, html, codexHtml, timelineHtml] = await Promise.all([
+  const [tree, html, codexHtml, timelineHtml, charactersHtml] = await Promise.all([
     invoke("outline", { src }),
     invoke("preview", { src }),
     invoke("codex", { src }),
     invoke("timeline", { src }),
+    invoke("characters", { src }),
   ]);
   entityTitles = [...new Set(collectEntities(tree, []))];
   drawOutline(tree);
   previewEl.innerHTML = html;
   codexEl.innerHTML = codexHtml;
   timelineEl.innerHTML = timelineHtml;
+  charactersEl.innerHTML = charactersHtml;
   // Root carries the whole-document manuscript word count.
   wordcountEl.textContent = `${tree.words.toLocaleString()} words`;
 }, 150);
@@ -489,15 +493,18 @@ outlineBtn.addEventListener("click", () => {
 const previewBtn = document.getElementById("togglePreview");
 const codexBtn = document.getElementById("toggleCodex");
 const timelineBtn = document.getElementById("toggleTimeline");
+const charactersBtn = document.getElementById("toggleCharacters");
 
 function setView(view) {
   document.body.classList.toggle("show-preview", view === "preview");
   document.body.classList.toggle("show-codex", view === "codex");
   document.body.classList.toggle("show-timeline", view === "timeline");
+  document.body.classList.toggle("show-characters", view === "characters");
   previewBtn.textContent = view === "preview" ? "Edit" : "Preview";
   previewBtn.classList.toggle("active", view === "preview");
   codexBtn.classList.toggle("active", view === "codex");
   timelineBtn.classList.toggle("active", view === "timeline");
+  charactersBtn.classList.toggle("active", view === "characters");
 }
 
 previewBtn.addEventListener("click", () => {
@@ -509,10 +516,13 @@ codexBtn.addEventListener("click", () => {
 timelineBtn.addEventListener("click", () => {
   setView(document.body.classList.contains("show-timeline") ? "editor" : "timeline");
 });
+charactersBtn.addEventListener("click", () => {
+  setView(document.body.classList.contains("show-characters") ? "editor" : "characters");
+});
 
-// Codex and timeline links carry the target heading's char offset. The editor is
-// hidden while they show, so switch back first, then scroll to the heading.
-for (const panel of [codexEl, timelineEl]) {
+// Codex, timeline, and character links carry the target heading's char offset.
+// The editor is hidden while they show, so switch back first, then scroll to it.
+for (const panel of [codexEl, timelineEl, charactersEl]) {
   panel.addEventListener("click", (e) => {
     const link = e.target.closest("[data-jump]");
     if (!link) return;
@@ -520,6 +530,20 @@ for (const panel of [codexEl, timelineEl]) {
     jumpTo(Number(link.dataset.jump));
   });
 }
+
+// Scaffold a new character: splice a `%% Name` template into the buffer (text
+// stays canonical), switch to the editor, and select the placeholder name so it
+// can be typed over. A reparse redraws the panels.
+document.getElementById("newCharacter").addEventListener("click", () => {
+  const { text, selFrom, selTo } = scaffoldCharacter(editor.state.doc.toString());
+  setView("editor");
+  editor.dispatch({
+    changes: { from: 0, to: editor.state.doc.length, insert: text },
+    selection: { anchor: selFrom, head: selTo },
+    scrollIntoView: true,
+  });
+  editor.focus();
+});
 
 // Export the rendered manuscript (visible headings + resolved markup, scenes
 // and excluded subtrees dropped) as plain text — parse/render stays in Rust.
