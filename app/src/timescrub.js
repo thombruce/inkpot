@@ -6,11 +6,13 @@
 
 // Where each character is as of scene index `cursor` (inclusive): their most
 // recent scene (at or before the cursor) that names both them and a locatable
-// place. A scene's `exits:` removes those characters from that scene onward
-// (death, departure) — applied after the scene's placements, so an exit wins at
-// its own scene; naming a character again later re-adds them. `coordsOf(name)`
-// returns { lat, lon } or null (a location with no coords, or an unknown name).
-// Returns { character -> { location, lat, lon } }.
+// place. A scene's `exits:` marks a character's *last* appearance — they show at
+// that scene, then are gone from the next one on. So the exit is applied only for
+// scenes strictly before the cursor (`i < cursor`), keeping the marker on the
+// character's finale scene (where it travels with the scene through reorders).
+// Naming a character again after an exit re-adds them (a flashback / fake-out).
+// `coordsOf(name)` returns { lat, lon } or null. Returns
+// { character -> { location, lat, lon } }.
 export function characterPositions(scenes, coordsOf, cursor) {
   const positions = {};
   const end = Math.min(cursor, scenes.length - 1);
@@ -22,7 +24,8 @@ export function characterPositions(scenes, coordsOf, cursor) {
         positions[name] = { location: scene.location, lat: coords.lat, lon: coords.lon };
       }
     }
-    for (const name of scene.exits ?? []) delete positions[name];
+    // Exits take effect from the scene *after* the one they mark.
+    if (i < cursor) for (const name of scene.exits ?? []) delete positions[name];
   }
   return positions;
 }

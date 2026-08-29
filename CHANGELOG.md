@@ -14,8 +14,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   the cursor advances — so you can watch the cast move across the map. Give
   scenes a `time:`, `location:`, and `characters:`, and locations a `coords:`.
   The slider walks scenes in order, so it works with any `time:` format. A scene
-  can also list `exits:` — characters who leave the story there (death,
-  departure) — and the scrub stops showing them from that point on.
+  can also list `exits:` — characters whose last scene this is (death,
+  departure) — shown in that scene, then off the map from the next one on.
 
 ## [0.7.1] - 2026-08-29
 

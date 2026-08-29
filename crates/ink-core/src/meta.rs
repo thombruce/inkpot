@@ -41,9 +41,10 @@ pub const LOCATION: &str = "location";
 /// time-scrub places each at the scene's [`LOCATION`] as the cursor passes it.
 pub const CHARACTERS: &str = "characters";
 
-/// Who leaves the story at a scene — a comma-separated list of character names
-/// (death, departure, written out). The time-scrub removes them from that scene
-/// onward, so they stop appearing on the map. Naming one again in a later
+/// Characters whose *last* scene this is — a comma-separated list (death,
+/// departure, written out). The time-scrub shows them in this scene, then drops
+/// them from the next one on, so the marker sits on the character's finale (and
+/// travels with it if the scene is reordered). Naming one again in a later
 /// [`CHARACTERS`] re-adds them (a flashback or fake-out).
 pub const EXITS: &str = "exits";
 

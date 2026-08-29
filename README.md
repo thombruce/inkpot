@@ -145,8 +145,9 @@ metadata — read-only, click an entry to jump to it in the editor:
   connection for the basemap.) A **time slider** scrubs through your scenes in
   story-time order and shows each character at their most recent `location:` — so
   you can watch the cast move as the story unfolds (scenes need `time:`,
-  `location:`, and `characters:`). A scene can list `exits:` for characters who
-  leave the story there (death, departure) — they drop off the map from then on.
+  `location:`, and `characters:`). A scene can list `exits:` for characters whose
+  last scene it is (death, departure) — they show in that scene, then drop off the
+  map from the next one on.
 
 ## Repository layout
 

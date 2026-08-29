@@ -23,16 +23,17 @@ time: 3
 location: Paris
 pov: Alice
 characters: Alice, Bob
+exits: Bob
 
-By morning [[Bob]] had arrived.
+By morning [[Bob]] had arrived. Alas, this is where his story ended.
 
 ~~~ The Return
 time: 4
 location: London
 pov: Alice
-characters: Alice, Bob
+characters: Alice
 
-That afternoon, they returned to [[London]] together.
+Alice returned to [[London]] alone.
 
 % Characters
 

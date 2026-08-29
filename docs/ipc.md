@@ -119,7 +119,8 @@ Every heading with a `time:` value, ordered like the timeline (numeric if all
 values are numbers, else lexical). The frontend joins `location` to a `map`
 marker by folded name to get coordinates, then walks the list up to the cursor
 index to place each character at their most-recent located scene; a scene's
-`exits` removes those characters from that point on. The join and
+`exits` marks a character's last appearance — shown in that scene, dropped from
+the next one on. The join and
 per-cursor computation are client-side (`app/src/timescrub.js`) — no IPC per
 slider tick.
 
