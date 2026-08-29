@@ -241,6 +241,38 @@ fn codex_resolves_metadata_refs_and_backlinks() {
 }
 
 #[test]
+fn multiline_metadata_value_and_round_trip() {
+    // A key with an empty value, followed by indented lines, is one multiline
+    // value (trimmed, newline-joined). Works in front matter; a blank line or a
+    // dedented `key: value` line closes it.
+    let src = "contact:\n  221B Baker Street\n  London NW1 6XE\nauthor: Doyle\n\n# Chapter\n";
+    let root = parse(src);
+    let contact = root.meta.iter().find(|(k, _)| k == "contact").unwrap();
+    assert_eq!(contact.1, "221B Baker Street\nLondon NW1 6XE");
+    // The dedented line after the block is a separate key, not swallowed.
+    assert!(root.meta.iter().any(|(k, v)| k == "author" && v == "Doyle"));
+    assert_eq!(root.children.len(), 1, "chapter heading should still parse");
+
+    // Edit view round-trips the multiline value back to the indented form.
+    let edited = render(&root, View::Edit);
+    assert!(edited.contains("contact:\n  221B Baker Street\n  London NW1 6XE\n"), "round-trip: {edited}");
+    // Re-parsing the edit output yields the same value (stable round-trip).
+    assert_eq!(parse(&edited).meta.iter().find(|(k, _)| k == "contact").unwrap().1, contact.1);
+}
+
+#[test]
+fn metadata_value_is_a_comma_separated_array() {
+    // A comma-separated value is an array: each trimmed part resolves on its own,
+    // so `characters: Alice, Bob` links both and leaves an unknown part plain.
+    let src = "~~~ Scene\ncharacters: Alice, Bob, Nobody\n\n% C\n\n%% Alice\n\n%% Bob\n";
+    let html = ink_core::render_codex_html(&parse(src));
+    // Both named parts resolve: Alice and Bob each get a backlink from the scene.
+    // (The unknown part "Nobody" names no entity, so it adds no backlink.)
+    assert_eq!(html.matches(">Scene</a>").count(), 2, "both array parts should backlink the scene: {html}");
+    assert!(!html.contains(">Nobody</a>"), "unknown array part must stay plain: {html}");
+}
+
+#[test]
 fn wikilink_parses_prints_name_and_round_trips() {
     let root = parse("She saw [[Alice]] leave.\n");
     let Block::Para(spans) = &root.body[0] else { panic!("expected para") };

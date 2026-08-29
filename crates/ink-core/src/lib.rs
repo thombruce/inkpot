@@ -3,6 +3,7 @@
 //! Text is canonical. A document parses into a [`Node`] tree (rooted at an
 //! implicit level-0 node). Views are read-only walks of that tree.
 
+pub mod meta;
 mod parse;
 mod render;
 

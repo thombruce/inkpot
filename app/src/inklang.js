@@ -39,25 +39,40 @@ function findClose(s, from, delim) {
 const inkMode = StreamLanguage.define({
   // Mirrors parse.rs: meta starts active so a leading `key: value` block (document
   // front matter) highlights; a blank line or non-meta line closes it.
-  startState: () => ({ inMeta: true }),
+  startState: () => ({ inMeta: true, multiline: false }),
   blankLine: (state) => {
     state.inMeta = false; // a blank line closes the metadata zone
+    state.multiline = false;
   },
   token(stream, state) {
     if (stream.sol()) {
       if (stream.match(/^#+\s.*/)) {
         state.inMeta = true;
+        state.multiline = false;
         return "heading";
       }
       if (stream.match(/^~+\s.*/)) {
         state.inMeta = true;
+        state.multiline = false;
         return "scene";
       }
       if (stream.match(/^%+\s.*/)) {
         state.inMeta = true;
+        state.multiline = false;
         return "excluded";
       }
       if (state.inMeta) {
+        // Continuation of a multiline value: an empty-value `key:` opened it, an
+        // indented line extends it (mirrors parse.rs).
+        if (state.multiline && /^[ \t]+\S/.test(stream.string)) {
+          stream.skipToEnd();
+          return "meta";
+        }
+        state.multiline = false;
+        if (stream.match(/^[A-Za-z0-9_-]+:\s*$/)) {
+          state.multiline = true; // empty value opens a multiline block
+          return "meta";
+        }
         if (stream.match(/^[A-Za-z0-9_-]+:.*/)) return "meta";
         state.inMeta = false; // not a meta line: fall through to body
       }
