@@ -24,6 +24,9 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - A **comma-separated metadata value is a list** — `characters: Alice, Bob`
   resolves each part on its own, so both link to their `%` entities. (Already the
   behaviour; now documented and covered by a test.)
+- **Autocomplete codex entity names** in a scene's metadata values: typing after
+  a key like `characters:` or `location:` (or after a comma) suggests the titles
+  of your `%` entities, so references stay consistent without retyping names.
 
 ## [0.6.0] - 2026-08-22
 
