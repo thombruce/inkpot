@@ -11,9 +11,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 - **Projects / multi-file**: open a folder of `.ink` files as a project. Its files
   show as a collapsible tree (subdirectories and all) at the top of the outline
-  rail; click one to switch the active file. The project is the folder of whatever
-  file you open, so opening, saving, or adding files keeps the tree in step. Reuses
-  the existing editor/save/autosave — single-file open still works unchanged.
+  rail; click one to switch the active file. Open Folder marks the folder with an
+  `Inkpot` file, so opening any file nested inside it later brings up the whole
+  project. Opening, saving, or adding files keeps the tree in step. Reuses the
+  existing editor/save/autosave — single-file open still works unchanged.
 
 ## [0.9.0] - 2026-08-31
 

@@ -68,17 +68,18 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   (in `capabilities/default.json`), or the app silently won't quit. Crash
   recovery of untitled drafts (app-data snapshots) is #13.
 - **A project is a folder + a derived `.ink` tree, app-layer only** (#8). The root
-  is the folder from Open Folder, else the active file's own directory —
-  `loadPath` adopts it (via `syncProject`) whenever there's no project or the file
-  sits outside the current root, so New/Save-As/open-elsewhere all re-sync (no
-  stale snapshot). `buildTree` (`filetree.js`, pure, `fs.readDir` injected)
-  walks the root recursively into a nested tree (`fs.readDir` needs
-  `fs:allow-read-dir`); the rail renders it as collapsible `<details>`. Rescan
-  fires on load, save, and window focus. Picking a file calls the same `loadPath`
-  single-file uses, so `currentPath` stays the one active buffer; no project state
-  crosses IPC, `ink-core` stays file-agnostic. Deferred: a manifest marker for
-  root-discovery walk-up (open a deep file → whole project) and manuscript order,
-  plus cross-file codex (#28).
+  is found by walking up from the active file to the nearest `Inkpot` marker file
+  (`syncProject`/`findRoot`, needs `fs:allow-exists`), else the file's own
+  directory. So opening a file nested in a project shows the whole project; a
+  loose file is its own one-folder project. Open Folder writes the `Inkpot` marker
+  (extension-less, so it never shows in the tree; its front-matter content is
+  reserved for future project settings — decided on #8, no ordering manifest,
+  files order by name). `buildTree` (`filetree.js`, pure, `fs.readDir` injected,
+  needs `fs:allow-read-dir`) walks the root into a nested tree; the rail renders it
+  as collapsible `<details>`. Rescan fires on load, save, and window focus.
+  Picking a file calls the same `loadPath` single-file uses, so `currentPath`
+  stays the one active buffer; no project state crosses IPC, `ink-core` stays
+  file-agnostic. Deferred: project settings in the marker, cross-file codex (#28).
 - **Heading depth = marker count** (Model A). `#`/`~` set visibility, the count
   sets depth. Illegal downward jumps clamp to parent + 1 (`parse.rs`) — but only
   against a *real heading parent*, never the implicit root, so a document that

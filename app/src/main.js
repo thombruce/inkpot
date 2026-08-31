@@ -639,17 +639,38 @@ async function openFile() {
   await loadPath(path);
 }
 
-// Open a folder as the project root and load its first file. A project is just a
-// folder + the .ink tree under it — app-layer only, no state across IPC.
+// The marker file that names a project root (see #8). Extension-less, so it never
+// shows in the `.ink` tree; its content (front matter) is reserved for future
+// project settings.
+const PROJECT_MARKER = "Inkpot";
+const dirname = (p) => p.slice(0, p.lastIndexOf("/"));
+
+// Open a folder as the project root and load its first file. Marks the folder a
+// project by writing the `Inkpot` marker (so opening a file nested in it later
+// walks up and finds the whole project). App-layer only, no state across IPC.
 async function openFolder() {
   if (!(await confirmDiscard())) return;
   const dir = await dialog.open({ directory: true });
   if (!dir) return; // cancelled
+  if (!(await fs.exists(`${dir}/${PROJECT_MARKER}`))) {
+    await fs.writeTextFile(`${dir}/${PROJECT_MARKER}`, "");
+  }
   setRoot(dir);
   await scanProject();
   const first = firstFile(projectTree);
   if (first) await loadPath(first); // loadPath -> syncProject keeps this root
   else drawFiles(); // empty project: still show the (empty) rail
+}
+
+// Walk up from a file to the nearest directory holding the project marker — the
+// project root. null if there's none up to the filesystem root.
+async function findRoot(filePath) {
+  let dir = dirname(filePath);
+  while (dir) {
+    if (await fs.exists(`${dir}/${PROJECT_MARKER}`)) return dir;
+    dir = dirname(dir);
+  }
+  return null;
 }
 
 // Re-read the root's `.ink` tree (via the pure builder) and redraw. No-op without
@@ -666,8 +687,10 @@ async function scanProject() {
 // re-sync the tree instead of leaving a stale snapshot.
 async function syncProject() {
   if (!currentPath) return;
-  const dir = currentPath.slice(0, currentPath.lastIndexOf("/"));
-  if (!projectRoot || !currentPath.startsWith(projectRoot + "/")) setRoot(dir);
+  // The root is the nearest ancestor with an `Inkpot` marker (so a nested file
+  // opens the whole project), else the file's own directory.
+  const root = (await findRoot(currentPath)) ?? dirname(currentPath);
+  setRoot(root);
   await scanProject();
 }
 
