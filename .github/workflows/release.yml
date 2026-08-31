@@ -3,12 +3,46 @@ name: Release
 # Build installers for all three desktop OSes and publish them to a GitHub
 # Release. Triggered by pushing a version tag (e.g. v0.1.0). The release is
 # created as a draft prerelease — review the notes and assets, then publish.
+#
+# One `create-release` job creates the draft *once* and outputs its id; the
+# build matrix uploads to that release via `releaseId`. This avoids the
+# tauri-action matrix race where each OS job created its own release for the
+# same tag — leaving duplicate drafts with the assets split across them (#76).
 on:
   push:
     tags: ["v*"]
 
 jobs:
-  release:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - name: Create the draft release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `inkpot ${tag}`,
+              body: [
+                'Unsigned builds — macOS and Windows will warn on first open (this is expected for an unsigned app); see the README for how to open them.',
+                '',
+                'Download the installer for your OS below.',
+              ].join('\n'),
+              draft: true,
+              prerelease: true,
+            });
+            core.setOutput('release_id', data.id);
+
+  build:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -43,17 +77,12 @@ jobs:
         working-directory: app
         run: npm ci
 
+      # releaseId points every OS job at the single draft from create-release, so
+      # tauri-action uploads to it instead of creating its own (no duplicates).
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: app
-          tagName: ${{ github.ref_name }}
-          releaseName: inkpot ${{ github.ref_name }}
-          releaseBody: |
-            Unsigned builds — macOS and Windows will warn on first open (this is expected for an unsigned app); see the README for how to open them.
-
-            Download the installer for your OS below.
-          releaseDraft: true
-          prerelease: true
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}

@@ -121,7 +121,11 @@ Tag `vX.Y.Z` and push it → `.github/workflows/release.yml` builds on a 3-OS
 matrix (macos universal, ubuntu, windows — Tauri bundles natively) via
 `tauri-apps/tauri-action` and publishes installers (`.AppImage`/`.deb`/`.rpm`,
 universal `.dmg`, `.msi`/NSIS) to **GitHub Releases** as a **draft prerelease**
-— review, then publish (`gh release edit vX.Y.Z --draft=false`). Builds are
+— review, then publish (`gh release edit vX.Y.Z --draft=false`). A
+`create-release` job makes the draft **once** and outputs its id; the build
+matrix uploads to it via `releaseId`, so no OS job creates its own release — the
+old race that left **duplicate drafts** with assets split across them is gone
+(#76). All 7 assets should land on one draft. Builds are
 **unsigned** (signing #10, updater #11 tracked separately). macOS is also a
 Homebrew cask in `thombruce/homebrew-tap` (`Casks/inkpot.rb`); publishing a
 release fires `.github/workflows/homebrew.yml`, which recomputes the dmg
