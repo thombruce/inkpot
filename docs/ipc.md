@@ -89,16 +89,20 @@ type Marker = {
   title: string;   // the entity's resolved title
   lat: number;     // decimal degrees
   lon: number;
+  map: string;     // the `map:` value — which world (empty = Earth)
   offset: number;  // heading char offset — the frontend jumps the editor here
 };
 ```
 
 Every codex entity (a `%` heading with a title) that carries a parseable
 `coords: <lat>, <lon>` value becomes a marker; entities without valid coordinates
-(missing, unparseable, or out of geographic range) are omitted. Not filtered to a
-`% Locations` section — any entity with coordinates is placeable. The map view is
-read-only; the OpenStreetMap basemap needs network (markers still position
-offline, without tile imagery).
+(missing, unparseable, or out of range — latitude -90..90, longitude -180..360 to
+cover Earth's ±180 and the 0..360 convention used for other worlds) are omitted.
+Not filtered to a `% Locations` section — any entity with coordinates is
+placeable. A `map:` value groups the marker onto a world; the frontend
+(`app/src/mapproviders.js`) switches the tile backdrop per world (Earth/Mars/Moon
+built in) and shows only that world's markers. The map view is read-only; the
+tile basemaps need network (markers still position offline, without imagery).
 
 ### `scenes(src: string) -> Scene[]`
 

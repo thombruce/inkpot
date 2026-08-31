@@ -9,10 +9,11 @@
 //!   *self-naming* key (see [`is_self_naming`]): excluded from outgoing
 //!   references/backlinks and rendered plain, never as a `[[link]]`. This is the
 //!   only reserved key with behavior in `ink-core` today.
-//! - **View keys** — `time`, `location`, `characters`, `coords`, `pov`: read by
-//!   the app's structured views (timeline/map/time-scrub, see #45). A view key
-//!   earns a constant here once core grows behavior for it: `time`, `location`,
-//!   `characters`, and `coords` have one; `pov` stays free-form until read.
+//! - **View keys** — `time`, `location`, `characters`, `coords`, `map`, `pov`:
+//!   read by the app's structured views (timeline/map/time-scrub, see #45). A
+//!   view key earns a constant here once core grows behavior for it: `time`,
+//!   `location`, `characters`, `coords`, and `map` have one; `pov` stays
+//!   free-form until read.
 //! - **Export keys** — `title`, `author`, `contact`, `byline`: front-matter
 //!   metadata for manuscript export (Shunn/pandoc, see #23). Likewise no core
 //!   behavior yet.
@@ -32,6 +33,11 @@ pub const TIME: &str = "time";
 /// A location entity's geographic position, `lat, lon` (decimal degrees). The
 /// map view places a marker for each entity that has a parseable pair.
 pub const COORDS: &str = "coords";
+
+/// Which map a location sits on — e.g. `Earth`, `Mars`, `Moon` (folded). Empty
+/// means the default world (Earth). The map view groups markers by this and
+/// switches the tile backdrop per world.
+pub const MAP: &str = "map";
 
 /// Where a scene takes place — a location entity's name. The time-scrub joins it
 /// to that location's [`COORDS`] to place characters on the map.

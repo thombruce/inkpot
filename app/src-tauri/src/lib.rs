@@ -108,6 +108,7 @@ struct Marker {
     title: String,
     lat: f64,
     lon: f64,
+    map: String,
     offset: usize,
 }
 
@@ -116,7 +117,7 @@ struct Marker {
 fn map(src: String) -> Vec<Marker> {
     map_markers(&parse(&src))
         .into_iter()
-        .map(|m| Marker { title: m.title, lat: m.lat, lon: m.lon, offset: m.offset })
+        .map(|m| Marker { title: m.title, lat: m.lat, lon: m.lon, map: m.map, offset: m.offset })
         .collect()
 }
 

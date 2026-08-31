@@ -7,6 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Multiple maps**: a location's `%` note can name its world with `map:` (e.g.
+  `map: Mars`), and the map view gets a world selector that switches the tile
+  backdrop and shows only that world's locations (the time-scrub follows suit).
+  **Mars** and the **Moon** ship as built-in worlds alongside Earth (via
+  OpenPlanetaryMap tiles); a location with no `map:` stays on Earth as before.
+
 ## [0.8.0] - 2026-08-29
 
 ### Added

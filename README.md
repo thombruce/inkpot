@@ -140,9 +140,11 @@ metadata — read-only, click an entry to jump to it in the editor:
   numbers, so a timeline of years (even negative or billions-large) orders right.
 - **Characters** — the `% Characters` section as a card list, with a
   **+ New character** button that scaffolds a `%% Name` entry.
-- **Map** — locations placed on an OpenStreetMap map; give a location's `%` note
-  a `coords: <lat>, <lon>` value and it appears as a marker. (Needs a network
-  connection for the basemap.) A **time slider** scrubs through your scenes in
+- **Map** — locations placed on a map; give a location's `%` note a
+  `coords: <lat>, <lon>` value and it appears as a marker. Locations can name a
+  world with `map:` (**Earth** by default, plus built-in **Mars** and **Moon**);
+  a selector switches between the worlds present. (Needs a network connection for
+  the basemap.) A **time slider** scrubs through your scenes in
   story-time order and shows each character at their most recent `location:` — so
   you can watch the cast move as the story unfolds (scenes need `time:`,
   `location:`, and `characters:`). A scene can list `exits:` for characters whose
