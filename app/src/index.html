@@ -11,6 +11,7 @@
       <button id="toggleOutline" class="active" title="Toggle outline">Outline</button>
       <button id="new">New</button>
       <button id="open">Open</button>
+      <button id="openFolder" title="Open a folder of .ink files as a project">Open Folder</button>
       <select id="recent" class="recent" title="Recent files"></select>
       <button id="save">Save</button>
       <button id="saveAs">Save As</button>
@@ -24,7 +25,10 @@
       <button id="togglePreview">Preview</button>
     </header>
     <main class="panes">
-      <aside id="outline" class="pane outline" aria-label="Outline"></aside>
+      <aside class="pane outline" aria-label="Outline">
+        <nav id="files" class="files" aria-label="Project files" hidden></nav>
+        <div id="outline" aria-label="Headings"></div>
+      </aside>
       <section class="pane editor">
         <div id="editor" aria-label="Source"></div>
       </section>

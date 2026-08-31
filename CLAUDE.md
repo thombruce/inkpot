@@ -66,6 +66,14 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   not a native close — so the capability must grant `core:window:allow-destroy`
   (in `capabilities/default.json`), or the app silently won't quit. Crash
   recovery of untitled drafts (app-data snapshots) is #13.
+- **A project is a folder + a file list, app-layer only** (#8). Open Folder reads
+  a directory's `.ink` files (`fs.readDir`, needs `fs:allow-read-dir`) into
+  `projectFiles`; picking one calls the same `loadPath` single-file uses, so
+  `currentPath` stays the one active buffer. No project state crosses IPC;
+  `ink-core` stays file-agnostic (one document in, one render out). v1 is
+  name-order, no manifest; cross-file codex is #28. Known v1 limitation: the file
+  list is a snapshot from Open Folder — New/Save-As and opening a file elsewhere
+  don't re-sync it (the directory-as-default rework is the fix).
 - **Heading depth = marker count** (Model A). `#`/`~` set visibility, the count
   sets depth. Illegal downward jumps clamp to parent + 1 (`parse.rs`) — but only
   against a *real heading parent*, never the implicit root, so a document that

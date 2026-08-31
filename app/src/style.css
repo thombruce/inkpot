@@ -138,7 +138,20 @@ body.show-map .map { display: flex; flex-direction: column; }
 }
 
 /* Outline */
-.outline { padding: 8px 0; background: var(--panel); }
+.outline { padding: 8px 0; background: var(--panel); overflow-y: auto; }
+/* Project files, listed above the heading tree when a folder is open. */
+.files { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.file-item {
+  padding: 3px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-item:hover { background: #ffffff10; }
+.file-item.active { color: var(--accent); font-weight: 600; }
 .outline .item {
   display: flex;
   align-items: center;

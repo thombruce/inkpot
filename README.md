@@ -151,6 +151,10 @@ metadata — read-only, click an entry to jump to it in the editor:
   last scene it is (death, departure) — they show in that scene, then drop off the
   map from the next one on.
 
+**Open Folder** opens a folder of `.ink` files as a project — the files list at
+the top of the outline rail, click one to switch. Handy for a multi-chapter work
+kept as separate files. (Opening a single file still works as before.)
+
 ## Repository layout
 
 ```
