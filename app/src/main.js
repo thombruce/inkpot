@@ -13,7 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
-import { buildTree, firstFile } from "./filetree.js";
+import { buildTree, firstFile, findRoot, dirname } from "./filetree.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -639,18 +639,30 @@ async function openFile() {
   await loadPath(path);
 }
 
-// Open a folder as the project root and load its first file. A project is just a
-// folder + the .ink tree under it — app-layer only, no state across IPC.
+// The marker file that names a project root (see #8). Extension-less, so it never
+// shows in the `.ink` tree; its content (front matter) is reserved for future
+// project settings.
+const PROJECT_MARKER = "Inkpot";
+// Does `dir` hold the project marker? Injected into findRoot's walk-up.
+const hasMarker = (dir) => fs.exists(`${dir}/${PROJECT_MARKER}`);
+
+// Open a folder as the project root and load its first file. Marks the folder a
+// project by writing the `Inkpot` marker (so opening a file nested in it later
+// walks up and finds the whole project). App-layer only, no state across IPC.
 async function openFolder() {
   if (!(await confirmDiscard())) return;
   const dir = await dialog.open({ directory: true });
   if (!dir) return; // cancelled
+  if (!(await fs.exists(`${dir}/${PROJECT_MARKER}`))) {
+    await fs.writeTextFile(`${dir}/${PROJECT_MARKER}`, "");
+  }
   setRoot(dir);
   await scanProject();
   const first = firstFile(projectTree);
   if (first) await loadPath(first); // loadPath -> syncProject keeps this root
   else drawFiles(); // empty project: still show the (empty) rail
 }
+
 
 // Re-read the root's `.ink` tree (via the pure builder) and redraw. No-op without
 // a project root.
@@ -660,14 +672,14 @@ async function scanProject() {
   drawFiles();
 }
 
-// Keep the project in step with the active file: adopt the file's own directory
-// as the root when there's no project, or when the file sits outside the current
-// root; then rescan. Called after every load, so New/Save-As/open-elsewhere all
-// re-sync the tree instead of leaving a stale snapshot.
+// Keep the project in step with the active file. Called after every load, so
+// New/Save-As/open-elsewhere all re-derive the root and re-scan instead of
+// leaving a stale snapshot. The root is the nearest ancestor with an `Inkpot`
+// marker (so a nested file opens the whole project), else the file's own dir.
 async function syncProject() {
   if (!currentPath) return;
-  const dir = currentPath.slice(0, currentPath.lastIndexOf("/"));
-  if (!projectRoot || !currentPath.startsWith(projectRoot + "/")) setRoot(dir);
+  const root = (await findRoot(currentPath, hasMarker)) ?? dirname(currentPath);
+  setRoot(root);
   await scanProject();
 }
 

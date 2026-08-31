@@ -1,6 +1,6 @@
 // Run: node app/src/filetree.test.mjs
 import assert from "node:assert/strict";
-import { buildTree, firstFile } from "./filetree.js";
+import { buildTree, firstFile, findRoot } from "./filetree.js";
 
 // A fake filesystem: dir path -> entries. readDir throws on unknown dirs.
 const FS = {
@@ -42,5 +42,36 @@ assert.equal(firstFile([]), null);
 
 // An unreadable dir yields an empty tree, not a throw.
 assert.deepEqual(await buildTree("/nope", readDir), []);
+
+// findRoot walks up to the nearest directory with a marker.
+{
+  const marked = new Set(["/home/novel"]);
+  const hasMarker = async (dir) => marked.has(dir);
+  // A file nested two levels down resolves to the marked ancestor.
+  assert.equal(await findRoot("/home/novel/chapters/ch1.ink", hasMarker), "/home/novel");
+  // A file directly in the marked dir resolves to it.
+  assert.equal(await findRoot("/home/novel/intro.ink", hasMarker), "/home/novel");
+  // No marker up the tree -> null (caller falls back to the file's own dir).
+  assert.equal(await findRoot("/home/loose/a.ink", hasMarker), null);
+}
+
+// Depth guard: a marker at the very top can't make buildTree recurse an enormous
+// subtree — a chain far deeper than the cap comes back bounded.
+{
+  const deep = {};
+  let path = "/r";
+  for (let i = 0; i < 20; i++) {
+    deep[path] = [
+      { name: "sub", isDirectory: true },
+      { name: "leaf.ink", isDirectory: false },
+    ];
+    path += "/sub";
+  }
+  const deepRead = async (d) => deep[d] ?? [];
+  const tree = await buildTree("/r", deepRead);
+  const depthOf = (nodes) =>
+    nodes.reduce((m, n) => Math.max(m, n.children ? 1 + depthOf(n.children) : 1), 0);
+  assert.ok(depthOf(tree) <= 10, `depth should be capped, got ${depthOf(tree)}`);
+}
 
 console.log("filetree: all assertions passed");

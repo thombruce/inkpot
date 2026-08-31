@@ -153,10 +153,10 @@ metadata — read-only, click an entry to jump to it in the editor:
 
 **Open Folder** opens a folder of `.ink` files as a project — the files show as a
 collapsible tree (subdirectories included) at the top of the outline rail, click
-one to switch. The project follows whatever file you have open, so opening,
-saving, or adding files keeps the tree current. Handy for a multi-chapter work or
-a whole series kept as separate files. (Opening a single file still works as
-before.)
+one to switch. Open Folder marks the root with an `Inkpot` file, so later opening
+any file nested inside the project brings up the whole tree; opening, saving, or
+adding files keeps it current. Handy for a multi-chapter work or a whole series
+kept as separate files. (Opening a single file still works as before.)
 
 ## Repository layout
 
