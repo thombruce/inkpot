@@ -12,6 +12,7 @@ import { scaffoldCharacter } from "./character.js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
+import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -84,30 +85,58 @@ let mapMarkers = [];
 let leafletMap = null;
 let markerLayer = null;
 let characterLayer = null;
+let tileLayer = null;
 // Signature of the markers last fitted into view. Refit only when the set
 // changes, so returning to the map keeps the user's pan/zoom.
 let fittedKey = null;
+// Which world (map) is shown; markers and tiles filter to it.
+let currentWorld = "earth";
 // Time-scrub: the time-ordered scenes, and the cursor as an index into them
 // (null = the latest scene, so the map opens with everyone at their last place).
 let sceneList = [];
 let scrubIndex = null;
 
-// A location's coords by name, fold-matched to a map marker (case/space folded,
-// like codex resolution). null if the name has no coordinate-bearing marker.
+// A location's coords + world by name, fold-matched to a map marker (case/space
+// folded, like codex resolution). null if the name has no coordinate-bearing
+// marker. The world lets the scrub place a character only on their own map.
 function coordsOf(name) {
   const key = name.toLowerCase().trim();
   const m = mapMarkers.find((mk) => mk.title.toLowerCase().trim() === key);
-  return m ? { lat: m.lat, lon: m.lon } : null;
+  return m ? { lat: m.lat, lon: m.lon, world: worldOf(m.map) } : null;
+}
+
+// Swap the tile backdrop to the current world's provider (a built-in world has
+// one; an unknown/custom world has none yet — blank backdrop, markers still show).
+function setTiles() {
+  if (tileLayer) {
+    tileLayer.remove();
+    tileLayer = null;
+  }
+  const p = PROVIDERS[currentWorld];
+  if (p) {
+    tileLayer = L.tileLayer(p.url, {
+      maxZoom: p.maxZoom,
+      maxNativeZoom: p.maxNativeZoom, // upscale past the tileset's native max
+      tms: p.tms, // TMS tilesets (Mars/Moon) have the y-axis flipped vs XYZ
+      attribution: p.attribution,
+    }).addTo(leafletMap);
+  }
 }
 
 function initMap() {
   leafletMap = L.map("map").setView([20, 0], 2);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "© OpenStreetMap contributors",
-  }).addTo(leafletMap);
   markerLayer = L.layerGroup().addTo(leafletMap);
   characterLayer = L.layerGroup().addTo(leafletMap); // above the location layer
+  setTiles();
+  drawMarkers();
+  drawScrub();
+}
+
+// Switch to a world: swap tiles, re-fit, redraw markers and character positions.
+function switchWorld(world) {
+  currentWorld = world;
+  fittedKey = null; // a different world's markers get a fresh fit
+  setTiles();
   drawMarkers();
   drawScrub();
 }
@@ -121,6 +150,7 @@ function drawMarkers() {
   const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#7aa2f7";
   const points = [];
   for (const m of mapMarkers) {
+    if (worldOf(m.map) !== currentWorld) continue; // only this world's locations
     const marker = L.circleMarker([m.lat, m.lon], {
       radius: 6,
       color: accent,
@@ -181,7 +211,13 @@ function drawScrub() {
   if (cursor < 0) return;
   const scene = sceneList[cursor];
   scrubLabel.textContent = scene ? `${scene.time} — ${scene.title || "(untitled)"}` : "";
-  for (const loc of occupiedLocations(characterPositions(sceneList, coordsOf, cursor))) {
+  // Only characters on the currently-shown world.
+  const positions = characterPositions(sceneList, coordsOf, cursor);
+  const here = {};
+  for (const [name, p] of Object.entries(positions)) {
+    if (p.world === currentWorld) here[name] = p;
+  }
+  for (const loc of occupiedLocations(here)) {
     L.circleMarker([loc.lat, loc.lon], {
       radius: 7,
       color: "#e0af68",
@@ -197,6 +233,30 @@ scrubInput.addEventListener("input", () => {
   scrubIndex = Number(scrubInput.value);
   drawScrub();
 });
+
+const worldBar = document.getElementById("worldBar");
+const worldSelect = document.getElementById("world");
+
+// Populate the world selector from the worlds present in the markers (Earth
+// always offered). Hidden unless there's more than one world. Keeps the current
+// selection if it still exists, else falls back to Earth.
+function updateWorlds() {
+  const worlds = new Set(mapMarkers.map((m) => worldOf(m.map)));
+  worlds.add("earth");
+  const ordered = ["earth", ...[...worlds].filter((w) => w !== "earth").sort()];
+  worldBar.hidden = ordered.length < 2;
+  if (!worlds.has(currentWorld)) currentWorld = "earth";
+  worldSelect.replaceChildren();
+  for (const w of ordered) {
+    const opt = document.createElement("option");
+    opt.value = w;
+    opt.textContent = worldLabel(w);
+    opt.selected = w === currentWorld;
+    worldSelect.appendChild(opt);
+  }
+}
+
+worldSelect.addEventListener("change", () => switchWorld(worldSelect.value));
 function collectEntities(node, out) {
   if (node.visibility === "excluded" && node.title) out.push(node.title);
   for (const child of node.children) collectEntities(child, out);
@@ -223,6 +283,7 @@ const refresh = debounce(async () => {
   charactersEl.innerHTML = charactersHtml;
   mapMarkers = markers;
   sceneList = sceneData;
+  updateWorlds();
   drawMarkers();
   updateScrub();
   // Root carries the whole-document manuscript word count.

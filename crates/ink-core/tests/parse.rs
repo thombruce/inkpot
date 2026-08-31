@@ -304,7 +304,13 @@ fn map_markers_from_coords_metadata() {
     let m = &markers[0];
     assert_eq!(m.title, "London");
     assert!((m.lat - 51.5074).abs() < 1e-9 && (m.lon - -0.1278).abs() < 1e-9, "coords off: {},{}", m.lat, m.lon);
+    assert_eq!(m.map, "", "no map: means the default world");
     assert!(m.offset > 0, "offset should point at the heading");
+
+    // A `map:` value rides along on the marker.
+    let mars = ink_core::map_markers(&parse("%% Olympus\nmap: Mars\ncoords: 18.65, 226.2\n"));
+    assert_eq!(mars.len(), 1);
+    assert_eq!(mars[0].map, "Mars");
 }
 
 #[test]

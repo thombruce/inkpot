@@ -43,6 +43,7 @@ node app/src/fold.test.mjs                     # fold depth/section self-check
 node app/src/metacomplete.test.mjs             # metadata-completion zone self-check
 node app/src/character.test.mjs                # new-character scaffold splice self-check
 node app/src/timescrub.test.mjs                # time-scrub character-position self-check
+node app/src/mapproviders.test.mjs             # map-world folding + providers self-check
 cd app && npm run tauri dev                   # run the app (needs a display)
 cd app && npm run build                       # frontend only -> app/dist
 ```

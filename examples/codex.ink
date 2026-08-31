@@ -56,6 +56,14 @@ coords: 51.5074, -0.1278
 %% Paris
 coords: 48.8566, 2.3522
 
+%% Olympus Mons
+map: Mars
+coords: 18.65, 226.2
+
+%% Tranquility Base
+map: Moon
+coords: 0.67, 23.47
+
 % Timeline
 
 %% 1989

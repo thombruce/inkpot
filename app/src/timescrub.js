@@ -21,7 +21,12 @@ export function characterPositions(scenes, coordsOf, cursor) {
     const coords = scene.location ? coordsOf(scene.location) : null;
     if (coords) {
       for (const name of scene.characters) {
-        positions[name] = { location: scene.location, lat: coords.lat, lon: coords.lon };
+        positions[name] = {
+          location: scene.location,
+          lat: coords.lat,
+          lon: coords.lon,
+          world: coords.world, // carried through so the view can filter by map
+        };
       }
     }
     // Exits take effect from the scene *after* the one they mark, so the last

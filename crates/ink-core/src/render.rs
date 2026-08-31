@@ -678,6 +678,8 @@ pub struct MapMarker {
     pub title: String,
     pub lat: f64,
     pub lon: f64,
+    /// The world this location is on (`map:` value; empty = the default, Earth).
+    pub map: String,
     pub offset: usize,
 }
 
@@ -696,14 +698,23 @@ pub fn map_markers(root: &Node) -> Vec<MapMarker> {
             let (lat, lon) = parse_coords(v)?;
             let offset = e.heading_span.start;
             let title = titles.get(&offset).cloned().unwrap_or_else(|| e.title.clone());
-            Some(MapMarker { title, lat, lon, offset })
+            let map = e
+                .meta
+                .iter()
+                .find(|(k, _)| k == crate::meta::MAP)
+                .map(|(_, v)| v.trim().to_string())
+                .unwrap_or_default();
+            Some(MapMarker { title, lat, lon, map, offset })
         })
         .collect()
 }
 
 /// Parse a `coords:` value as `lat, lon` in decimal degrees. Requires exactly two
-/// comma-separated numbers in valid geographic range; anything else is None (so a
-/// stray non-coordinate value just leaves the entity off the map).
+/// comma-separated numbers in valid range; anything else is None (so a stray
+/// non-coordinate value just leaves the entity off the map). Latitude is
+/// -90..=90. Longitude accepts -180..=360 to cover both Earth's -180..180 and the
+/// 0..360 east-longitude convention common for other worlds (Mars, the Moon);
+/// Leaflet wraps it either way.
 fn parse_coords(v: &str) -> Option<(f64, f64)> {
     let parts: Vec<&str> = v.split(',').map(str::trim).collect();
     if parts.len() != 2 {
@@ -711,7 +722,7 @@ fn parse_coords(v: &str) -> Option<(f64, f64)> {
     }
     let lat = parts[0].parse::<f64>().ok()?;
     let lon = parts[1].parse::<f64>().ok()?;
-    if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lon) {
+    if !(-90.0..=90.0).contains(&lat) || !(-180.0..=360.0).contains(&lon) {
         return None;
     }
     Some((lat, lon))

@@ -97,6 +97,25 @@ body.show-map .map { display: flex; flex-direction: column; }
 /* Map fills the pane; the time-scrub bar sits below it. Leaflet needs the
    container to have a real height — flex:1 in the column gives it one. */
 .map #map { flex: 1; min-height: 0; }
+.world-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--dim);
+}
+.world-bar select {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: inherit;
+}
 .scrub-bar {
   flex: 0 0 auto;
   display: flex;

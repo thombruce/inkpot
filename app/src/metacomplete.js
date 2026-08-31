@@ -5,7 +5,7 @@
 // Seed keys. Document front matter carries the work's identity — the fields the
 // Shunn manuscript export (#23) needs; a heading's meta block describes a scene.
 export const DOC_KEYS = ["title", "author", "byline", "contact"];
-export const SCENE_KEYS = ["pov", "time", "characters", "location", "coords", "exits"];
+export const SCENE_KEYS = ["pov", "time", "characters", "location", "coords", "map", "exits"];
 
 export const HEADING = /^([#~%])\1*\s/; // uniform marker run + space (Model A)
 const META = /^([\w-]+):(.*)$/; // `key: value` — single-token key, matching meta_line
