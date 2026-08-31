@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-31
+
 ### Added
 
 - **Projects / multi-file**: open a folder of `.ink` files as a project. Its files
