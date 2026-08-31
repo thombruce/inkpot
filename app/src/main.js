@@ -26,8 +26,11 @@ const charactersEl = document.getElementById("characters");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
 const recentEl = document.getElementById("recent");
+const filesEl = document.getElementById("files");
 
 let currentPath = null; // path of the open file, or null if unsaved
+let projectRoot = null; // the open project folder, or null (single-file mode)
+let projectFiles = []; // absolute paths of the project's .ink files, name order
 let dirty = false;
 let loading = false; // true while replacing the doc programmatically
 let draggedNode = null; // outline node being dragged, or null
@@ -633,6 +636,47 @@ async function openFile() {
   await loadPath(path);
 }
 
+// Open a folder as a project: list its `.ink` files (name order) in the rail and
+// load the first. The project layer is just a folder + a file list — no manifest,
+// no state that crosses IPC; switching a file reuses the single-file machinery.
+async function openFolder() {
+  if (!(await confirmDiscard())) return;
+  const dir = await dialog.open({ directory: true });
+  if (!dir) return; // cancelled
+  const entries = await fs.readDir(dir);
+  const files = entries
+    .filter((e) => !e.isDirectory && e.name.endsWith(".ink"))
+    .map((e) => `${dir}/${e.name}`)
+    .sort();
+  projectRoot = dir;
+  projectFiles = files;
+  drawFiles();
+  if (files.length) await loadPath(files[0]);
+}
+
+// Render the project file list at the top of the outline rail. Hidden in
+// single-file mode; the active file is marked.
+function drawFiles() {
+  filesEl.hidden = projectRoot === null;
+  filesEl.replaceChildren();
+  for (const path of projectFiles) {
+    const item = document.createElement("div");
+    item.className = "file-item" + (path === currentPath ? " active" : "");
+    item.textContent = path.split("/").pop();
+    item.title = path;
+    item.addEventListener("click", () => switchFile(path));
+    filesEl.appendChild(item);
+  }
+}
+
+// Switch the active project file (with the usual discard guard), then re-mark the
+// list. A no-op if the file is already active.
+async function switchFile(path) {
+  if (path === currentPath) return;
+  if (!(await confirmDiscard())) return;
+  if (await loadPath(path)) drawFiles();
+}
+
 async function saveFile() {
   if (!currentPath) return saveFileAs();
   await fs.writeTextFile(currentPath, editor.state.doc.toString());
@@ -781,6 +825,7 @@ recentEl.addEventListener("change", async () => {
 document.getElementById("export").addEventListener("click", exportManuscript);
 document.getElementById("new").addEventListener("click", newFile);
 document.getElementById("open").addEventListener("click", openFile);
+document.getElementById("openFolder").addEventListener("click", openFolder);
 document.getElementById("save").addEventListener("click", saveFile);
 document.getElementById("saveAs").addEventListener("click", saveFileAs);
 
