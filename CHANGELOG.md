@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-31
+
 ### Added
 
 - **Multiple maps**: a location's `%` note can name its world with `map:` (e.g.
