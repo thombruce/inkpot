@@ -238,14 +238,16 @@ const worldBar = document.getElementById("worldBar");
 const worldSelect = document.getElementById("world");
 
 // Populate the world selector from the worlds present in the markers (Earth
-// always offered). Hidden unless there's more than one world. Keeps the current
-// selection if it still exists, else falls back to Earth.
+// always offered). Hidden unless there's more than one world. The current
+// selection stays sticky — kept in the list even if its markers momentarily
+// vanish — so a transient parse mid-edit never silently kicks the user to Earth
+// (and, since currentWorld never changes here, the tiles never go stale).
 function updateWorlds() {
   const worlds = new Set(mapMarkers.map((m) => worldOf(m.map)));
   worlds.add("earth");
+  worlds.add(currentWorld);
   const ordered = ["earth", ...[...worlds].filter((w) => w !== "earth").sort()];
   worldBar.hidden = ordered.length < 2;
-  if (!worlds.has(currentWorld)) currentWorld = "earth";
   worldSelect.replaceChildren();
   for (const w of ordered) {
     const opt = document.createElement("option");
@@ -257,6 +259,7 @@ function updateWorlds() {
 }
 
 worldSelect.addEventListener("change", () => switchWorld(worldSelect.value));
+
 function collectEntities(node, out) {
   if (node.visibility === "excluded" && node.title) out.push(node.title);
   for (const child of node.children) collectEntities(child, out);
