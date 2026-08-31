@@ -645,7 +645,7 @@ async function openFolder() {
   if (!(await confirmDiscard())) return;
   const dir = await dialog.open({ directory: true });
   if (!dir) return; // cancelled
-  projectRoot = dir;
+  setRoot(dir);
   await scanProject();
   const first = firstFile(projectTree);
   if (first) await loadPath(first); // loadPath -> syncProject keeps this root
@@ -667,8 +667,16 @@ async function scanProject() {
 async function syncProject() {
   if (!currentPath) return;
   const dir = currentPath.slice(0, currentPath.lastIndexOf("/"));
-  if (!projectRoot || !currentPath.startsWith(projectRoot + "/")) projectRoot = dir;
+  if (!projectRoot || !currentPath.startsWith(projectRoot + "/")) setRoot(dir);
   await scanProject();
+}
+
+// Set the project root, forgetting the previous project's collapsed-dir state
+// (its absolute paths are meaningless in a new project). No-op if unchanged.
+function setRoot(dir) {
+  if (dir === projectRoot) return;
+  projectRoot = dir;
+  collapsedDirs.clear();
 }
 
 // Render the project `.ink` tree at the top of the outline rail. Hidden in
