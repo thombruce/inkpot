@@ -13,6 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
+import { buildTree, firstFile } from "./filetree.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -29,8 +30,9 @@ const recentEl = document.getElementById("recent");
 const filesEl = document.getElementById("files");
 
 let currentPath = null; // path of the open file, or null if unsaved
-let projectRoot = null; // the open project folder, or null (single-file mode)
-let projectFiles = []; // absolute paths of the project's .ink files, name order
+let projectRoot = null; // the project root folder, or null (single-file mode)
+let projectTree = []; // nested .ink tree under the root (dirs + files, name order)
+const collapsedDirs = new Set(); // dir paths the user has collapsed (survives rescans)
 let dirty = false;
 let loading = false; // true while replacing the doc programmatically
 let draggedNode = null; // outline node being dragged, or null
@@ -626,6 +628,7 @@ async function loadPath(path) {
   markDirty(false);
   pushRecent(path);
   refresh();
+  await syncProject(); // adopt/keep the project root and redraw the file tree
   return true;
 }
 
@@ -636,45 +639,82 @@ async function openFile() {
   await loadPath(path);
 }
 
-// Open a folder as a project: list its `.ink` files (name order) in the rail and
-// load the first. The project layer is just a folder + a file list — no manifest,
-// no state that crosses IPC; switching a file reuses the single-file machinery.
+// Open a folder as the project root and load its first file. A project is just a
+// folder + the .ink tree under it — app-layer only, no state across IPC.
 async function openFolder() {
   if (!(await confirmDiscard())) return;
   const dir = await dialog.open({ directory: true });
   if (!dir) return; // cancelled
-  const entries = await fs.readDir(dir);
-  const files = entries
-    .filter((e) => !e.isDirectory && e.name.endsWith(".ink"))
-    .map((e) => `${dir}/${e.name}`)
-    .sort();
-  projectRoot = dir;
-  projectFiles = files;
-  drawFiles();
-  if (files.length) await loadPath(files[0]);
+  setRoot(dir);
+  await scanProject();
+  const first = firstFile(projectTree);
+  if (first) await loadPath(first); // loadPath -> syncProject keeps this root
+  else drawFiles(); // empty project: still show the (empty) rail
 }
 
-// Render the project file list at the top of the outline rail. Hidden in
-// single-file mode; the active file is marked.
+// Re-read the root's `.ink` tree (via the pure builder) and redraw. No-op without
+// a project root.
+async function scanProject() {
+  if (!projectRoot) return;
+  projectTree = await buildTree(projectRoot, fs.readDir);
+  drawFiles();
+}
+
+// Keep the project in step with the active file: adopt the file's own directory
+// as the root when there's no project, or when the file sits outside the current
+// root; then rescan. Called after every load, so New/Save-As/open-elsewhere all
+// re-sync the tree instead of leaving a stale snapshot.
+async function syncProject() {
+  if (!currentPath) return;
+  const dir = currentPath.slice(0, currentPath.lastIndexOf("/"));
+  if (!projectRoot || !currentPath.startsWith(projectRoot + "/")) setRoot(dir);
+  await scanProject();
+}
+
+// Set the project root, forgetting the previous project's collapsed-dir state
+// (its absolute paths are meaningless in a new project). No-op if unchanged.
+function setRoot(dir) {
+  if (dir === projectRoot) return;
+  projectRoot = dir;
+  collapsedDirs.clear();
+}
+
+// Render the project `.ink` tree at the top of the outline rail. Hidden in
+// single-file mode; the active file is marked, directories are collapsible and
+// keep their collapsed state across rescans.
 function drawFiles() {
   filesEl.hidden = projectRoot === null;
-  filesEl.replaceChildren();
-  for (const path of projectFiles) {
-    const item = document.createElement("div");
-    item.className = "file-item" + (path === currentPath ? " active" : "");
-    item.textContent = path.split("/").pop();
-    item.title = path;
-    item.addEventListener("click", () => switchFile(path));
-    filesEl.appendChild(item);
-  }
+  filesEl.replaceChildren(...projectTree.map(renderNode));
 }
 
-// Switch the active project file (with the usual discard guard), then re-mark the
-// list. A no-op if the file is already active.
+function renderNode(node) {
+  if (node.children) {
+    const details = document.createElement("details");
+    details.open = !collapsedDirs.has(node.path);
+    details.addEventListener("toggle", () => {
+      if (details.open) collapsedDirs.delete(node.path);
+      else collapsedDirs.add(node.path);
+    });
+    const summary = document.createElement("summary");
+    summary.className = "file-dir";
+    summary.textContent = node.name;
+    details.append(summary, ...node.children.map(renderNode));
+    return details;
+  }
+  const item = document.createElement("div");
+  item.className = "file-item" + (node.path === currentPath ? " active" : "");
+  item.textContent = node.name;
+  item.title = node.path;
+  item.addEventListener("click", () => switchFile(node.path));
+  return item;
+}
+
+// Switch the active project file (with the usual discard guard). A no-op if it's
+// already active; loadPath -> syncProject redraws and re-marks the tree.
 async function switchFile(path) {
   if (path === currentPath) return;
   if (!(await confirmDiscard())) return;
-  if (await loadPath(path)) drawFiles();
+  await loadPath(path);
 }
 
 async function saveFile() {
@@ -718,7 +758,14 @@ async function saveFileAs() {
   currentPath = path;
   markDirty(false);
   pushRecent(path);
+  await syncProject(); // the new file (or new folder) shows up in the tree
 }
+
+// A file may have been added/removed in the folder outside the app; re-scan when
+// the window regains focus so the tree stays current.
+window.addEventListener("focus", () => {
+  scanProject();
+});
 
 const outlineBtn = document.getElementById("toggleOutline");
 outlineBtn.addEventListener("click", () => {

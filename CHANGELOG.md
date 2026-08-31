@@ -9,10 +9,11 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
-- **Open Folder**: open a folder of `.ink` files as a project. The files list at
-  the top of the outline rail (name order); click one to switch the active file.
-  Reuses the existing editor/save/autosave — single-file open still works
-  unchanged.
+- **Projects / multi-file**: open a folder of `.ink` files as a project. Its files
+  show as a collapsible tree (subdirectories and all) at the top of the outline
+  rail; click one to switch the active file. The project is the folder of whatever
+  file you open, so opening, saving, or adding files keeps the tree in step. Reuses
+  the existing editor/save/autosave — single-file open still works unchanged.
 
 ## [0.9.0] - 2026-08-31
 
