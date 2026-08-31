@@ -13,7 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
-import { buildTree, firstFile } from "./filetree.js";
+import { buildTree, firstFile, findRoot, dirname } from "./filetree.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -643,7 +643,8 @@ async function openFile() {
 // shows in the `.ink` tree; its content (front matter) is reserved for future
 // project settings.
 const PROJECT_MARKER = "Inkpot";
-const dirname = (p) => p.slice(0, p.lastIndexOf("/"));
+// Does `dir` hold the project marker? Injected into findRoot's walk-up.
+const hasMarker = (dir) => fs.exists(`${dir}/${PROJECT_MARKER}`);
 
 // Open a folder as the project root and load its first file. Marks the folder a
 // project by writing the `Inkpot` marker (so opening a file nested in it later
@@ -662,16 +663,6 @@ async function openFolder() {
   else drawFiles(); // empty project: still show the (empty) rail
 }
 
-// Walk up from a file to the nearest directory holding the project marker — the
-// project root. null if there's none up to the filesystem root.
-async function findRoot(filePath) {
-  let dir = dirname(filePath);
-  while (dir) {
-    if (await fs.exists(`${dir}/${PROJECT_MARKER}`)) return dir;
-    dir = dirname(dir);
-  }
-  return null;
-}
 
 // Re-read the root's `.ink` tree (via the pure builder) and redraw. No-op without
 // a project root.
@@ -681,15 +672,13 @@ async function scanProject() {
   drawFiles();
 }
 
-// Keep the project in step with the active file: adopt the file's own directory
-// as the root when there's no project, or when the file sits outside the current
-// root; then rescan. Called after every load, so New/Save-As/open-elsewhere all
-// re-sync the tree instead of leaving a stale snapshot.
+// Keep the project in step with the active file. Called after every load, so
+// New/Save-As/open-elsewhere all re-derive the root and re-scan instead of
+// leaving a stale snapshot. The root is the nearest ancestor with an `Inkpot`
+// marker (so a nested file opens the whole project), else the file's own dir.
 async function syncProject() {
   if (!currentPath) return;
-  // The root is the nearest ancestor with an `Inkpot` marker (so a nested file
-  // opens the whole project), else the file's own directory.
-  const root = (await findRoot(currentPath)) ?? dirname(currentPath);
+  const root = (await findRoot(currentPath, hasMarker)) ?? dirname(currentPath);
   setRoot(root);
   await scanProject();
 }
