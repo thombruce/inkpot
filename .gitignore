@@ -3,3 +3,7 @@
 /app/src-tauri/gen
 /app/node_modules
 /app/dist
+
+# Exported manuscripts (Shunn PDF etc.) are build output, never committed. The
+# bundled Courier Prime is *.ttf, so this doesn't touch it.
+*.pdf
