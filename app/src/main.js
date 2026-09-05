@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
 import { buildTree, firstFile, allFiles, findRoot, dirname } from "./filetree.js";
+import { deepestSectionAt } from "./caretsection.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -433,24 +434,35 @@ const editor = new EditorView({
       keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap]),
       theme,
       EditorView.updateListener.of((u) => {
-        if (!u.docChanged) return;
-        if (!loading) {
-          markDirty(true); // skip programmatic loads
-          autosave();
+        if (u.docChanged) {
+          if (!loading) {
+            markDirty(true); // skip programmatic loads
+            autosave();
+          }
+          refresh(); // redraws the outline, then re-highlights the caret's section
+        } else if (u.selectionSet) {
+          highlightCaretSection(); // caret moved without an edit
         }
-        refresh();
       }),
     ],
   }),
 });
 
+// Outline rows paired with their subtree span, for caret->section highlighting.
+let outlineItems = [];
+let caretEl = null;
+
 function drawOutline(root) {
   outlineEl.replaceChildren();
+  outlineItems = [];
+  caretEl = null; // rows are fresh; the old highlight ref is stale
   for (const child of root.children) walk(child);
+  highlightCaretSection(); // restore the highlight on the redrawn rows
 
   function walk(node) {
     const el = document.createElement("div");
     el.className = "item " + node.visibility; // visible | scene | excluded
+    outlineItems.push({ el, start: node.node_span.start, end: node.node_span.end });
     el.style.paddingLeft = 12 + (node.level - 1) * 14 + "px";
     const sigil = MARKER[node.visibility].repeat(node.level);
     const label = document.createElement("span");
@@ -491,6 +503,23 @@ function drawOutline(root) {
     outlineEl.appendChild(el);
     for (const c of node.children) walk(c);
   }
+}
+
+// Highlight the outline row for the section the caret sits in: the deepest node
+// whose subtree span contains the caret (child spans nest inside parents, so the
+// innermost match is the one with the greatest start). Follows the caret into
+// view. Char offsets are BMP-safe, matching CodeMirror (#19).
+function highlightCaretSection() {
+  const pos = editor.state.selection.main.head;
+  const i = deepestSectionAt(outlineItems, pos, editor.state.doc.length);
+  const el = i >= 0 ? outlineItems[i].el : null;
+  if (el === caretEl) return;
+  if (caretEl) caretEl.classList.remove("at-caret");
+  if (el) {
+    el.classList.add("at-caret");
+    el.scrollIntoView({ block: "nearest" });
+  }
+  caretEl = el;
 }
 
 // The three heading states, as (sigil, tooltip), and the visibility -> sigil map.

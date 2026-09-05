@@ -196,6 +196,8 @@ body.show-map .map { display: flex; flex-direction: column; }
 .outline .item:hover .toggle { opacity: 1; }
 .outline .item .toggle.active { color: var(--accent); }
 .outline .item:hover { background: #ffffff10; }
+/* The section the caret sits in (#19): an accent rail + faint wash. */
+.outline .item.at-caret { background: #7aa2f71a; box-shadow: inset 2px 0 0 var(--accent); }
 .outline .item.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .outline .item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .outline .item.scene { color: var(--scene); font-style: italic; }

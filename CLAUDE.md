@@ -45,6 +45,7 @@ node app/src/character.test.mjs                # new-character scaffold splice s
 node app/src/timescrub.test.mjs                # time-scrub character-position self-check
 node app/src/mapproviders.test.mjs             # map-world folding + providers self-check
 node app/src/filetree.test.mjs                 # project .ink tree build/prune/sort self-check
+node app/src/caretsection.test.mjs             # caret -> outline-section pick self-check
 cd app && npm run tauri dev                   # run the app (needs a display)
 cd app && npm run build                       # frontend only -> app/dist
 ```
