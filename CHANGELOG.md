@@ -9,6 +9,11 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Outline follows the caret**: the outline rail highlights the section your
+  cursor sits in and scrolls it into view, so you always see where you are —
+  updating live as the caret moves, and pairing with the existing click-to-jump
+  (#19).
+
 - **Concatenated project export**: in a multi-file project, Export offers to stitch
   every `.ink` file's manuscript — in tree order (dirs-before-files by name) — into
   one continuous work, so a novel kept one-file-per-chapter exports as a single
