@@ -9,6 +9,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Whole-project Shunn PDF**: in a multi-file project, **Export PDF** now offers to
+  bind every file, in tree order, into one Shunn book — chapters flow file after
+  file, each starting on a new page, under a single title page and running header.
+  The work's title-page metadata comes from the **`Inkpot` marker's front matter**
+  (`title:`/`author:`/`byline:`/`contact:`), falling back to the first file if the
+  marker declares none; the word count sums the whole work. Single-file export is
+  unchanged (#23).
+
 - **Shunn manuscript PDF export**: export the active document as a submission-ready
   [Shunn Proper Manuscript Format](https://www.shunn.net/format/) PDF — title page
   (contact block, title, byline, rounded word count), a running `Surname / KEYWORD /

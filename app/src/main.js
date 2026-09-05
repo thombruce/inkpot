@@ -888,12 +888,29 @@ document.getElementById("newCharacter").addEventListener("click", () => {
   editor.focus();
 });
 
-// Render one file's source to a manuscript. The active buffer wins over its
-// on-disk copy so unsaved edits export; other project files read from disk.
+// A file's current source: the live buffer for the active file (so unsaved edits
+// export), otherwise its on-disk text.
+async function readSource(path) {
+  return path === currentPath ? editor.state.doc.toString() : await fs.readTextFile(path);
+}
+
+// In a multi-file project, ask whether to export the whole project or just the
+// active file. Resolves false (no prompt) for a single-file project. Shared by
+// the Markdown and PDF exporters.
+function askWholeProject(files) {
+  return (
+    files.length > 1 &&
+    dialog.ask(`Export all ${files.length} files as one manuscript?`, {
+      title: "inkpot",
+      okLabel: "Whole project",
+      cancelLabel: "This file only",
+    })
+  );
+}
+
+// Render one file's source to a manuscript.
 async function renderFile(path) {
-  const src =
-    path === currentPath ? editor.state.doc.toString() : await fs.readTextFile(path);
-  return invoke("manuscript", { src });
+  return invoke("manuscript", { src: await readSource(path) });
 }
 
 // Export the rendered manuscript (visible headings + resolved markup, scenes
@@ -903,13 +920,7 @@ async function renderFile(path) {
 // stays file-agnostic. With #25 each file's top visible heading renders as `#`.
 async function exportManuscript() {
   const files = projectRoot ? allFiles(projectTree) : [];
-  const wholeProject =
-    files.length > 1 &&
-    (await dialog.ask(`Export all ${files.length} files as one manuscript?`, {
-      title: "inkpot",
-      okLabel: "Whole project",
-      cancelLabel: "This file only",
-    }));
+  const wholeProject = await askWholeProject(files);
 
   let text, base;
   if (wholeProject) {
@@ -928,18 +939,37 @@ async function exportManuscript() {
   await fs.writeTextFile(path, text);
 }
 
-// Export the active document as a Shunn manuscript PDF. Rust (genpdf) renders
-// and writes the file, so no PDF bytes cross IPC — we just pass a chosen path.
+// Export a Shunn manuscript PDF. Rust (genpdf) renders and writes the file, so no
+// PDF bytes cross IPC — we pass source(s) and a chosen path. In a multi-file
+// project, offer to bind every file into one book (title page from the `Inkpot`
+// marker's front matter, falling back to the first file); else just this file.
 async function exportShunnPdf() {
-  const base = currentPath
-    ? currentPath.split("/").pop().replace(/\.[^.]+$/, "")
-    : "manuscript";
+  const files = projectRoot ? allFiles(projectTree) : [];
+  const wholeProject = await askWholeProject(files);
+
+  const base = wholeProject
+    ? projectRoot.split("/").pop()
+    : currentPath
+      ? currentPath.split("/").pop().replace(/\.[^.]+$/, "")
+      : "manuscript";
   const path = await dialog.save({
     defaultPath: `${base}.pdf`,
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (!path) return; // cancelled
-  await invoke("export_shunn", { src: editor.state.doc.toString(), path });
+
+  if (wholeProject) {
+    const sources = await Promise.all(files.map(readSource));
+    let marker = "";
+    try {
+      marker = await fs.readTextFile(`${projectRoot}/${PROJECT_MARKER}`);
+    } catch {
+      // A loose project has no marker file — the book falls back to file 1.
+    }
+    await invoke("export_shunn_book", { sources, marker, path });
+  } else {
+    await invoke("export_shunn", { src: editor.state.doc.toString(), path });
+  }
 }
 
 // Recent-files dropdown: pick one to open it (with the usual discard guard).

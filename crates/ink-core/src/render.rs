@@ -378,21 +378,66 @@ fn word_count_ctx(node: &Node, ctx: &Ctx) -> usize {
 /// same as the manuscript view. The PDF emitter consumes this; a future EPUB/KDP
 /// emitter can too.
 pub fn build_shunn(root: &Node) -> ShunnManuscript {
-    let meta = |key: &str| root.meta.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
-    let title = meta(TITLE).unwrap_or_default();
-    let author = meta(AUTHOR).unwrap_or_default();
-    let byline = meta(BYLINE).unwrap_or_else(|| author.clone());
-    let contact = meta(CONTACT)
-        .map(|c| c.lines().map(str::to_string).collect())
-        .unwrap_or_default();
+    let (title, author, byline, contact) = shunn_meta(root);
+    assemble(title, author, byline, contact, round_wordcount(word_count(root)), doc_blocks(root))
+}
 
+/// Project a whole project into one Shunn book (#23 follow-up): the ordered
+/// `docs` supply the body (each file's `doc_blocks` concatenated), and the
+/// title-page metadata comes from the `Inkpot` `marker`'s front matter — or, if
+/// the marker declares none, falls back to the first file's front matter. The
+/// word count sums the *raw* per-file counts and rounds once (rounding each and
+/// summing would drift).
+pub fn build_shunn_book(marker: &Node, docs: &[&Node]) -> ShunnManuscript {
+    const EXPORT_KEYS: [&str; 4] = [TITLE, AUTHOR, BYLINE, CONTACT];
+    let declares_meta = |n: &Node| n.meta.iter().any(|(k, _)| EXPORT_KEYS.contains(&k.as_str()));
+    // The title page reads *one* source, all-or-nothing: the marker wins if it
+    // declares any export key (so a marker with only `title:` gives an empty
+    // author, not the first file's), else the first file, else the marker again
+    // (empty title page). Per-field merging is deliberately not done — simpler,
+    // and a work's metadata belongs in one place.
+    let src = if declares_meta(marker) { marker } else { docs.first().copied().unwrap_or(marker) };
+    let (title, author, byline, contact) = shunn_meta(src);
+
+    let raw_words: usize = docs.iter().map(|d| word_count(d)).sum();
+    let mut blocks = Vec::new();
+    for d in docs {
+        blocks.append(&mut doc_blocks(d));
+    }
+    assemble(title, author, byline, contact, round_wordcount(raw_words), blocks)
+}
+
+/// The title-page fields from a node's own metadata: `(title, author, byline,
+/// contact-lines)`. Byline defaults to the author; contact splits to lines.
+fn shunn_meta(node: &Node) -> (String, String, String, Vec<String>) {
+    let get = |key: &str| node.meta.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
+    let author = get(AUTHOR).unwrap_or_default();
+    let title = get(TITLE).unwrap_or_default();
+    let byline = get(BYLINE).unwrap_or_else(|| author.clone());
+    let contact = get(CONTACT).map(|c| c.lines().map(str::to_string).collect()).unwrap_or_default();
+    (title, author, byline, contact)
+}
+
+/// The block stream for one document (chapters/subheads/scene-breaks/prose),
+/// without title-page metadata — the reusable per-file unit a book concatenates.
+fn doc_blocks(root: &Node) -> Vec<ShunnBlock> {
     let mut blocks = Vec::new();
     shunn_blocks(root, &root_ctx(root), &mut blocks);
+    blocks
+}
 
+fn assemble(
+    title: String,
+    author: String,
+    byline: String,
+    contact: Vec<String>,
+    words: usize,
+    blocks: Vec<ShunnBlock>,
+) -> ShunnManuscript {
     ShunnManuscript {
         surname: surname(&author),
         keyword: header_keyword(&title),
-        words: round_wordcount(word_count(root)),
+        words,
         title,
         byline,
         contact,
