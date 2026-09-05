@@ -381,7 +381,7 @@ pub fn build_shunn(root: &Node) -> ShunnManuscript {
     let meta = |key: &str| root.meta.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
     let title = meta(TITLE).unwrap_or_default();
     let author = meta(AUTHOR).unwrap_or_default();
-    let byline = meta(BYLINE).unwrap_or(author.clone());
+    let byline = meta(BYLINE).unwrap_or_else(|| author.clone());
     let contact = meta(CONTACT)
         .map(|c| c.lines().map(str::to_string).collect())
         .unwrap_or_default();

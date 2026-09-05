@@ -55,8 +55,9 @@ pub const CHARACTERS: &str = "characters";
 pub const EXITS: &str = "exits";
 
 // --- Export front matter (document-level, on the root node) -----------------
-// Read by the Shunn manuscript export (#23) off the root's `meta`; a multi-file
-// work's values come from the `Inkpot` marker's front matter instead.
+// Read by the Shunn manuscript export (#23) off the root's `meta`. (A future
+// multi-file "book" export will read a work's values from the `Inkpot` marker's
+// front matter instead — not yet implemented; see #74/#80.)
 
 /// The work's title. Centered on the Shunn title page; also seeds the running
 /// header keyword when none is given.

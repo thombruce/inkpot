@@ -639,7 +639,7 @@ fn build_shunn_projects_frontmatter_chapters_and_breaks() {
     assert_eq!(m.title, "The Book");
     assert_eq!(m.byline, "Ursula K. Le Guin");
     assert_eq!(m.surname, "Guin");
-    assert_eq!(m.keyword, "THE");
+    assert_eq!(m.keyword, "BOOK"); // "The Book" -> article skipped
     assert_eq!(m.contact, vec!["1 Left Hand Rd", "u@example.com"]);
 
     // Block stream: chapters, a scene break between prose (not after the heading),

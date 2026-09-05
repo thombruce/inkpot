@@ -154,7 +154,7 @@ fn scenes(src: String) -> Vec<Scene> {
 /// written from Rust (genpdf), so no PDF data crosses IPC.
 #[tauri::command]
 fn export_shunn(src: String, path: String) -> Result<(), String> {
-    let bytes = render_shunn_pdf(&build_shunn(&parse(&src)));
+    let bytes = render_shunn_pdf(&build_shunn(&parse(&src)))?;
     std::fs::write(&path, bytes).map_err(|e| format!("{path}: {e}"))
 }
 

@@ -58,10 +58,16 @@ pub fn surname(author: &str) -> String {
     author.split_whitespace().last().unwrap_or("").to_string()
 }
 
-/// The running-header keyword: the title's first word, uppercased — a short
-/// handle the editor recognises. Empty title yields an empty keyword.
+/// The running-header keyword: the title's first *distinctive* word, uppercased
+/// — a short handle the editor recognises. A leading article (`the`/`a`/`an`) is
+/// skipped so "The Book" yields `BOOK`, not the useless `THE` (unless the title
+/// is only that article). Empty title yields an empty keyword.
 pub fn header_keyword(title: &str) -> String {
-    title.split_whitespace().next().unwrap_or("").to_uppercase()
+    let mut words = title.split_whitespace();
+    let first = words.next().unwrap_or("");
+    let is_article = matches!(first.to_ascii_lowercase().as_str(), "the" | "a" | "an");
+    let word = if is_article { words.next().unwrap_or(first) } else { first };
+    word.to_uppercase()
 }
 
 #[cfg(test)]
@@ -86,7 +92,10 @@ mod tests {
         assert_eq!(surname("Thom Bruce"), "Bruce");
         assert_eq!(surname("Ursula K. Le Guin"), "Guin");
         assert_eq!(surname(""), "");
-        assert_eq!(header_keyword("The Example Novel"), "THE");
+        assert_eq!(header_keyword("The Example Novel"), "EXAMPLE"); // article skipped
+        assert_eq!(header_keyword("An Ode"), "ODE");
+        assert_eq!(header_keyword("The"), "THE"); // article-only title keeps it
+        assert_eq!(header_keyword("Dune"), "DUNE");
         assert_eq!(header_keyword(""), "");
     }
 }
@@ -129,7 +138,10 @@ mod pdf {
     }
 
     /// Render a [`ShunnManuscript`] to PDF bytes at the given paper size (mm).
-    pub fn render(m: &ShunnManuscript, paper: Size) -> Vec<u8> {
+    /// Font parsing can't fail (fonts are embedded and tested); a genpdf layout
+    /// error propagates as a message so a caller behind an IPC boundary can
+    /// return it instead of unwinding.
+    pub fn render(m: &ShunnManuscript, paper: Size) -> Result<Vec<u8>, String> {
         let mut doc = Document::new(font_family());
         doc.set_font_size(12);
         doc.set_line_spacing(2.0); // Shunn: double-spaced
@@ -198,21 +210,25 @@ mod pdf {
         doc.push(centered("THE END"));
 
         let mut out = Vec::new();
-        doc.render(&mut out).expect("genpdf render");
-        out
+        doc.render(&mut out).map_err(|e| format!("genpdf render: {e}"))?;
+        Ok(out)
     }
 }
 
 /// Render a [`ShunnManuscript`] to PDF bytes on US Letter (the Shunn submission
 /// size). Custom trim sizes (e.g. KDP 6×9) go through [`render_shunn_pdf_sized`].
 #[cfg(feature = "pdf")]
-pub fn render_shunn_pdf(m: &ShunnManuscript) -> Vec<u8> {
+pub fn render_shunn_pdf(m: &ShunnManuscript) -> Result<Vec<u8>, String> {
     pdf::render(m, genpdf::Size::new(215.9, 279.4))
 }
 
 /// Render to PDF bytes at an arbitrary paper size in millimetres (width, height)
 /// — the seam a future KDP-print template uses.
 #[cfg(feature = "pdf")]
-pub fn render_shunn_pdf_sized(m: &ShunnManuscript, width_mm: f64, height_mm: f64) -> Vec<u8> {
+pub fn render_shunn_pdf_sized(
+    m: &ShunnManuscript,
+    width_mm: f64,
+    height_mm: f64,
+) -> Result<Vec<u8>, String> {
     pdf::render(m, genpdf::Size::new(width_mm, height_mm))
 }

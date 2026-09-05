@@ -59,7 +59,7 @@ fn export(args: &[String]) -> ExitCode {
         if let Some(o) = arg.strip_prefix("--out=") {
             out = Some(o.to_string());
         } else if let Some(t) = arg.strip_prefix("--trim=") {
-            match t.split_once('x').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?))) {
+            match t.split_once(['x', 'X']).and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?))) {
                 Some(wh) => trim = Some(wh),
                 None => return err(format!("bad --trim '{t}', want WxH in mm e.g. 152.4x228.6")),
             }
@@ -80,6 +80,10 @@ fn export(args: &[String]) -> ExitCode {
     let bytes = match trim {
         Some((w, h)) => render_shunn_pdf_sized(&m, w, h),
         None => render_shunn_pdf(&m),
+    };
+    let bytes = match bytes {
+        Ok(b) => b,
+        Err(e) => return err(e),
     };
     if let Err(e) = std::fs::write(&out, bytes) {
         return err(format!("{out}: {e}"));

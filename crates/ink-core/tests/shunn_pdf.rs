@@ -14,11 +14,11 @@ const DOC: &str = "title: The Book\nauthor: Thom Bruce\ncontact:\n  1 Example St
 fn emits_a_valid_pdf_on_letter_and_custom_trim() {
     let m = build_shunn(&parse(DOC));
 
-    let letter = render_shunn_pdf(&m);
+    let letter = render_shunn_pdf(&m).expect("render letter");
     assert!(letter.starts_with(b"%PDF-"), "not a PDF");
     assert!(letter.len() > 2_000, "suspiciously small: {} bytes", letter.len());
 
     // KDP 6x9" custom trim goes through the sized entry point.
-    let book = render_shunn_pdf_sized(&m, 152.4, 228.6);
+    let book = render_shunn_pdf_sized(&m, 152.4, 228.6).expect("render 6x9");
     assert!(book.starts_with(b"%PDF-"), "custom-trim not a PDF");
 }

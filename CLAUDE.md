@@ -115,8 +115,11 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   CLI and Tauri shell enable it). Courier Prime (OFL) is bundled via `include_bytes!`
   — no runtime font dependency. genpdf's known ceilings (flow-only placement, no
   subsetting) are marked `ponytail:`; the upgrade path if they bite is **krilla**,
-  not typst — see the `export-architecture` memory. A future EPUB/KDP emitter (#80)
-  reuses the same `ShunnManuscript`. Chapter convention: a top-level `#` = a chapter.
+  not typst. A future EPUB/KDP emitter (#80) reuses the same `ShunnManuscript`.
+  Chapter convention: a top-level `#` = a chapter. Note: genpdf drags an old
+  transitive tree (stdweb → RUSTSEC-2020-0056, plus old printpdf/lopdf/time), so
+  `cargo audit` lights up — expected, isolated behind the `pdf` feature, and the
+  krilla path clears most of it.
 
 ## Conventions
 
