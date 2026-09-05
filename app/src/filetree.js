@@ -54,3 +54,14 @@ export function firstFile(nodes) {
   }
   return null;
 }
+
+// Every `.ink` file path in a tree, in manuscript order: depth-first, following
+// the tree's dirs-before-files-by-name ordering (#74 concatenated export).
+export function allFiles(nodes) {
+  const out = [];
+  for (const n of nodes) {
+    if (n.children) out.push(...allFiles(n.children));
+    else out.push(n.path);
+  }
+  return out;
+}
