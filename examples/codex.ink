@@ -1,3 +1,10 @@
+title: Codex
+author: Thom Bruce
+contact:
+  123 Fake Street
+  London
+  CA1 23P
+
 # Chapter 1
 
 ## The Arrival

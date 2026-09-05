@@ -158,6 +158,25 @@ any file nested inside the project brings up the whole tree; opening, saving, or
 adding files keeps it current. Handy for a multi-chapter work or a whole series
 kept as separate files. (Opening a single file still works as before.)
 
+### Export
+
+- **Export** writes the Markdown manuscript (above). In a project it can stitch
+  every file, in tree order, into one continuous manuscript.
+- **Export PDF** writes a submission-ready **Shunn Proper Manuscript Format** PDF
+  of the active document: a title page (contact block, title, byline, word count
+  rounded the Shunn way), a running `Surname / KEYWORD / page#` header,
+  double-spaced Courier prose with 0.5″ first-line indents, and centered `#` scene
+  breaks. The title page reads the work's **front matter** — `title:`, `author:`,
+  `byline:` (defaults to `author`), and a multiline `contact:`. The PDF is
+  generated in Rust with a bundled Courier Prime font, so it needs no external
+  tools and looks identical on every platform. The CLI does it headless:
+  `ink export --out=book.pdf [--trim=WxH_mm] file.ink`.
+
+  **Chapter convention:** a top-level `#` heading is a **chapter** — it starts a
+  new page with its title centered. Deeper visible headings (`##`+) render as
+  centered subheads; `~` scene boundaries become scene breaks. A document with no
+  `#` chapters exports as a short story (prose flows on from the title page).
+
 ## Repository layout
 
 ```

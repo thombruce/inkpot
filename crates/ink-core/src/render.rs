@@ -1,6 +1,7 @@
 //! Three read-only views over the [`Node`] tree.
 
-use crate::meta::{is_self_naming, ID};
+use crate::meta::{is_self_naming, AUTHOR, BYLINE, CONTACT, ID, TITLE};
+use crate::shunn::{header_keyword, round_wordcount, surname, ShunnBlock, ShunnManuscript};
 use crate::{Block, Inline, Node, Visibility};
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -367,6 +368,71 @@ fn word_count_ctx(node: &Node, ctx: &Ctx) -> usize {
         n += word_count_ctx(child, &cctx);
     }
     n
+}
+
+/// Project `root` into the flat [`ShunnManuscript`] model (#23): title-page
+/// fields from the root's front matter, a rounded whole-document word count, and
+/// a block stream where each top-level visible heading is a chapter, deeper
+/// visible headings are subheads, `~` scene boundaries are scene breaks, and
+/// excluded (`%`) subtrees drop. Prose is resolved (markup/links/interpolation),
+/// same as the manuscript view. The PDF emitter consumes this; a future EPUB/KDP
+/// emitter can too.
+pub fn build_shunn(root: &Node) -> ShunnManuscript {
+    let meta = |key: &str| root.meta.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
+    let title = meta(TITLE).unwrap_or_default();
+    let author = meta(AUTHOR).unwrap_or_default();
+    let byline = meta(BYLINE).unwrap_or_else(|| author.clone());
+    let contact = meta(CONTACT)
+        .map(|c| c.lines().map(str::to_string).collect())
+        .unwrap_or_default();
+
+    let mut blocks = Vec::new();
+    shunn_blocks(root, &root_ctx(root), &mut blocks);
+
+    ShunnManuscript {
+        surname: surname(&author),
+        keyword: header_keyword(&title),
+        words: round_wordcount(word_count(root)),
+        title,
+        byline,
+        contact,
+        blocks,
+    }
+}
+
+fn shunn_blocks(node: &Node, ctx: &Ctx, blocks: &mut Vec<ShunnBlock>) {
+    if node.visibility == Visibility::Excluded {
+        return;
+    }
+    if node.level > 0 && !node.title.is_empty() {
+        match node.visibility {
+            Visibility::Visible if node.level == 1 => {
+                blocks.push(ShunnBlock::Chapter(substitute(&node.title, ctx)));
+            }
+            Visibility::Visible => blocks.push(ShunnBlock::Subhead(substitute(&node.title, ctx))),
+            // A scene heading doesn't print, but marks a scene break — only
+            // between prose, never right after a chapter/subhead start.
+            Visibility::Scene if matches!(blocks.last(), Some(ShunnBlock::Para(_))) => {
+                blocks.push(ShunnBlock::SceneBreak);
+            }
+            _ => {}
+        }
+    }
+    for block in &node.body {
+        if let Block::Para(spans) = block {
+            // Collapse a paragraph's soft (source) line breaks and runs of
+            // whitespace to single spaces: prose reflows in the manuscript, and a
+            // raw `\n` would render as a missing glyph. (Verse line breaks are
+            // lost — an accepted v1 simplification.)
+            let text = print_inlines(spans, ctx).split_whitespace().collect::<Vec<_>>().join(" ");
+            if !text.is_empty() {
+                blocks.push(ShunnBlock::Para(text));
+            }
+        }
+    }
+    for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
+        shunn_blocks(child, &cctx, blocks);
+    }
 }
 
 /// Render `root` as a manuscript in HTML: visible headings become `<h1>`–`<h6>`,

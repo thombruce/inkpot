@@ -37,7 +37,9 @@ stay in outline/edit.
 
 ```sh
 cargo test                                    # core tests (from repo root)
+cargo test -p ink-core --features pdf          # + the Shunn PDF emitter (genpdf)
 cargo run -p ink-cli -- render --view=edit examples/sample.ink
+cargo run -p ink-cli -- export --out=/tmp/m.pdf examples/sample.ink  # Shunn PDF
 node app/src/reorder.test.mjs                 # reorder splice self-check
 node app/src/fold.test.mjs                     # fold depth/section self-check
 node app/src/metacomplete.test.mjs             # metadata-completion zone self-check
@@ -105,6 +107,19 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   `k == "id"` literals; a view key gets a constant only once core reads it. The
   editor's key-completion seed (`SCENE_KEYS` in `metacomplete.js`) is the
   frontend mirror — add a new suggested key there too.
+- **Manuscript/publishing export goes through one seam** (`ink-core::shunn`, #23).
+  `build_shunn` projects the tree into a flat, engine-independent `ShunnManuscript`
+  model (title-page fields + a `ShunnBlock` stream); emitters consume *that*, never
+  the tree. The PDF emitter uses **genpdf** and is behind the `pdf` **feature**
+  (default-off, so `cargo test` and the app's fast path stay pure/webkit-free; the
+  CLI and Tauri shell enable it). Courier Prime (OFL) is bundled via `include_bytes!`
+  — no runtime font dependency. genpdf's known ceilings (flow-only placement, no
+  subsetting) are marked `ponytail:`; the upgrade path if they bite is **krilla**,
+  not typst. A future EPUB/KDP emitter (#80) reuses the same `ShunnManuscript`.
+  Chapter convention: a top-level `#` = a chapter. Note: genpdf drags an old
+  transitive tree (stdweb → RUSTSEC-2020-0056, plus old printpdf/lopdf/time), so
+  `cargo audit` lights up — expected, isolated behind the `pdf` feature, and the
+  krilla path clears most of it.
 
 ## Conventions
 

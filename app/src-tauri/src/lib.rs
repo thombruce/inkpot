@@ -1,8 +1,9 @@
 //! Tauri shell: stateless commands over `ink-core` (parse in, render out). Text is canonical on
 //! the frontend; Rust only parses and renders. See docs/ipc.md for the surface.
 
+use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
-    map_markers, parse, render, render_characters_html, render_codex_html, render_html,
+    build_shunn, map_markers, parse, render, render_characters_html, render_codex_html, render_html,
     render_timeline_html, resolve_titles, scene_timeline, word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
@@ -149,12 +150,20 @@ fn scenes(src: String) -> Vec<Scene> {
         .collect()
 }
 
+/// Render `src` to a Shunn manuscript PDF and write it to `path`. Bytes are
+/// written from Rust (genpdf), so no PDF data crosses IPC.
+#[tauri::command]
+fn export_shunn(src: String, path: String) -> Result<(), String> {
+    let bytes = render_shunn_pdf(&build_shunn(&parse(&src)))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("{path}: {e}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex, timeline, characters, map, scenes
+            outline, preview, manuscript, codex, timeline, characters, map, scenes, export_shunn
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

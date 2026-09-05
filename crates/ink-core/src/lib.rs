@@ -6,10 +6,11 @@
 pub mod meta;
 mod parse;
 mod render;
+pub mod shunn;
 
 pub use parse::parse;
 pub use render::{
-    map_markers, render, render_characters_html, render_codex_html, render_html,
+    build_shunn, map_markers, render, render_characters_html, render_codex_html, render_html,
     render_timeline_html, resolve_titles, scene_timeline, word_count, MapMarker, SceneEntry, View,
 };
 

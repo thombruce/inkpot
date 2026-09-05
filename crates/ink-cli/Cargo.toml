@@ -10,4 +10,5 @@ name = "ink"
 path = "src/main.rs"
 
 [dependencies]
-ink-core = { path = "../ink-core" }
+# The CLI enables Shunn PDF export (#23); the core crate keeps it default-off.
+ink-core = { path = "../ink-core", features = ["pdf"] }

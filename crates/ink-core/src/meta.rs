@@ -54,6 +54,28 @@ pub const CHARACTERS: &str = "characters";
 /// [`CHARACTERS`] re-adds them (a flashback or fake-out).
 pub const EXITS: &str = "exits";
 
+// --- Export front matter (document-level, on the root node) -----------------
+// Read by the Shunn manuscript export (#23) off the root's `meta`. (A future
+// multi-file "book" export will read a work's values from the `Inkpot` marker's
+// front matter instead — not yet implemented; see #74/#80.)
+
+/// The work's title. Centered on the Shunn title page; also seeds the running
+/// header keyword when none is given.
+pub const TITLE: &str = "title";
+
+/// The author's legal name — the byline default, and the source of the running
+/// header surname (its last whitespace-separated word).
+pub const AUTHOR: &str = "author";
+
+/// The author's contact block (name/address/email/phone), top-left on the Shunn
+/// first page. A multiline front-matter value: indented continuation lines each
+/// become their own line.
+pub const CONTACT: &str = "contact";
+
+/// The name to publish under (pen name), centered under the title. Falls back to
+/// [`AUTHOR`] when absent.
+pub const BYLINE: &str = "byline";
+
 /// Does this metadata key *name its own section* rather than reference another
 /// entity? Such keys are excluded from backlinks and rendered as plain text,
 /// never resolved as a `[[link]]`. Today the only one is [`ID`].

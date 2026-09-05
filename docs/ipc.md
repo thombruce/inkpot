@@ -41,6 +41,15 @@ Returns the manuscript as **Markdown** (visible headings as `#`-by-depth ATX,
 subtrees dropped) — the `ink-core` `View::Manuscript` render, for the frontend's
 Export. Convert to docx/PDF/etc. downstream with pandoc.
 
+### `export_shunn(src: string, path: string) -> void`
+
+Renders `src` to a **Shunn Proper Manuscript Format** PDF and writes it to `path`
+(the frontend supplies a save-dialog path). The PDF is built and written entirely
+in Rust (`ink-core::shunn`, genpdf), so **no PDF bytes cross IPC** — only the
+source in and the destination path. Errors return a message string. Unlike the
+other commands this one writes a file; it's the single exception to "render out,
+no side effects", justified by keeping large binary data off the IPC boundary.
+
 ### `codex(src: string) -> string`
 
 Returns the **codex** as HTML for the app's codex panel: the excluded (`%`)
