@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-05
+
 ### Added
 
 - **Whole-project Shunn PDF**: in a multi-file project, **Export PDF** now offers to
