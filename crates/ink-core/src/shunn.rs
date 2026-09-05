@@ -46,10 +46,14 @@ pub struct ShunnManuscript {
 
 /// Round a word count the Shunn way: to the nearest 100 below ~10 000, and to
 /// the nearest 1 000 at or above it (a cover page never shows a false-precise
-/// count). 0 stays 0.
+/// count). An empty manuscript stays 0, but any non-empty one floors at the step
+/// (100) — a 47-word manuscript reads "about 100 words", never a nonsensical 0.
 pub fn round_wordcount(n: usize) -> usize {
+    if n == 0 {
+        return 0;
+    }
     let step = if n < 10_000 { 100 } else { 1_000 };
-    ((n + step / 2) / step) * step
+    (((n + step / 2) / step) * step).max(step)
 }
 
 /// The running-header surname: the last whitespace-separated word of the author's
@@ -76,8 +80,9 @@ mod tests {
 
     #[test]
     fn wordcount_rounds_per_shunn() {
-        assert_eq!(round_wordcount(0), 0);
-        assert_eq!(round_wordcount(49), 0); // nearest 100, rounds down
+        assert_eq!(round_wordcount(0), 0); // empty manuscript only
+        assert_eq!(round_wordcount(1), 100); // any prose floors at the step, not 0
+        assert_eq!(round_wordcount(47), 100); // would round to 0 without the floor
         assert_eq!(round_wordcount(50), 100); // .5 rounds up
         assert_eq!(round_wordcount(7_649), 7_600);
         assert_eq!(round_wordcount(7_650), 7_700);
