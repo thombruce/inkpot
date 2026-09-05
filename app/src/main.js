@@ -894,6 +894,20 @@ async function readSource(path) {
   return path === currentPath ? editor.state.doc.toString() : await fs.readTextFile(path);
 }
 
+// In a multi-file project, ask whether to export the whole project or just the
+// active file. Resolves false (no prompt) for a single-file project. Shared by
+// the Markdown and PDF exporters.
+function askWholeProject(files) {
+  return (
+    files.length > 1 &&
+    dialog.ask(`Export all ${files.length} files as one manuscript?`, {
+      title: "inkpot",
+      okLabel: "Whole project",
+      cancelLabel: "This file only",
+    })
+  );
+}
+
 // Render one file's source to a manuscript.
 async function renderFile(path) {
   return invoke("manuscript", { src: await readSource(path) });
@@ -906,13 +920,7 @@ async function renderFile(path) {
 // stays file-agnostic. With #25 each file's top visible heading renders as `#`.
 async function exportManuscript() {
   const files = projectRoot ? allFiles(projectTree) : [];
-  const wholeProject =
-    files.length > 1 &&
-    (await dialog.ask(`Export all ${files.length} files as one manuscript?`, {
-      title: "inkpot",
-      okLabel: "Whole project",
-      cancelLabel: "This file only",
-    }));
+  const wholeProject = await askWholeProject(files);
 
   let text, base;
   if (wholeProject) {
@@ -937,13 +945,7 @@ async function exportManuscript() {
 // marker's front matter, falling back to the first file); else just this file.
 async function exportShunnPdf() {
   const files = projectRoot ? allFiles(projectTree) : [];
-  const wholeProject =
-    files.length > 1 &&
-    (await dialog.ask(`Export all ${files.length} files as one manuscript?`, {
-      title: "inkpot",
-      okLabel: "Whole project",
-      cancelLabel: "This file only",
-    }));
+  const wholeProject = await askWholeProject(files);
 
   const base = wholeProject
     ? projectRoot.split("/").pop()

@@ -693,6 +693,21 @@ fn build_shunn_book_concatenates_files_and_sources_work_metadata() {
     let book2 = build_shunn_book(&bare, &[&titled_first]);
     assert_eq!(book2.title, "From The File");
     assert_eq!(book2.surname, "Writer");
+
+    // All-or-nothing: a marker that declares *any* export key is the sole source,
+    // so a title-only marker yields an empty author even though file 1 has one.
+    let title_only = parse("title: Marker Title\n");
+    let file_with_author = parse("author: Ignored Author\n\n# One\n\nx.\n");
+    let book3 = build_shunn_book(&title_only, &[&file_with_author]);
+    assert_eq!(book3.title, "Marker Title");
+    assert_eq!(book3.surname, ""); // NOT "Author" — the marker won wholesale
+
+    // No metadata anywhere -> an empty title page, but the body still binds.
+    let book4 = build_shunn_book(&parse(""), &[&parse("# One\n\nx.\n")]);
+    assert_eq!(book4.title, "");
+    assert_eq!(book4.surname, "");
+    assert!(book4.contact.is_empty());
+    assert_eq!(book4.blocks, vec![ShunnBlock::Chapter("One".into()), ShunnBlock::Para("x.".into())]);
 }
 
 #[test]

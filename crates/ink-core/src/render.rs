@@ -391,7 +391,11 @@ pub fn build_shunn(root: &Node) -> ShunnManuscript {
 pub fn build_shunn_book(marker: &Node, docs: &[&Node]) -> ShunnManuscript {
     const EXPORT_KEYS: [&str; 4] = [TITLE, AUTHOR, BYLINE, CONTACT];
     let declares_meta = |n: &Node| n.meta.iter().any(|(k, _)| EXPORT_KEYS.contains(&k.as_str()));
-    // Marker wins; else the first file; else the marker again (empty title page).
+    // The title page reads *one* source, all-or-nothing: the marker wins if it
+    // declares any export key (so a marker with only `title:` gives an empty
+    // author, not the first file's), else the first file, else the marker again
+    // (empty title page). Per-field merging is deliberately not done — simpler,
+    // and a work's metadata belongs in one place.
     let src = if declares_meta(marker) { marker } else { docs.first().copied().unwrap_or(marker) };
     let (title, author, byline, contact) = shunn_meta(src);
 
