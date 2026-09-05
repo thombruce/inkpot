@@ -84,8 +84,9 @@ fn criticmarkup_scanned() {
 #[test]
 fn manuscript_hides_invisible_and_resolves_markup() {
     let out = render(&parse(SAMPLE), View::Manuscript);
-    // Visible headings render as Markdown ATX headings (depth = marker count);
-    // scene titles are absent (scenes contribute body only).
+    // Visible headings render as Markdown ATX headings, sized by visible depth
+    // (#25 — here the top visible heading is `#`); scene titles are absent
+    // (scenes contribute body only).
     assert!(out.contains("# Chapter 1"));
     assert!(out.contains("## The Arrival"));
     assert!(!out.contains("The Kitchen"));
