@@ -50,6 +50,14 @@ source in and the destination path. Errors return a message string. Unlike the
 other commands this one writes a file; it's the single exception to "render out,
 no side effects", justified by keeping large binary data off the IPC boundary.
 
+### `export_shunn_book(sources: string[], marker: string, path: string) -> void`
+
+Whole-project variant: `sources` are the project's file texts in tree order and
+`marker` is the `Inkpot` marker's text. Concatenates each file's chapters into one
+Shunn book PDF, taking the title-page metadata from the marker's front matter (or
+the first file if the marker declares none), and writes it to `path`. Like
+`export_shunn`, the PDF is built and written in Rust — no bytes cross IPC.
+
 ### `codex(src: string) -> string`
 
 Returns the **codex** as HTML for the app's codex panel: the excluded (`%`)

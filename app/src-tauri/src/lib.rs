@@ -3,8 +3,9 @@
 
 use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
-    build_shunn, map_markers, parse, render, render_characters_html, render_codex_html, render_html,
-    render_timeline_html, resolve_titles, scene_timeline, word_count, Node, Span, View, Visibility,
+    build_shunn, build_shunn_book, map_markers, parse, render, render_characters_html,
+    render_codex_html, render_html, render_timeline_html, resolve_titles, scene_timeline,
+    word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -158,12 +159,25 @@ fn export_shunn(src: String, path: String) -> Result<(), String> {
     std::fs::write(&path, bytes).map_err(|e| format!("{path}: {e}"))
 }
 
+/// Render a whole project to one Shunn book PDF: `sources` are the project's
+/// files in order, `marker` is the `Inkpot` marker's text (its front matter is
+/// the work's title-page metadata, falling back to the first file). Bytes are
+/// written from Rust — no PDF crosses IPC.
+#[tauri::command]
+fn export_shunn_book(sources: Vec<String>, marker: String, path: String) -> Result<(), String> {
+    let docs: Vec<Node> = sources.iter().map(|s| parse(s)).collect();
+    let refs: Vec<&Node> = docs.iter().collect();
+    let bytes = render_shunn_pdf(&build_shunn_book(&parse(&marker), &refs))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("{path}: {e}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex, timeline, characters, map, scenes, export_shunn
+            outline, preview, manuscript, codex, timeline, characters, map, scenes, export_shunn,
+            export_shunn_book
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

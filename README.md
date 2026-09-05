@@ -162,14 +162,17 @@ kept as separate files. (Opening a single file still works as before.)
 
 - **Export** writes the Markdown manuscript (above). In a project it can stitch
   every file, in tree order, into one continuous manuscript.
-- **Export PDF** writes a submission-ready **Shunn Proper Manuscript Format** PDF
-  of the active document: a title page (contact block, title, byline, word count
-  rounded the Shunn way), a running `Surname / KEYWORD / page#` header,
-  double-spaced Courier prose with 0.5″ first-line indents, and centered `#` scene
-  breaks. The title page reads the work's **front matter** — `title:`, `author:`,
-  `byline:` (defaults to `author`), and a multiline `contact:`. The PDF is
-  generated in Rust with a bundled Courier Prime font, so it needs no external
-  tools and looks identical on every platform. The CLI does it headless:
+- **Export PDF** writes a submission-ready **Shunn Proper Manuscript Format** PDF:
+  a title page (contact block, title, byline, word count rounded the Shunn way), a
+  running `Surname / KEYWORD / page#` header, double-spaced Courier prose with 0.5″
+  first-line indents, and centered `#` scene breaks. The title page reads the work's
+  **front matter** — `title:`, `author:`, `byline:` (defaults to `author`), and a
+  multiline `contact:`. In a project it can bind **every file into one book** (in
+  tree order, chapters flowing file after file); then the title-page metadata comes
+  from the **`Inkpot` marker's** front matter (falling back to the first file), and
+  the word count sums the whole work. The PDF is generated in Rust with a bundled
+  Courier Prime font, so it needs no external tools and looks identical on every
+  platform. The CLI exports a single file headless:
   `ink export --out=book.pdf [--trim=WxH_mm] file.ink`.
 
   **Chapter convention:** a top-level `#` heading is a **chapter** — it starts a

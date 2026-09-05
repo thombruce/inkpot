@@ -1,5 +1,7 @@
 use ink_core::shunn::ShunnBlock;
-use ink_core::{build_shunn, parse, render, word_count, Block, Inline, View, Visibility};
+use ink_core::{
+    build_shunn, build_shunn_book, parse, render, word_count, Block, Inline, View, Visibility,
+};
 
 const SAMPLE: &str = include_str!("../../../examples/sample.ink");
 
@@ -658,6 +660,39 @@ fn build_shunn_projects_frontmatter_chapters_and_breaks() {
         ],
     );
     assert!(!m.blocks.iter().any(|b| matches!(b, ShunnBlock::Para(p) if p == "secret.")));
+}
+
+#[test]
+fn build_shunn_book_concatenates_files_and_sources_work_metadata() {
+    // One file per chapter; the marker carries the work's front matter.
+    let marker = parse("title: The Whole Work\nauthor: Jane Roe\n");
+    let ch1 = parse("# Chapter One\n\nAlpha beta gamma.\n"); // 3 words
+    let ch2 = parse("# Chapter Two\n\nDelta epsilon.\n"); // 2 words
+    let book = build_shunn_book(&marker, &[&ch1, &ch2]);
+
+    // Title page from the marker, not the (metadata-less) chapter files.
+    assert_eq!(book.title, "The Whole Work");
+    assert_eq!(book.surname, "Roe");
+    assert_eq!(book.keyword, "WHOLE"); // article "The" skipped
+    // Body = both files' blocks, in order.
+    assert_eq!(
+        book.blocks,
+        vec![
+            ShunnBlock::Chapter("Chapter One".into()),
+            ShunnBlock::Para("Alpha beta gamma.".into()),
+            ShunnBlock::Chapter("Chapter Two".into()),
+            ShunnBlock::Para("Delta epsilon.".into()),
+        ],
+    );
+    // Word count sums raw per-file counts (3 + 2 = 5) then rounds once (floor 100).
+    assert_eq!(book.words, 100);
+
+    // Fallback: a marker with no export metadata takes the first file's.
+    let bare = parse("");
+    let titled_first = parse("title: From The File\nauthor: A. Writer\n\n# One\n\nx.\n");
+    let book2 = build_shunn_book(&bare, &[&titled_first]);
+    assert_eq!(book2.title, "From The File");
+    assert_eq!(book2.surname, "Writer");
 }
 
 #[test]
