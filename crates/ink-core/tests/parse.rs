@@ -623,3 +623,17 @@ fn same_depth_headings_at_start_are_siblings() {
     assert!(root.children.iter().all(|c| c.level == 2));
     assert_eq!(root.children[1].title, "Chapter 2");
 }
+
+#[test]
+fn heading_size_follows_visible_depth_not_marker_count() {
+    // A `~` scene ancestor doesn't print, so the visible headings beneath it
+    // must size by visible depth: the top visible heading is `#`/`<h1>`, not
+    // demoted by the hidden level the scene consumed (#25).
+    let src = "~ Manuscript\n\n## Book Title\n\n### Chapter One\n\nProse.\n";
+    let root = parse(src);
+    let md = render(&root, View::Manuscript);
+    assert_eq!(md, "# Book Title\n\n## Chapter One\n\nProse.\n", "{md}");
+    let html = ink_core::render_html(&root);
+    assert!(html.contains("<h1>Book Title</h1>"), "{html}");
+    assert!(html.contains("<h2>Chapter One</h2>"), "{html}");
+}
