@@ -7,6 +7,22 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Concatenated project export**: in a multi-file project, Export offers to stitch
+  every `.ink` file's manuscript — in tree order (dirs-before-files by name) — into
+  one continuous work, so a novel kept one-file-per-chapter exports as a single
+  manuscript. Single-file export is unchanged; the choice appears only when a
+  project has more than one file. App-layer concatenation over per-file renders —
+  `ink-core` stays file-agnostic (#74).
+
+### Changed
+
+- **Heading size follows visible depth**: manuscript/preview headings now size by
+  their *visible* position, not raw marker count — a `#`/`~`/`%`-hidden ancestor no
+  longer shrinks the visible headings beneath it. The shallowest printed heading is
+  `<h1>` (`#` in Markdown), its printed children `<h2>`, and so on (#25).
+
 ## [0.10.0] - 2026-08-31
 
 ### Added

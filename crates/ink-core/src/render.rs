@@ -27,7 +27,7 @@ pub enum View {
 pub fn render(root: &Node, view: View) -> String {
     let mut out = String::new();
     match view {
-        View::Manuscript => manuscript(root, &root_ctx(root), &mut out),
+        View::Manuscript => manuscript(root, &root_ctx(root), 0, &mut out),
         View::Outline => outline(root, &root_ctx(root), &mut out),
         View::Edit => edit(root, &mut out),
         View::Codex => codex(root, &root_ctx(root), &[], &mut out),
@@ -317,16 +317,19 @@ impl ExprParser<'_> {
     }
 }
 
-fn manuscript(node: &Node, ctx: &Ctx, out: &mut String) {
+fn manuscript(node: &Node, ctx: &Ctx, vdepth: u8, out: &mut String) {
     // Excluded subtrees never reach the manuscript.
     if node.visibility == Visibility::Excluded {
         return;
     }
-    // Visible headings print as Markdown ATX headings (depth = marker count,
-    // clamped to h6); scenes contribute body only. Emphasis stays `**`/`*`, so
-    // the whole manuscript is valid Markdown — convert onward with pandoc.
+    // Visible headings print as Markdown ATX headings sized by *visible* depth —
+    // the shallowest printed heading is `#`, normalizing away hidden (`~`/`%`)
+    // ancestors that consumed marker levels (#25). Scenes contribute body only.
+    // Emphasis stays `**`/`*`, so the whole manuscript is valid Markdown.
+    let mut vdepth = vdepth;
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
-        let hashes = "#".repeat(node.level.min(6) as usize);
+        vdepth += 1;
+        let hashes = "#".repeat((vdepth.min(6)) as usize);
         writeln!(out, "{hashes} {}\n", substitute(&node.title, ctx)).ok();
     }
     for block in &node.body {
@@ -338,7 +341,7 @@ fn manuscript(node: &Node, ctx: &Ctx, out: &mut String) {
         }
     }
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
-        manuscript(child, &cctx, out);
+        manuscript(child, &cctx, vdepth, out);
     }
 }
 
@@ -372,16 +375,20 @@ fn word_count_ctx(node: &Node, ctx: &Ctx) -> usize {
 /// within a paragraph become `<br>` (so verse lines survive).
 pub fn render_html(root: &Node) -> String {
     let mut out = String::new();
-    manuscript_html(root, &root_ctx(root), &mut out);
+    manuscript_html(root, &root_ctx(root), 0, &mut out);
     out
 }
 
-fn manuscript_html(node: &Node, ctx: &Ctx, out: &mut String) {
+fn manuscript_html(node: &Node, ctx: &Ctx, vdepth: u8, out: &mut String) {
     if node.visibility == Visibility::Excluded {
         return;
     }
+    // Heading size follows *visible* depth, not marker count: the shallowest
+    // printed heading is `<h1>`, normalizing away hidden (`~`/`%`) ancestors (#25).
+    let mut vdepth = vdepth;
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
-        let lvl = node.level.min(6);
+        vdepth += 1;
+        let lvl = vdepth.min(6);
         writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&substitute(&node.title, ctx))).ok();
     }
     for block in &node.body {
@@ -393,7 +400,7 @@ fn manuscript_html(node: &Node, ctx: &Ctx, out: &mut String) {
         }
     }
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
-        manuscript_html(child, &cctx, out);
+        manuscript_html(child, &cctx, vdepth, out);
     }
 }
 

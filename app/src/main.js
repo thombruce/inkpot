@@ -13,7 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
-import { buildTree, firstFile, findRoot, dirname } from "./filetree.js";
+import { buildTree, firstFile, allFiles, findRoot, dirname } from "./filetree.js";
 
 const { invoke } = window.__TAURI__.core;
 const dialog = window.__TAURI__.dialog;
@@ -859,13 +859,38 @@ document.getElementById("newCharacter").addEventListener("click", () => {
   editor.focus();
 });
 
+// Render one file's source to a manuscript. The active buffer wins over its
+// on-disk copy so unsaved edits export; other project files read from disk.
+async function renderFile(path) {
+  const src =
+    path === currentPath ? editor.state.doc.toString() : await fs.readTextFile(path);
+  return invoke("manuscript", { src });
+}
+
 // Export the rendered manuscript (visible headings + resolved markup, scenes
 // and excluded subtrees dropped) as plain text — parse/render stays in Rust.
+// In a multi-file project, offer to stitch every file's manuscript (in tree
+// order) into one continuous work (#74); app-layer concatenation, ink-core
+// stays file-agnostic. With #25 each file's top visible heading renders as `#`.
 async function exportManuscript() {
-  const text = await invoke("manuscript", { src: editor.state.doc.toString() });
-  const base = currentPath
-    ? currentPath.split("/").pop().replace(/\.[^.]+$/, "")
-    : "manuscript";
+  const files = projectRoot ? allFiles(projectTree) : [];
+  const wholeProject =
+    files.length > 1 &&
+    (await dialog.ask(`Export all ${files.length} files as one manuscript?`, {
+      title: "inkpot",
+      okLabel: "Whole project",
+      cancelLabel: "This file only",
+    }));
+
+  let text, base;
+  if (wholeProject) {
+    text = (await Promise.all(files.map(renderFile))).join("\n");
+    base = projectRoot.split("/").pop();
+  } else {
+    text = await renderFile(currentPath);
+    base = currentPath ? currentPath.split("/").pop().replace(/\.[^.]+$/, "") : "manuscript";
+  }
+
   const path = await dialog.save({
     defaultPath: `${base}.md`,
     filters: [{ name: "Markdown", extensions: ["md", "txt"] }],

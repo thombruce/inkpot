@@ -1,6 +1,6 @@
 // Run: node app/src/filetree.test.mjs
 import assert from "node:assert/strict";
-import { buildTree, firstFile, findRoot } from "./filetree.js";
+import { buildTree, firstFile, allFiles, findRoot } from "./filetree.js";
 
 // A fake filesystem: dir path -> entries. readDir throws on unknown dirs.
 const FS = {
@@ -39,6 +39,15 @@ assert.deepEqual(notes.children.map((n) => n.path), ["/p/notes/world.ink"]);
 // firstFile is depth-first: descends into `notes` before the top-level files.
 assert.equal(firstFile(tree), "/p/notes/world.ink");
 assert.equal(firstFile([]), null);
+
+// allFiles flattens every .ink path in manuscript order: depth-first, matching
+// the tree's dirs-before-files-by-name ordering (#74 concatenated export).
+assert.deepEqual(allFiles(tree), [
+  "/p/notes/world.ink",
+  "/p/01-one.ink",
+  "/p/02-two.ink",
+]);
+assert.deepEqual(allFiles([]), []);
 
 // An unreadable dir yields an empty tree, not a throw.
 assert.deepEqual(await buildTree("/nope", readDir), []);
