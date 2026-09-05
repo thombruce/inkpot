@@ -22,8 +22,8 @@ assert.equal(at(30), 2);
 assert.equal(at(40), 2);
 // Caret at the very end of the doc -> last containing section (C), not nothing.
 assert.equal(at(50), 2);
-// Before everything (empty leading region) -> none.
-assert.equal(deepestSectionAt(items, 0, docLen), 0); // 0 is A.start, inside A
+// Caret at A.start (offset 0) sits inside A.
+assert.equal(deepestSectionAt(items, 0, docLen), 0);
 assert.equal(deepestSectionAt([], 5, 10), -1); // no rows
 
 console.log("caretsection: all assertions passed");
