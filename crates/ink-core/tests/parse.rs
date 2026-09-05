@@ -1,4 +1,5 @@
-use ink_core::{parse, render, word_count, Block, Inline, View, Visibility};
+use ink_core::shunn::ShunnBlock;
+use ink_core::{build_shunn, parse, render, word_count, Block, Inline, View, Visibility};
 
 const SAMPLE: &str = include_str!("../../../examples/sample.ink");
 
@@ -623,6 +624,40 @@ fn same_depth_headings_at_start_are_siblings() {
     assert_eq!(root.children.len(), 3);
     assert!(root.children.iter().all(|c| c.level == 2));
     assert_eq!(root.children[1].title, "Chapter 2");
+}
+
+#[test]
+fn build_shunn_projects_frontmatter_chapters_and_breaks() {
+    let src = "title: The Book\nauthor: Ursula K. Le Guin\ncontact:\n  1 Left Hand Rd\n  u@example.com\n\n\
+               # Chapter One\n\nOpening scene prose.\n\n~ Second Scene\n\nMore prose.\n\n\
+               ## A Subhead\n\nUnder it.\n\n# Chapter Two\n\nNext chapter.\n\n\
+               % Cut\n\nsecret.\n";
+    let m = build_shunn(&parse(src));
+
+    // Front matter -> title-page fields. Byline defaults to the author; the
+    // running-header surname is the author's last word; contact is split to lines.
+    assert_eq!(m.title, "The Book");
+    assert_eq!(m.byline, "Ursula K. Le Guin");
+    assert_eq!(m.surname, "Guin");
+    assert_eq!(m.keyword, "THE");
+    assert_eq!(m.contact, vec!["1 Left Hand Rd", "u@example.com"]);
+
+    // Block stream: chapters, a scene break between prose (not after the heading),
+    // a subhead, and the excluded `% Cut` subtree dropped entirely.
+    assert_eq!(
+        m.blocks,
+        vec![
+            ShunnBlock::Chapter("Chapter One".into()),
+            ShunnBlock::Para("Opening scene prose.".into()),
+            ShunnBlock::SceneBreak,
+            ShunnBlock::Para("More prose.".into()),
+            ShunnBlock::Subhead("A Subhead".into()),
+            ShunnBlock::Para("Under it.".into()),
+            ShunnBlock::Chapter("Chapter Two".into()),
+            ShunnBlock::Para("Next chapter.".into()),
+        ],
+    );
+    assert!(!m.blocks.iter().any(|b| matches!(b, ShunnBlock::Para(p) if p == "secret.")));
 }
 
 #[test]

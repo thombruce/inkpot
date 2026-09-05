@@ -928,6 +928,20 @@ async function exportManuscript() {
   await fs.writeTextFile(path, text);
 }
 
+// Export the active document as a Shunn manuscript PDF. Rust (genpdf) renders
+// and writes the file, so no PDF bytes cross IPC — we just pass a chosen path.
+async function exportShunnPdf() {
+  const base = currentPath
+    ? currentPath.split("/").pop().replace(/\.[^.]+$/, "")
+    : "manuscript";
+  const path = await dialog.save({
+    defaultPath: `${base}.pdf`,
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+  if (!path) return; // cancelled
+  await invoke("export_shunn", { src: editor.state.doc.toString(), path });
+}
+
 // Recent-files dropdown: pick one to open it (with the usual discard guard).
 recentEl.addEventListener("change", async () => {
   const path = recentEl.value;
@@ -936,6 +950,7 @@ recentEl.addEventListener("change", async () => {
 });
 
 document.getElementById("export").addEventListener("click", exportManuscript);
+document.getElementById("exportPdf").addEventListener("click", exportShunnPdf);
 document.getElementById("new").addEventListener("click", newFile);
 document.getElementById("open").addEventListener("click", openFile);
 document.getElementById("openFolder").addEventListener("click", openFolder);

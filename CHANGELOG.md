@@ -9,6 +9,16 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Shunn manuscript PDF export**: export the active document as a submission-ready
+  [Shunn Proper Manuscript Format](https://www.shunn.net/format/) PDF — title page
+  (contact block, title, byline, rounded word count), a running `Surname / KEYWORD /
+  page#` header, double-spaced Courier prose with 0.5″ indents, chapters starting on
+  a new page, and centered `#` scene breaks. Set the work's front matter at the top
+  of the file — `title:`, `author:`, `byline:`, and a multiline `contact:`. The PDF
+  is generated in Rust (bundled Courier Prime, fully offline) so output is identical
+  on every platform. Also available headless: `ink export --out=book.pdf
+  [--trim=WxH] file.ink` (#23).
+
 - **Outline follows the caret**: the outline rail highlights the section your
   cursor sits in and scrolls it into view, so you always see where you are —
   updating live as the caret moves, and pairing with the existing click-to-jump

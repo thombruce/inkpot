@@ -5,4 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "Parser, tree, and view renderers for the inkpot prose format."
 
+[features]
+# Optional Shunn PDF export (#23). Off by default so `cargo test` and the app's
+# fast path stay pure; the CLI and Tauri shell enable it.
+pdf = ["dep:genpdf"]
+
 [dependencies]
+genpdf = { version = "0.2", optional = true }

@@ -16,4 +16,4 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
-ink-core = { path = "../../crates/ink-core" }
+ink-core = { path = "../../crates/ink-core", features = ["pdf"] }
