@@ -7,6 +7,15 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Cross-file codex**: in a multi-file project the codex now spans every file —
+  a `[[wikilink]]` or metadata reference resolves to a `%` entity in any file,
+  and an entity's "Referenced by" list gathers referrers project-wide. Clicking a
+  cross-file backlink opens that file before scrolling. `id:` handles resolve
+  project-globally; a same-named entity in the referrer's own file still wins, so
+  single-file behaviour is unchanged (#28).
+
 ## [0.11.0] - 2026-09-05
 
 ### Added

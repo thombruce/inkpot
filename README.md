@@ -189,7 +189,9 @@ crates/
 app/
   src/          Frontend: CodeMirror editor, outline, preview, codex, timeline, characters, map (Vite, no framework).
   src-tauri/    Tauri v2 desktop shell. Stateless commands over ink-core (parse, render views).
-examples/       Sample .ink documents (sample.ink, codex.ink).
+examples/       A sample project (one `Inkpot` marker): sample.ink, codex.ink, and
+                notes.ink. Open the folder in the app to see the codex span all
+                three — notes.ink's `[[wikilinks]]` resolve to codex.ink's entities.
 docs/ipc.md     The Tauri IPC contract.
 ```
 

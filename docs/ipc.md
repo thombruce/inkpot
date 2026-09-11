@@ -58,20 +58,28 @@ Shunn book PDF, taking the title-page metadata from the marker's front matter (o
 the first file if the marker declares none), and writes it to `path`. Like
 `export_shunn`, the PDF is built and written in Rust — no bytes cross IPC.
 
-### `codex(src: string) -> string`
+### `codex_project(files: { path: string, src: string }[]) -> string`
 
-Returns the **codex** as HTML for the app's codex panel: the excluded (`%`)
-subtrees rendered as a grouped entity index. Each top-level `%` section is a
-`<section class="codex-section">`; entries nest as `<article class="entity">`
-with an `<h2>`–`<h6>` name (by depth), a `<dl>` of their metadata, body prose as
-`<p>`, and a "Referenced by" backlink list. A name that resolves to an entity —
-a metadata value (comma-split, trimmed, case-folded) or a prose `[[wikilink]]` —
-becomes a backlink; resolved metadata values and each backlink render as
-`<a class="ref" data-jump="<char-offset>">`. The frontend reads
-`data-jump` to scroll the editor to that heading (see `main.js`). Text is
-escaped, so the frontend assigns it via `innerHTML`. The codex (issue #9) is
-derived from what authors already write, no new syntax. (The plain-text
-`View::Codex` render — no links — backs `ink render --view=codex` for the CLI.)
+Returns the **project codex** as HTML for the app's codex panel: every file's
+excluded (`%`) subtrees rendered as one grouped entity index, with references
+and backlinks resolved **across files** (#28). `files` is the project bundle —
+each file's path plus its current source (the frontend sends the live editor
+buffer for the active file, disk text for the rest), in file-name order. A loose
+single file is just a project of one (empty `path`). Stateless: the whole bundle
+is the argument, re-sent each refresh; no document state is held.
+
+Each top-level `%` section is a `<section class="codex-section">`; entries nest
+as `<article class="entity">` with an `<h2>`–`<h6>` name (by depth), a `<dl>` of
+their metadata, body prose as `<p>`, and a "Referenced by" backlink list. A name
+that resolves to an entity — a metadata value (comma-split, trimmed, case-folded)
+or a prose `[[wikilink]]` — becomes a backlink; resolved metadata values and each
+backlink render as `<a class="ref" data-jump="<char-offset>">`, plus
+`data-jump-file="<path>"` when the target sits in a different file. The frontend
+reads `data-jump` to scroll the editor to that heading, and `data-jump-file` to
+open that file first (see `main.js`). Text is escaped, so the frontend assigns it
+via `innerHTML`. The codex (issue #9) is derived from what authors already write,
+no new syntax. (The plain-text `View::Codex` render — no links, single file —
+backs `ink render --view=codex` for the CLI.)
 
 ### `timeline(src: string) -> string`
 
