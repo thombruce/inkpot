@@ -4,7 +4,7 @@
 use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
     build_shunn, build_shunn_book, map_markers, parse, render, render_characters_html,
-    render_codex_html, render_html, render_timeline_html, resolve_titles, scene_timeline,
+    render_codex_project_html, render_html, render_timeline_html, resolve_titles, scene_timeline,
     word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
@@ -86,10 +86,24 @@ fn manuscript(src: String) -> String {
     render(&parse(&src), View::Manuscript)
 }
 
-/// Render the codex — the excluded (`%`) subtrees — as HTML for the codex panel.
+/// One project file for the codex: its path (the jump target for cross-file
+/// backlinks) and its current source (live editor buffer for the active file,
+/// disk text for the rest — the frontend decides).
+#[derive(serde::Deserialize)]
+struct CodexFile {
+    path: String,
+    src: String,
+}
+
+/// Render the project codex — every file's excluded (`%`) subtrees — as HTML,
+/// with references and backlinks resolved across files. Stateless: the whole
+/// project bundle is the argument, re-sent each refresh; no document state is
+/// held. A loose single file is just a project of one.
 #[tauri::command]
-fn codex(src: String) -> String {
-    render_codex_html(&parse(&src))
+fn codex_project(files: Vec<CodexFile>) -> String {
+    let parsed: Vec<(String, Node)> = files.into_iter().map(|f| (f.path, parse(&f.src))).collect();
+    let docs: Vec<(String, &Node)> = parsed.iter().map(|(p, n)| (p.clone(), n)).collect();
+    render_codex_project_html(&docs)
 }
 
 /// Render the timeline — headings with a `time:` value, time-ordered — as HTML.
@@ -176,8 +190,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex, timeline, characters, map, scenes, export_shunn,
-            export_shunn_book
+            outline, preview, manuscript, codex_project, timeline, characters, map, scenes,
+            export_shunn, export_shunn_book
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

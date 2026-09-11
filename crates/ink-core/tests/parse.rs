@@ -213,6 +213,68 @@ fn codex_id_is_a_rename_proof_handle() {
 }
 
 #[test]
+fn codex_resolves_and_backlinks_across_project_files() {
+    // A project of two files: the manuscript references entities defined in a
+    // separate research file — by title ([[Ravna]]) and by id handle
+    // ([[home-planet]]). Both must resolve across files, and each target's
+    // "Referenced by" must point back into the manuscript with `data-jump-file`.
+    // A same-named entity in the referrer's own file still wins over the
+    // cross-file one ([[Note]] resolves to the manuscript's Note).
+    let ms = parse("~~~ Scene\n[[Ravna]] lands on [[home-planet]]. See [[Note]].\n\n% Note\nfile: manuscript\n");
+    let research = parse(
+        "% People\n\n%% Ravna\nrole: pilot\n\n% Places\n\n%% Homeworld\nid: home-planet\n\n% Note\nfile: research\n",
+    );
+    let html = ink_core::render_codex_project_html(&[
+        ("manuscript.ink".into(), &ms),
+        ("research.ink".into(), &research),
+    ]);
+    // Split into entity sections to reason about each target separately.
+    let secs: Vec<&str> = html.split("<section").skip(1).collect();
+    let sec = |needle: &str| *secs.iter().find(|s| s.contains(needle)).unwrap_or_else(|| panic!("no section for {needle}: {html}"));
+
+    // (a) cross-file title resolution: Ravna (in research) is referenced from the
+    // manuscript, so its backlink carries the manuscript's path.
+    let ravna = sec(">Ravna<");
+    assert!(ravna.contains("Referenced by"), "Ravna got no cross-file backlink: {ravna}");
+    assert!(ravna.contains("data-jump-file=\"manuscript.ink\""), "Ravna backlink lacks file: {ravna}");
+
+    // (b) cross-file id handle: [[home-planet]] resolves to Homeworld across files.
+    let home = sec(">Homeworld<");
+    assert!(home.contains("Referenced by"), "id handle didn't backlink across files: {home}");
+    assert!(home.contains("data-jump-file=\"manuscript.ink\""), "id backlink lacks file: {home}");
+
+    // (c) same-file precedence: [[Note]] in the manuscript resolves to the
+    // manuscript's own Note, not the research file's same-named one.
+    let ms_note = sec("<dd>manuscript</dd>");
+    let research_note = sec("<dd>research</dd>");
+    assert!(ms_note.contains("Referenced by"), "same-file Note should win: {ms_note}");
+    assert!(!research_note.contains("Referenced by"), "cross-file Note must not steal the reference: {research_note}");
+
+    // The single-file codex never emits data-jump-file (unchanged jump path).
+    let single = ink_core::render_codex_html(&ms);
+    assert!(!single.contains("data-jump-file"), "single-file codex leaked a file attr: {single}");
+}
+
+#[test]
+fn example_project_codex_is_cross_file() {
+    // The examples/ folder is one project; notes.ink references entities defined
+    // in codex.ink. Opening the project must resolve those across files. Guards
+    // the shipped example against drifting out of sync with the feature.
+    let codex = parse(include_str!("../../../examples/codex.ink"));
+    let notes = parse(include_str!("../../../examples/notes.ink"));
+    let html = ink_core::render_codex_project_html(&[
+        ("codex.ink".into(), &codex),
+        ("notes.ink".into(), &notes),
+    ]);
+    let alice = html.split("<section").find(|s| s.contains(">Alice<")).expect("Alice section");
+    // Alice lives in codex.ink; notes.ink links her, so her backlinks reach it.
+    assert!(
+        alice.contains("data-jump-file=\"notes.ink\""),
+        "Alice should be referenced from notes.ink across files: {alice}"
+    );
+}
+
+#[test]
 fn codex_resolves_references_to_nearest_scope() {
     // Each chapter has a `%% Synopsis` and a scene linking [[Synopsis]]. Nearest
     // scope wins: chapter 1's link resolves to chapter 1's Synopsis, not the

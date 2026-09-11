@@ -81,8 +81,15 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   needs `fs:allow-read-dir`) walks the root into a nested tree; the rail renders it
   as collapsible `<details>`. Rescan fires on load, save, and window focus.
   Picking a file calls the same `loadPath` single-file uses, so `currentPath`
-  stays the one active buffer; no project state crosses IPC, `ink-core` stays
-  file-agnostic. Deferred: project settings in the marker, cross-file codex (#28).
+  stays the one active buffer; no project state is *held* in Rust, `ink-core`
+  stays file-agnostic. Where a feature needs the whole project it passes the file
+  bundle as a command argument, re-sent each call — the codex (`codex_project`,
+  #28) and the book export (`export_shunn_book`, #74) both do this; it is a pure
+  function of its inputs, not stored state. **Cross-file codex is live** (#28):
+  the codex, and only the codex, resolves `[[links]]`/backlinks across every
+  project file (`render_codex_project_html`); timeline/map/characters stay
+  per-file and would reuse the same bundle mechanism to go project-wide. Deferred:
+  project settings in the marker.
 - **Heading depth = marker count** (Model A). `#`/`~` set visibility, the count
   sets depth. Illegal downward jumps clamp to parent + 1 (`parse.rs`) — but only
   against a *real heading parent*, never the implicit root, so a document that

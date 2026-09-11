@@ -274,11 +274,19 @@ function collectEntities(node, out) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
+  // The codex spans the whole project: bundle every file's current source (live
+  // buffer for the active file, disk for the rest) so references and backlinks
+  // resolve across files. A loose/untitled buffer is a project of one, empty
+  // path (no cross-file jumps). ponytail: re-reads + re-parses every file each
+  // refresh; cache by path+mtime (active buffer invalidated) if a big project drags.
+  const codexFiles = projectRoot
+    ? await Promise.all(allFiles(projectTree).map(async (p) => ({ path: p, src: await readSource(p) })))
+    : [{ path: "", src }];
   const [tree, html, codexHtml, timelineHtml, charactersHtml, markers, sceneData] =
     await Promise.all([
       invoke("outline", { src }),
       invoke("preview", { src }),
-      invoke("codex", { src }),
+      invoke("codex_project", { files: codexFiles }),
       invoke("timeline", { src }),
       invoke("characters", { src }),
       invoke("map", { src }),
@@ -866,11 +874,23 @@ mapBtn.addEventListener("click", () => {
 // Codex, timeline, and character links carry the target heading's char offset.
 // The editor is hidden while they show, so switch back first, then scroll to it.
 for (const panel of [codexEl, timelineEl, charactersEl]) {
-  panel.addEventListener("click", (e) => {
+  panel.addEventListener("click", async (e) => {
     const link = e.target.closest("[data-jump]");
     if (!link) return;
+    const offset = Number(link.dataset.jump);
+    const file = link.dataset.jumpFile; // set only for a cross-file codex backlink
     setView("editor");
-    jumpTo(Number(link.dataset.jump));
+    // A different project file: open it first (loadPath sets the doc, then
+    // refreshes), then scroll. loadPath has no discard guard and overwrites the
+    // buffer, so flush the active file's pending autosave first — otherwise a
+    // cross-file jump inside the autosave debounce window drops unsaved edits.
+    // Same file or single-buffer: jump straight in.
+    if (file && file !== currentPath) {
+      await autosaveNow();
+      if (await loadPath(file)) jumpTo(offset);
+    } else {
+      jumpTo(offset);
+    }
   });
 }
 
