@@ -881,8 +881,12 @@ for (const panel of [codexEl, timelineEl, charactersEl]) {
     const file = link.dataset.jumpFile; // set only for a cross-file codex backlink
     setView("editor");
     // A different project file: open it first (loadPath sets the doc, then
-    // refreshes), then scroll. Same file or single-buffer: jump straight in.
+    // refreshes), then scroll. loadPath has no discard guard and overwrites the
+    // buffer, so flush the active file's pending autosave first — otherwise a
+    // cross-file jump inside the autosave debounce window drops unsaved edits.
+    // Same file or single-buffer: jump straight in.
     if (file && file !== currentPath) {
+      await autosaveNow();
       if (await loadPath(file)) jumpTo(offset);
     } else {
       jumpTo(offset);
