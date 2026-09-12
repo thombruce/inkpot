@@ -197,9 +197,11 @@ crates/
 app/
   src/          Frontend: CodeMirror editor, outline, preview, codex, timeline, characters, map (Vite, no framework).
   src-tauri/    Tauri v2 desktop shell. Stateless commands over ink-core (parse, render views).
-examples/       A sample project (one `Inkpot` marker): sample.ink, codex.ink, and
-                notes.ink. Open the folder in the app to see the codex span all
-                three — notes.ink's `[[wikilinks]]` resolve to codex.ink's entities.
+examples/       A sample project (one `Inkpot` marker): sample.ink, codex.ink,
+                notes.ink, sources.ink. Open the folder in the app: the codex spans
+                every file, notes.ink's `[[wikilinks]]` resolve to codex.ink's
+                entities, and its `[@strunk-white-2000]` citation resolves to a
+                source defined in sources.ink — references span the project.
 docs/ipc.md     The Tauri IPC contract.
 ```
 

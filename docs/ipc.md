@@ -26,29 +26,32 @@ type OutlineNode = {
 };
 ```
 
-### `preview(src: string) -> string`
+### `preview(files: { path, src }[], active: string) -> string`
 
-Returns the manuscript rendered as reading-view **HTML** (`<h1>`–`<h6>`, `<p>`,
-`<strong>`, `<em>`) with CriticMarkup resolved and scenes/metadata/comments
-dropped. Text is escaped in Rust, so the frontend can assign it via `innerHTML`.
-(The plain-text `outline`/`edit` views still exist in `ink-core` for the CLI;
-the app renders HTML for preview and plain text for export.)
+Returns the **active** file rendered as reading-view **HTML** (`<h1>`–`<h6>`,
+`<p>`, `<strong>`, `<em>`) with CriticMarkup resolved and scenes/metadata/comments
+dropped. Takes the whole project bundle (`active` names the file to render);
+`[[links]]`/`[@cites]` resolve across every file (#89). Text is escaped in Rust,
+so the frontend can assign it via `innerHTML`. A loose file is a project of one
+(empty path, `active: ""`).
 
-### `manuscript(src: string) -> string`
+### `manuscript(files: { path, src }[], active: string) -> string`
 
-Returns the manuscript as **Markdown** (visible headings as `#`-by-depth ATX,
+Returns the **active** file as **Markdown** (visible headings as `#`-by-depth ATX,
 `**`/`*` emphasis, CriticMarkup resolved, scenes/metadata/comments and excluded
 subtrees dropped) — the `ink-core` `View::Manuscript` render, for the frontend's
-Export. Convert to docx/PDF/etc. downstream with pandoc.
+Export. Bundle + `active` as `preview`, so references resolve project-wide. Convert
+to docx/PDF/etc. downstream with pandoc.
 
-### `export_shunn(src: string, path: string) -> void`
+### `export_shunn(files: { path, src }[], active: string, path: string) -> void`
 
-Renders `src` to a **Shunn Proper Manuscript Format** PDF and writes it to `path`
-(the frontend supplies a save-dialog path). The PDF is built and written entirely
-in Rust (`ink-core::shunn`, genpdf), so **no PDF bytes cross IPC** — only the
-source in and the destination path. Errors return a message string. Unlike the
-other commands this one writes a file; it's the single exception to "render out,
-no side effects", justified by keeping large binary data off the IPC boundary.
+Renders the **active** file to a **Shunn Proper Manuscript Format** PDF and writes
+it to `path` (the frontend supplies a save-dialog path). Takes the project bundle
+so citations/links resolve across files (#89). The PDF is built and written
+entirely in Rust (`ink-core::shunn`, genpdf), so **no PDF bytes cross IPC** — only
+the sources in and the destination path. Errors return a message string. Unlike
+the other commands this one writes a file; it's the single exception to "render
+out, no side effects", justified by keeping large binary data off the IPC boundary.
 
 ### `export_shunn_book(sources: string[], marker: string, path: string) -> void`
 
@@ -104,18 +107,19 @@ no `% Characters` section. Text is escaped for `innerHTML`. The panel's one writ
 scaffolding a new `%% Name` entry — is a frontend text splice (`app/src/character.js`),
 not an IPC call; text stays canonical.
 
-### `bibliography(src: string) -> string`
+### `bibliography(files: { path, src }[], active: string) -> string`
 
-Returns the **bibliography** as HTML: a Harvard reference list of the sources this
-file cites via `[@key]`. Every citation (in visible prose or `%` notes) resolves
-to a codex entity — by `id` or title, id wins, matching what prints inline — and
-the cited entities are de-duplicated, sorted by first-author surname then year,
-and formatted from their metadata (`author`, `year`, `title`, `edition`, `place`,
-`publisher`): `Author (Year) <em>Title</em>. Edition edn. Place: Publisher.` Only
-cited sources appear (a References list, not a catalogue); empty (no output) if
-the file cites nothing. Each `<li class="reference" data-jump="offset">` jumps to
-its source heading like the codex. Per-file, matching inline citation resolution
-(#84). Text is escaped for `innerHTML`.
+Returns the **bibliography** as HTML: a Harvard reference list of the sources the
+**active** file cites via `[@key]`. Takes the project bundle; every citation (in
+visible prose or `%` notes) resolves to a codex entity in **any** project file —
+by `id` or title, id wins, matching what prints inline — and the cited entities
+are de-duplicated, sorted by first-author surname then year, and formatted from
+their metadata (`author`, `year`, `title`, `edition`, `place`, `publisher`):
+`Author (Year) <em>Title</em>. Edition edn. Place: Publisher.` Only cited sources
+appear (a References list, not a catalogue); empty (no output) if the file cites
+nothing. Each `<li class="reference" data-jump="offset">` jumps to its source
+heading, plus `data-jump-file` when the source lives in another file (#89). Text
+is escaped for `innerHTML`.
 
 ### `map(src: string) -> Marker[]`
 

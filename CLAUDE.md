@@ -84,12 +84,15 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   stays the one active buffer; no project state is *held* in Rust, `ink-core`
   stays file-agnostic. Where a feature needs the whole project it passes the file
   bundle as a command argument, re-sent each call — the codex (`codex_project`,
-  #28) and the book export (`export_shunn_book`, #74) both do this; it is a pure
-  function of its inputs, not stored state. **Cross-file codex is live** (#28):
-  the codex, and only the codex, resolves `[[links]]`/backlinks across every
-  project file (`render_codex_project_html`); timeline/map/characters stay
-  per-file and would reuse the same bundle mechanism to go project-wide. Deferred:
-  project settings in the marker.
+  #28), the book export (`export_shunn_book`, #74), and the text views
+  (`preview`/`manuscript`/`bibliography`/`export_shunn`, #89) all do this; it is a
+  pure function of its inputs, not stored state. **Cross-file resolution is live**:
+  the codex resolves `[[links]]`/backlinks across every project file (#28), and
+  the text views resolve `[[links]]`/`[@cites]` project-wide too (#89) — the maps
+  (`link_titles`/`cite_shorts`) build from all files via `project_ctx`, while the
+  active file's tree is what's walked. `timeline`/`map`/`characters` stay per-file
+  and would reuse the same bundle mechanism to go project-wide. Deferred: project
+  settings in the marker.
 - **Heading depth = marker count** (Model A). `#`/`~` set visibility, the count
   sets depth. Illegal downward jumps clamp to parent + 1 (`parse.rs`) — but only
   against a *real heading parent*, never the implicit root, so a document that

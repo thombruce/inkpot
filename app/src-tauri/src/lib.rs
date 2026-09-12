@@ -3,9 +3,10 @@
 
 use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
-    build_shunn, build_shunn_book, map_markers, parse, render, render_bibliography_html,
-    render_characters_html, render_codex_project_html, render_html, render_timeline_html,
-    resolve_titles, scene_timeline, word_count, Node, Span, View, Visibility,
+    build_shunn_book, build_shunn_project, map_markers, parse, render_bibliography_project,
+    render_characters_html, render_codex_project_html, render_html_project,
+    render_manuscript_project, render_timeline_html, resolve_titles, scene_timeline, word_count,
+    Node, Span, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -74,25 +75,45 @@ fn outline(src: String) -> OutlineNode {
     to_outline(&root, &titles, &mut next_id)
 }
 
-/// Render `src` as a reading-view manuscript in HTML.
+/// Render the active file as a reading-view manuscript in HTML, resolving
+/// `[[links]]`/`[@cites]` across the project bundle (#89).
 #[tauri::command]
-fn preview(src: String) -> String {
-    render_html(&parse(&src))
+fn preview(files: Vec<ProjectFile>, active: String) -> String {
+    let parsed = parse_bundle(files);
+    let idx = active_index(&parsed, &active);
+    let roots: Vec<&Node> = parsed.iter().map(|(_, n)| n).collect();
+    render_html_project(&roots, idx)
 }
 
-/// Render `src` as the plain-text manuscript, for export.
+/// Render the active file as the plain-text manuscript, for export — project-wide
+/// reference resolution (#89).
 #[tauri::command]
-fn manuscript(src: String) -> String {
-    render(&parse(&src), View::Manuscript)
+fn manuscript(files: Vec<ProjectFile>, active: String) -> String {
+    let parsed = parse_bundle(files);
+    let idx = active_index(&parsed, &active);
+    let roots: Vec<&Node> = parsed.iter().map(|(_, n)| n).collect();
+    render_manuscript_project(&roots, idx)
 }
 
-/// One project file for the codex: its path (the jump target for cross-file
-/// backlinks) and its current source (live editor buffer for the active file,
-/// disk text for the rest — the frontend decides).
+/// One file of the project bundle: its path (the jump target for cross-file
+/// references) and its current source (the live editor buffer for the active
+/// file, disk text for the rest — the frontend decides). Shared by every command
+/// that resolves references across the project (codex, preview, manuscript,
+/// bibliography, PDF export).
 #[derive(serde::Deserialize)]
-struct CodexFile {
+struct ProjectFile {
     path: String,
     src: String,
+}
+
+/// Parse a bundle into `(path, Node)` pairs, preserving order.
+fn parse_bundle(files: Vec<ProjectFile>) -> Vec<(String, Node)> {
+    files.into_iter().map(|f| (f.path, parse(&f.src))).collect()
+}
+
+/// The index of the active file in a parsed bundle (matched by path), or 0.
+fn active_index(parsed: &[(String, Node)], active: &str) -> usize {
+    parsed.iter().position(|(p, _)| p == active).unwrap_or(0)
 }
 
 /// Render the project codex — every file's excluded (`%`) subtrees — as HTML,
@@ -100,8 +121,8 @@ struct CodexFile {
 /// project bundle is the argument, re-sent each refresh; no document state is
 /// held. A loose single file is just a project of one.
 #[tauri::command]
-fn codex_project(files: Vec<CodexFile>) -> String {
-    let parsed: Vec<(String, Node)> = files.into_iter().map(|f| (f.path, parse(&f.src))).collect();
+fn codex_project(files: Vec<ProjectFile>) -> String {
+    let parsed = parse_bundle(files);
     let docs: Vec<(String, &Node)> = parsed.iter().map(|(p, n)| (p.clone(), n)).collect();
     render_codex_project_html(&docs)
 }
@@ -121,8 +142,11 @@ fn characters(src: String) -> String {
 /// Render the bibliography — a Harvard reference list of the sources this file
 /// cites via `[@key]` — as HTML for the bibliography panel.
 #[tauri::command]
-fn bibliography(src: String) -> String {
-    render_bibliography_html(&parse(&src))
+fn bibliography(files: Vec<ProjectFile>, active: String) -> String {
+    let parsed = parse_bundle(files);
+    let idx = active_index(&parsed, &active);
+    let docs: Vec<(String, &Node)> = parsed.iter().map(|(p, n)| (p.clone(), n)).collect();
+    render_bibliography_project(&docs, idx)
 }
 
 /// A location marker for the map view: title, position, and jump offset.
@@ -172,11 +196,15 @@ fn scenes(src: String) -> Vec<Scene> {
         .collect()
 }
 
-/// Render `src` to a Shunn manuscript PDF and write it to `path`. Bytes are
+/// Render the active file to a Shunn manuscript PDF and write it to `path`,
+/// resolving `[[links]]`/`[@cites]` across the project bundle (#89). Bytes are
 /// written from Rust (genpdf), so no PDF data crosses IPC.
 #[tauri::command]
-fn export_shunn(src: String, path: String) -> Result<(), String> {
-    let bytes = render_shunn_pdf(&build_shunn(&parse(&src)))?;
+fn export_shunn(files: Vec<ProjectFile>, active: String, path: String) -> Result<(), String> {
+    let parsed = parse_bundle(files);
+    let idx = active_index(&parsed, &active);
+    let roots: Vec<&Node> = parsed.iter().map(|(_, n)| n).collect();
+    let bytes = render_shunn_pdf(&build_shunn_project(&roots, idx))?;
     std::fs::write(&path, bytes).map_err(|e| format!("{path}: {e}"))
 }
 

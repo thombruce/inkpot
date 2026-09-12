@@ -10,9 +10,11 @@ pub mod shunn;
 
 pub use parse::parse;
 pub use render::{
-    build_shunn, build_shunn_book, map_markers, render, render_bibliography_html,
-    render_characters_html, render_codex_html, render_codex_project_html, render_html,
-    render_timeline_html, resolve_titles, scene_timeline, word_count, MapMarker, SceneEntry, View,
+    build_shunn, build_shunn_book, build_shunn_project, map_markers, render,
+    render_bibliography_html, render_bibliography_project, render_characters_html,
+    render_codex_html, render_codex_project_html, render_html, render_html_project,
+    render_manuscript_project, render_timeline_html, resolve_titles, scene_timeline, word_count,
+    MapMarker, SceneEntry, View,
 };
 
 /// A half-open range of **char** (Unicode scalar) offsets into the source.

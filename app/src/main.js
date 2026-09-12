@@ -275,22 +275,20 @@ function collectEntities(node, out) {
 
 const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
-  // The codex spans the whole project: bundle every file's current source (live
-  // buffer for the active file, disk for the rest) so references and backlinks
-  // resolve across files. A loose/untitled buffer is a project of one, empty
-  // path (no cross-file jumps). ponytail: re-reads + re-parses every file each
-  // refresh; cache by path+mtime (active buffer invalidated) if a big project drags.
-  const codexFiles = projectRoot
-    ? await Promise.all(allFiles(projectTree).map(async (p) => ({ path: p, src: await readSource(p) })))
-    : [{ path: "", src }];
+  // The codex, preview, and bibliography span the whole project — references and
+  // citations resolve across files (#28, #89). Send the project bundle plus which
+  // file is active; the per-file views (outline/timeline/characters/map) still
+  // take just the active source.
+  const files = await projectBundle();
+  const active = currentPath ?? "";
   const [tree, html, codexHtml, timelineHtml, charactersHtml, bibliographyHtml, markers, sceneData] =
     await Promise.all([
       invoke("outline", { src }),
-      invoke("preview", { src }),
-      invoke("codex_project", { files: codexFiles }),
+      invoke("preview", { files, active }),
+      invoke("codex_project", { files }),
       invoke("timeline", { src }),
       invoke("characters", { src }),
-      invoke("bibliography", { src }),
+      invoke("bibliography", { files, active }),
       invoke("map", { src }),
       invoke("scenes", { src }),
     ]);
@@ -924,6 +922,18 @@ async function readSource(path) {
   return path === currentPath ? editor.state.doc.toString() : await fs.readTextFile(path);
 }
 
+// The project bundle: every file's current source (live buffer for the active
+// file, disk for the rest), in tree order. A loose/untitled buffer is a project
+// of one with an empty path. Sent to the commands that resolve references across
+// files (codex, preview, manuscript, bibliography, PDF) — a pure argument, no
+// state held. ponytail: re-reads + re-parses every file per call; cache by
+// path+mtime (active buffer invalidated) if a big project drags.
+async function projectBundle() {
+  return projectRoot
+    ? await Promise.all(allFiles(projectTree).map(async (p) => ({ path: p, src: await readSource(p) })))
+    : [{ path: "", src: editor.state.doc.toString() }];
+}
+
 // In a multi-file project, ask whether to export the whole project or just the
 // active file. Resolves false (no prompt) for a single-file project. Shared by
 // the Markdown and PDF exporters.
@@ -938,9 +948,10 @@ function askWholeProject(files) {
   );
 }
 
-// Render one file's source to a manuscript.
-async function renderFile(path) {
-  return invoke("manuscript", { src: await readSource(path) });
+// Render one file (by path, the active one) to a manuscript, resolving references
+// against the whole-project `bundle` (#89).
+async function renderFile(path, bundle) {
+  return invoke("manuscript", { files: bundle, active: path ?? "" });
 }
 
 // Export the rendered manuscript (visible headings + resolved markup, scenes
@@ -951,13 +962,14 @@ async function renderFile(path) {
 async function exportManuscript() {
   const files = projectRoot ? allFiles(projectTree) : [];
   const wholeProject = await askWholeProject(files);
+  const bundle = await projectBundle(); // built once; each render resolves against it
 
   let text, base;
   if (wholeProject) {
-    text = (await Promise.all(files.map(renderFile))).join("\n");
+    text = (await Promise.all(files.map((p) => renderFile(p, bundle)))).join("\n");
     base = projectRoot.split("/").pop();
   } else {
-    text = await renderFile(currentPath);
+    text = await renderFile(currentPath, bundle);
     base = currentPath ? currentPath.split("/").pop().replace(/\.[^.]+$/, "") : "manuscript";
   }
 
@@ -998,7 +1010,7 @@ async function exportShunnPdf() {
     }
     await invoke("export_shunn_book", { sources, marker, path });
   } else {
-    await invoke("export_shunn", { src: editor.state.doc.toString(), path });
+    await invoke("export_shunn", { files: await projectBundle(), active: currentPath ?? "", path });
   }
 }
 

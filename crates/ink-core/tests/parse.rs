@@ -309,6 +309,37 @@ fn bibliography_lists_cited_sources_harvard() {
 }
 
 #[test]
+fn project_wide_links_and_cites_resolve_across_files() {
+    // File A references an entity and a source both defined in file B. Project-wide
+    // rendering (#89) resolves them; per-file rendering leaves them raw.
+    let a = parse("~~~ S\n\n[[Ravna]] argued [@pears-2019, p. 5].\n");
+    let b = parse(
+        "% People\n\n%% Ravna Bergsndot\nid: Ravna\n\n% Sources\n\n%% Cite Them Right\nid: pears-2019\nauthor: Pears, R.\nyear: 2019\ntitle: CTR\n",
+    );
+    let roots = [&a, &b];
+
+    // Manuscript + preview: the wikilink prints B's title, the cite prints B's
+    // author-date.
+    let m = ink_core::render_manuscript_project(&roots, 0);
+    assert!(m.contains("Ravna Bergsndot argued (Pears, 2019, p. 5)."), "project manuscript: {m}");
+    let html = ink_core::render_html_project(&roots, 0);
+    assert!(html.contains("Ravna Bergsndot"), "project preview link: {html}");
+    assert!(html.contains("<span class=\"cite\">(Pears, 2019, p. 5)</span>"), "project preview cite: {html}");
+
+    // Bibliography of A lists B's source, with a cross-file jump to B.
+    let bib = ink_core::render_bibliography_project(&[("a.ink".into(), &a), ("b.ink".into(), &b)], 0);
+    assert!(bib.contains("Pears, R. (2019) <em>CTR</em>."), "cross-file bibliography: {bib}");
+    assert!(bib.contains("data-jump-file=\"b.ink\""), "bibliography cross-file jump: {bib}");
+
+    // Single-file (A alone): nothing resolves — the cite stays raw, the link falls
+    // back to its target text, and the bibliography is empty.
+    let solo = ink_core::render_manuscript_project(&[&a], 0);
+    assert!(solo.contains("[@pears-2019, p. 5]"), "per-file cite should stay raw: {solo}");
+    assert!(!solo.contains("(Pears"), "per-file must not resolve cross-file: {solo}");
+    assert!(ink_core::render_bibliography_html(&a).is_empty(), "per-file bibliography should be empty");
+}
+
+#[test]
 fn example_notes_citations_backlink_to_sources() {
     // Guards examples/notes.ink: its inline [@key] citations resolve to the source
     // entities defined in the same file, so each source shows a backlink.
@@ -329,6 +360,32 @@ fn example_notes_citations_backlink_to_sources() {
     let bib = ink_core::render_bibliography_html(&parse(include_str!("../../../examples/notes.ink")));
     assert!(bib.contains("(2011) <em>A Social History of the London Bakehouse</em>"), "Ferber ref: {bib}");
     assert!(bib.contains("<em>Enrolment Rolls of the Bakers&#x27; Guild</em>") || bib.contains("Enrolment Rolls of the Bakers"), "guild ref: {bib}");
+}
+
+#[test]
+fn example_project_citation_is_cross_file() {
+    // notes.ink cites [@strunk-white-2000], a source defined in sources.ink.
+    // Project-wide resolution (#89) renders it author-date and lists it in
+    // notes.ink's bibliography, jumping to sources.ink. Guards the shipped demo.
+    let codex = parse(include_str!("../../../examples/codex.ink"));
+    let notes = parse(include_str!("../../../examples/notes.ink"));
+    let sources = parse(include_str!("../../../examples/sources.ink"));
+    let docs: [(String, &ink_core::Node); 3] = [
+        ("codex.ink".into(), &codex),
+        ("notes.ink".into(), &notes),
+        ("sources.ink".into(), &sources),
+    ];
+    let bib = ink_core::render_bibliography_project(&docs, 1); // active = notes.ink
+    assert!(
+        bib.contains("Strunk, W. and White, E. B. (2000) <em>The Elements of Style</em>"),
+        "cross-file source missing from bibliography: {bib}"
+    );
+    assert!(bib.contains("data-jump-file=\"sources.ink\""), "no cross-file jump to sources.ink: {bib}");
+
+    // The manuscript of notes.ink renders the cross-file cite author-date.
+    let roots = [&codex, &notes, &sources];
+    let m = ink_core::render_manuscript_project(&roots, 1);
+    assert!(m.contains("(Strunk and White, 2000)"), "cross-file cite not resolved in manuscript: {m}");
 }
 
 #[test]
