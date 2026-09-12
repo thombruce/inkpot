@@ -356,10 +356,18 @@ fn example_notes_citations_backlink_to_sources() {
         "both example sources should be cited: {sources}"
     );
 
+    let notes = parse(include_str!("../../../examples/notes.ink"));
     // The bibliography lists both cited sources, Harvard-formatted.
-    let bib = ink_core::render_bibliography_html(&parse(include_str!("../../../examples/notes.ink")));
+    let bib = ink_core::render_bibliography_html(&notes);
     assert!(bib.contains("(2011) <em>A Social History of the London Bakehouse</em>"), "Ferber ref: {bib}");
     assert!(bib.contains("<em>Enrolment Rolls of the Bakers&#x27; Guild</em>") || bib.contains("Enrolment Rolls of the Bakers"), "guild ref: {bib}");
+
+    // The grouped citation renders both sources in one parenthetical.
+    let m = render(&notes, View::Manuscript);
+    assert!(
+        m.contains("(Worshipful Company of Bakers, 1988; Ferber, 2011)"),
+        "grouped citation in example: {m}"
+    );
 }
 
 #[test]

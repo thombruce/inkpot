@@ -11,7 +11,9 @@ the codex lists this file under "Referenced by" on [[Alice]], [[Bob]],
 Citations reference a source by its key: London's guild kept enrolment rolls
 [@baker-guild-1988, p. 12], and the trade's history is surveyed elsewhere
 [@ferber-2011]. Each `[@key]` resolves to a source entity below and earns it a
-backlink, the way `[[wikilinks]]` do.
+backlink, the way `[[wikilinks]]` do. Several sources can back one claim in a
+single citation — both accounts agree on the guild's founding date
+[@baker-guild-1988; @ferber-2011].
 
 On usage and style I lean on [@strunk-white-2000] — which lives in a separate
 sources.ink, yet resolves and prints author-date all the same, because citations
