@@ -7,8 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-12
+
 ### Changed
 
+- **Toolbar no longer crowds off-frame in small windows**: the bar now wraps to a
+  second row instead of pushing buttons out of view, and the six view buttons
+  (Codex/Characters/Map/Timeline/Bibliography/Preview) are folded into one **view
+  picker** dropdown — pick which panel the main area shows (#96).
 - **Citations & wikilinks resolve project-wide** in the manuscript, preview, PDF
   export, and bibliography — not just per-file. A `[@key]` or `[[link]]` now finds
   its source/entity in any project file, so sources can live in a separate
