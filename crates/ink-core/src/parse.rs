@@ -263,7 +263,8 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 let items: Vec<CiteItem> = text[i + 2..end]
                     .split(';')
                     .filter_map(|item| {
-                        let item = item.trim().strip_prefix('@').unwrap_or(item.trim());
+                        let item = item.trim();
+                        let item = item.strip_prefix('@').unwrap_or(item);
                         let (key, locator) = match item.split_once(',') {
                             Some((k, l)) => (k.trim(), l.trim()),
                             None => (item.trim(), ""),
