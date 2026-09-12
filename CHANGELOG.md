@@ -9,6 +9,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Inline citations + bibliography** (`.ink` as an essay/paper tool): cite a source
+  with `[@key]` or `[@key, p. 42]`, where the key is a `%` codex entity's `id` or
+  title. Citations render as Harvard author-date — `(Ferber, 2011, p. 42)` — in the
+  manuscript, preview, and PDF export, and each cited source earns a codex backlink.
+  A new **Bibliography** view collates the cited sources into a sorted, Harvard-
+  formatted reference list from their `author`/`year`/`title`/`edition`/`place`/
+  `publisher` metadata. Enter `author` surname-first (`Ferber, E.`). Resolution is
+  per-file for now; project-wide is a follow-up (#84).
 - **Cross-file codex**: in a multi-file project the codex now spans every file —
   a `[[wikilink]]` or metadata reference resolves to a `%` entity in any file,
   and an entity's "Referenced by" list gathers referrers project-wide. Clicking a

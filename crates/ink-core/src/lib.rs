@@ -10,9 +10,9 @@ pub mod shunn;
 
 pub use parse::parse;
 pub use render::{
-    build_shunn, build_shunn_book, map_markers, render, render_characters_html, render_codex_html,
-    render_codex_project_html, render_html, render_timeline_html, resolve_titles, scene_timeline,
-    word_count, MapMarker, SceneEntry, View,
+    build_shunn, build_shunn_book, map_markers, render, render_bibliography_html,
+    render_characters_html, render_codex_html, render_codex_project_html, render_html,
+    render_timeline_html, resolve_titles, scene_timeline, word_count, MapMarker, SceneEntry, View,
 };
 
 /// A half-open range of **char** (Unicode scalar) offsets into the source.
@@ -90,4 +90,9 @@ pub enum Inline {
     /// `[[Target]]` — a wikilink to a codex entity by name. Prints as the target
     /// text (the name is part of the prose); resolves in the codex to a backlink.
     Link(String),
+    /// `[@key]` or `[@key, locator]` — a citation of a source (a codex entity,
+    /// keyed by its `id` or title). `locator` is a page/section reference (empty
+    /// if none). Resolves like a `[[link]]` — earns the source a backlink — and
+    /// prints as an author-date reference; the bibliography collates cited sources.
+    Cite { key: String, locator: String },
 }

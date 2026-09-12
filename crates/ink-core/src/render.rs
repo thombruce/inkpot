@@ -1,6 +1,6 @@
 //! Three read-only views over the [`Node`] tree.
 
-use crate::meta::{is_self_naming, AUTHOR, BYLINE, CONTACT, ID, TITLE};
+use crate::meta::{is_self_naming, AUTHOR, BYLINE, CONTACT, EDITION, ID, PLACE, PUBLISHER, TITLE, YEAR};
 use crate::shunn::{header_keyword, round_wordcount, surname, ShunnBlock, ShunnManuscript};
 use crate::{Block, Inline, Node, Visibility};
 use std::cmp::Ordering;
@@ -64,12 +64,16 @@ struct Ctx {
     // Shared, document-wide: fold(title)|fold(id) -> an entity's resolved title,
     // for printing `[[links]]`. Rc so per-node Ctx clones stay cheap.
     links: Rc<HashMap<String, String>>,
+    // Shared, document-wide: fold(title)|fold(id) -> a source entity's author-date
+    // short form (e.g. "Ferber, 2011"), for rendering `[@key]` citations. Per-file,
+    // like `links` (#84). Rc for cheap per-node clones.
+    cites: Rc<HashMap<String, String>>,
 }
 
 /// The root's context: front matter as variables, no position. Carries the
 /// `[[link]]` title map, so prose rendering resolves link display text.
 fn root_ctx(root: &Node) -> Ctx {
-    Ctx { links: Rc::new(link_titles(root)), ..base_ctx(root) }
+    Ctx { links: Rc::new(link_titles(root)), cites: Rc::new(cite_shorts(root)), ..base_ctx(root) }
 }
 
 /// A root context without the link map. Used where link resolution isn't needed
@@ -80,7 +84,7 @@ fn base_ctx(root: &Node) -> Ctx {
     for (k, v) in &root.meta {
         vars.insert(k.clone(), v.clone());
     }
-    Ctx { number: 0, total: 0, vars, links: Rc::new(HashMap::new()) }
+    Ctx { number: 0, total: 0, vars, links: Rc::new(HashMap::new()), cites: Rc::new(HashMap::new()) }
 }
 
 /// One `Ctx` per child of `node`, in order: numbering over the non-excluded
@@ -105,7 +109,7 @@ fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
             for (k, v) in &child.meta {
                 vars.insert(k.clone(), v.clone());
             }
-            Ctx { number: n, total, vars, links: ctx.links.clone() }
+            Ctx { number: n, total, vars, links: ctx.links.clone(), cites: ctx.cites.clone() }
         })
         .collect()
 }
@@ -146,6 +150,81 @@ fn link_titles(root: &Node) -> HashMap<String, String> {
 /// resolves to, or the target verbatim if nothing matches.
 fn link_text(target: &str, links: &HashMap<String, String>) -> String {
     links.get(&fold_name(target)).cloned().unwrap_or_else(|| target.to_string())
+}
+
+/// Build the `[@key]` citation map: fold(title) and fold(id) of every codex
+/// entity mapped to its author-date short form (e.g. `"Ferber, 2011"`). Same
+/// key precedence as [`link_titles`] — ids win over titles, first id wins — so a
+/// citation and a `[[link]]` to the same source agree on which entity they mean.
+fn cite_shorts(root: &Node) -> HashMap<String, String> {
+    let mut entities = Vec::new();
+    collect_entities(root, &mut entities);
+    let resolved = resolve_titles(root);
+    let label_of = |e: &Node| {
+        let title = resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone());
+        cite_label(e, &title)
+    };
+    let mut m = HashMap::new();
+    for e in &entities {
+        m.entry(fold_name(&e.title)).or_insert_with(|| label_of(e));
+    }
+    let mut ids = HashMap::new();
+    for e in &entities {
+        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
+            ids.entry(fold_name(v)).or_insert_with(|| label_of(e));
+        }
+    }
+    m.extend(ids);
+    m
+}
+
+/// A source entity's author-date short form: `Surname, Year` (Harvard). Falls
+/// back to the resolved title when there is no `author`, and drops the year when
+/// absent — so even a bare `%% Note` cites as something rather than nothing.
+fn cite_label(e: &Node, title: &str) -> String {
+    let meta = |k: &str| e.meta.iter().find(|(mk, _)| mk == k).map(|(_, v)| v.trim());
+    // No author -> cite by title (the `title:` metadata if given, else the heading).
+    let name = match meta(AUTHOR) {
+        Some(a) if !a.is_empty() => author_short(a),
+        _ => meta(TITLE).filter(|t| !t.is_empty()).unwrap_or(title).to_string(),
+    };
+    match meta(YEAR).filter(|y| !y.is_empty()) {
+        Some(year) => format!("{name}, {year}"),
+        None => name,
+    }
+}
+
+/// Surnames for an author string entered surname-first (`Ferber, E.`): one → the
+/// surname; two → `A and B`; three or more → `A et al.` Author groups split on
+/// ` and ` / `;`; each group's surname is the text before its first comma.
+/// ponytail: heuristic parse of a free author string — good for the common
+/// surname-first forms; structured author fields (or CSL) is the upgrade if it
+/// misfires on unusual names.
+fn author_short(author: &str) -> String {
+    let groups: Vec<&str> = author
+        .split(" and ")
+        .flat_map(|g| g.split(';'))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    let surname = |g: &str| g.split(',').next().unwrap_or(g).trim().to_string();
+    match groups.as_slice() {
+        [] => String::new(),
+        [one] => surname(one),
+        [a, b] => format!("{} and {}", surname(a), surname(b)),
+        [a, ..] => format!("{} et al.", surname(a)),
+    }
+}
+
+/// Render a `[@key]` citation: `(Short)` or `(Short, locator)` when the key
+/// resolves to a source, else the raw `[@key]` source form — an unresolved
+/// citation stays visible as unfinished, matching `{{…}}`/`[[link]]`.
+fn cite_text(key: &str, locator: &str, cites: &HashMap<String, String>) -> String {
+    match cites.get(&fold_name(key)) {
+        Some(short) if locator.is_empty() => format!("({short})"),
+        Some(short) => format!("({short}, {locator})"),
+        None => cite_source(key, locator),
+    }
 }
 
 /// Resolve every heading's `{{…}}` interpolation, keyed by the heading's start
@@ -731,6 +810,9 @@ fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
                 collect_links(old, out);
                 collect_links(new, out);
             }
+            // A citation is a reference to its source — resolves like a link, so
+            // the cited entity earns a backlink.
+            Inline::Cite { key, .. } => out.push(key),
             Inline::Text(_) | Inline::Comment(_) => {}
         }
     }
@@ -993,6 +1075,152 @@ fn characters_walk(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &Cod
     }
 }
 
+/// The bibliography: a Harvard reference list of the sources this file cites.
+/// Every `[@key]` (in any subtree — visible prose or `%` notes) resolves to a
+/// codex entity; the cited entities are de-duplicated, sorted by first-author
+/// surname then year, and formatted from their metadata. Uncited entities do not
+/// appear (a References list, not a full catalogue). Empty (no output) if the
+/// file cites nothing. Each entry carries a `data-jump` to its source heading,
+/// like the codex. Per-file, matching inline citation resolution (#84).
+pub fn render_bibliography_html(root: &Node) -> String {
+    let mut keys = Vec::new();
+    collect_cite_keys(root, &mut keys);
+    if keys.is_empty() {
+        return String::new();
+    }
+    // Resolve keys to source entities: id wins over title, first id wins (same
+    // precedence as `cite_shorts`, so the reference matches what prints inline).
+    let mut entities = Vec::new();
+    collect_entities(root, &mut entities);
+    let mut by_key: HashMap<String, usize> = HashMap::new();
+    for (i, e) in entities.iter().enumerate() {
+        by_key.entry(fold_name(&e.title)).or_insert(i);
+    }
+    let mut ids = HashMap::new();
+    for (i, e) in entities.iter().enumerate() {
+        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
+            ids.entry(fold_name(v)).or_insert(i);
+        }
+    }
+    by_key.extend(ids);
+    let resolved = resolve_titles(root);
+
+    // Unique cited entities, in the order first cited (dedup, then sort).
+    let mut seen = std::collections::HashSet::new();
+    let mut cited: Vec<usize> = Vec::new();
+    for key in keys {
+        if let Some(&i) = by_key.get(&fold_name(key)) {
+            if seen.insert(i) {
+                cited.push(i);
+            }
+        }
+    }
+    if cited.is_empty() {
+        return String::new();
+    }
+    let title_of = |i: usize| {
+        resolved.get(&entities[i].heading_span.start).cloned().unwrap_or_else(|| entities[i].title.clone())
+    };
+    let year_of = |i: usize| {
+        entities[i].meta.iter().find(|(k, _)| k == YEAR).map(|(_, v)| v.trim().to_string()).unwrap_or_default()
+    };
+    // Sort by first-author surname (folded), then year.
+    // ponytail: year is a lexicographic string compare — correct for 4-digit
+    // years; `n.d.`/`c. 1990`/3-digit years mis-order. Secondary key only
+    // (surname is primary), so low impact; parse to a sort value if it bites.
+    cited.sort_by(|&a, &b| {
+        first_surname(&entities[a], &title_of(a))
+            .cmp(&first_surname(&entities[b], &title_of(b)))
+            .then(year_of(a).cmp(&year_of(b)))
+    });
+
+    let mut out = String::from("<h2>References</h2><ol class=\"bibliography\">");
+    for i in cited {
+        let off = entities[i].heading_span.start;
+        write!(out, "<li class=\"reference\" data-jump=\"{off}\">{}</li>", reference_html(entities[i], &title_of(i))).ok();
+    }
+    out.push_str("</ol>");
+    out
+}
+
+/// First-author surname, folded, for sorting the reference list; falls back to
+/// the (folded) title when there is no `author`.
+fn first_surname(e: &Node, title: &str) -> String {
+    match e.meta.iter().find(|(k, _)| k == AUTHOR).map(|(_, v)| v.trim()) {
+        Some(a) if !a.is_empty() => {
+            let first = a.split(" and ").next().unwrap_or(a);
+            fold_name(first.split(',').next().unwrap_or(first))
+        }
+        _ => fold_name(title),
+    }
+}
+
+/// One Harvard reference: `Author (Year) Title. Edition edn. Place: Publisher.`
+/// Each part is omitted when its metadata is absent. Title is italicised.
+/// ponytail: a reasonable Cite Them Right rendering — exact punctuation for every
+/// source type (chapter-in-book, journal article, webpage) is a CSL job, not this.
+fn reference_html(e: &Node, title: &str) -> String {
+    let meta = |k: &str| {
+        e.meta.iter().find(|(mk, _)| mk == k).map(|(_, v)| v.trim()).filter(|v| !v.is_empty())
+    };
+    // A source's title is its `title:` metadata if given, else its heading.
+    let work_title = meta(TITLE).unwrap_or(title);
+    let mut s = String::new();
+    if let Some(a) = meta(AUTHOR) {
+        s.push_str(&escape(a));
+    }
+    if let Some(y) = meta(YEAR) {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        write!(s, "({})", escape(y)).ok();
+    }
+    if !work_title.is_empty() {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        write!(s, "<em>{}</em>.", escape(work_title)).ok();
+    }
+    if let Some(ed) = meta(EDITION) {
+        write!(s, " {} edn.", escape(ed)).ok();
+    }
+    match (meta(PLACE), meta(PUBLISHER)) {
+        (Some(pl), Some(pu)) => write!(s, " {}: {}.", escape(pl), escape(pu)).ok(),
+        (Some(x), None) | (None, Some(x)) => write!(s, " {}.", escape(x)).ok(),
+        (None, None) => Some(()),
+    };
+    s
+}
+
+/// Collect the key of every `[@citation]` in the tree, any subtree (visible prose
+/// or `%` notes), in document order.
+fn collect_cite_keys<'a>(node: &'a Node, out: &mut Vec<&'a str>) {
+    for child in &node.children {
+        for block in &child.body {
+            if let Block::Para(spans) = block {
+                cite_keys_in(spans, out);
+            }
+        }
+        collect_cite_keys(child, out);
+    }
+}
+
+fn cite_keys_in<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
+    for s in spans {
+        match s {
+            Inline::Cite { key, .. } => out.push(key),
+            Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) | Inline::Delete(cs) => {
+                cite_keys_in(cs, out)
+            }
+            Inline::Sub { old, new } => {
+                cite_keys_in(old, out);
+                cite_keys_in(new, out);
+            }
+            _ => {}
+        }
+    }
+}
+
 /// `scope` is the resolved titles of the visible (`#`/`~`) ancestors walked
 /// through to reach here — a `%% Synopsis` under `## Chapter 1` renders under
 /// scope `["Chapter 1"]`, so two same-named notes in different chapters read
@@ -1101,6 +1329,9 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Insert(cs) => html_inlines(cs, ctx),
         Inline::Sub { new, .. } => html_inlines(new, ctx),
         Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(&link_text(s, &ctx.links))),
+        Inline::Cite { key, locator } => {
+            format!("<span class=\"cite\">{}</span>", escape(&cite_text(key, locator, &ctx.cites)))
+        }
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -1223,8 +1454,20 @@ fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Insert(cs) => print_inlines(cs, ctx),
         Inline::Sub { new, .. } => print_inlines(new, ctx),
         Inline::Link(s) => link_text(s, &ctx.links),
+        Inline::Cite { key, locator } => cite_text(key, locator, &ctx.cites),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
+}
+
+/// A citation's canonical source form: `[@key]` or `[@key, locator]`. Used for
+/// the edit round-trip, and (until author-date rendering lands) as the fallback
+/// for an unresolved key in the manuscript/preview.
+fn cite_source(key: &str, locator: &str) -> String {
+    if locator.is_empty() {
+        format!("[@{key}]")
+    } else {
+        format!("[@{key}, {locator}]")
+    }
 }
 
 /// Inline sequence -> source form (round-trip within a paragraph).
@@ -1244,5 +1487,6 @@ fn inline_source(span: &Inline) -> String {
         }
         Inline::Comment(s) => format!("{{/{s}}}"),
         Inline::Link(s) => format!("[[{s}]]"),
+        Inline::Cite { key, locator } => cite_source(key, locator),
     }
 }

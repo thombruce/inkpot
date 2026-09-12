@@ -6,6 +6,10 @@
 // Shunn manuscript export (#23) needs; a heading's meta block describes a scene.
 export const DOC_KEYS = ["title", "author", "byline", "contact"];
 export const SCENE_KEYS = ["pov", "time", "characters", "location", "coords", "map", "exits"];
+// Bibliographic keys for `%` source entities cited with [@key] (#84). metaZone
+// can't yet tell a `%` heading from a `~` scene, so these are offered under any
+// non-front heading alongside SCENE_KEYS — harmless extra suggestions on a scene.
+export const SOURCE_KEYS = ["author", "year", "title", "edition", "place", "publisher"];
 
 export const HEADING = /^([#~%])\1*\s/; // uniform marker run + space (Model A)
 const META = /^([\w-]+):(.*)$/; // `key: value` — single-token key, matching meta_line

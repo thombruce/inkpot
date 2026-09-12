@@ -76,6 +76,25 @@ pub const CONTACT: &str = "contact";
 /// [`AUTHOR`] when absent.
 pub const BYLINE: &str = "byline";
 
+// --- Bibliographic (source entities) ----------------------------------------
+// A source is a `%` codex entity carrying these; inline `[@key]` citations and
+// the bibliography read them (#84). [`AUTHOR`] and [`TITLE`] above are reused.
+// `author` is entered surname-first (`Ferber, E.`) — that is how the reference
+// list prints, and how the author-date short form finds the surname.
+
+/// A source's year of publication. Author-date citations render `(Surname, Year)`
+/// and the bibliography sorts and formats by it.
+pub const YEAR: &str = "year";
+
+/// A source's publisher — the bibliography reference list.
+pub const PUBLISHER: &str = "publisher";
+
+/// A source's edition (`11th`) — the bibliography renders `11th edn.`.
+pub const EDITION: &str = "edition";
+
+/// A source's place of publication — the bibliography reference list.
+pub const PLACE: &str = "place";
+
 /// Does this metadata key *name its own section* rather than reference another
 /// entity? Such keys are excluded from backlinks and rendered as plain text,
 /// never resolved as a `[[link]]`. Today the only one is [`ID`].

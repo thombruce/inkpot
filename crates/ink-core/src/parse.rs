@@ -252,6 +252,24 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 }
             }
         }
+        // Citation [@key] or [@key, locator] — a reference to a source entity.
+        // Split the inside on the first comma: key (after `@`) + locator.
+        if text[i..].starts_with("[@") {
+            if let Some(end) = find(text, i + 2, "]") {
+                let inside = &text[i + 2..end];
+                let (key, locator) = match inside.split_once(',') {
+                    Some((k, l)) => (k.trim(), l.trim()),
+                    None => (inside.trim(), ""),
+                };
+                if !key.is_empty() {
+                    flush_plain!(i);
+                    out.push(Inline::Cite { key: key.to_string(), locator: locator.to_string() });
+                    i = end + 1;
+                    plain_start = i;
+                    continue;
+                }
+            }
+        }
         // Bold **...** (check before single *). Flanking: opener followed by
         // non-space, closer preceded by non-space.
         if text[i..].starts_with("**") && opens(text, i + 2) {
