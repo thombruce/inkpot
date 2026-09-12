@@ -13,6 +13,10 @@ Citations reference a source by its key: London's guild kept enrolment rolls
 [@ferber-2011]. Each `[@key]` resolves to a source entity below and earns it a
 backlink, the way `[[wikilinks]]` do.
 
+On usage and style I lean on [@strunk-white-2000] — which lives in a separate
+sources.ink, yet resolves and prints author-date all the same, because citations
+span the whole project.
+
 % Sources
 
 %% Baker's Guild Records

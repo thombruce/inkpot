@@ -7,6 +7,15 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Changed
+
+- **Citations & wikilinks resolve project-wide** in the manuscript, preview, PDF
+  export, and bibliography — not just per-file. A `[@key]` or `[[link]]` now finds
+  its source/entity in any project file, so sources can live in a separate
+  research file and still render author-date and appear in the bibliography (a
+  cross-file reference in the bibliography jumps to the file it's defined in). The
+  codex was already cross-file (#28); this brings the text views in line (#89).
+
 ### Added
 
 - **Inline citations + bibliography** (`.ink` as an essay/paper tool): cite a source

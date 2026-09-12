@@ -73,7 +73,16 @@ struct Ctx {
 /// The root's context: front matter as variables, no position. Carries the
 /// `[[link]]` title map, so prose rendering resolves link display text.
 fn root_ctx(root: &Node) -> Ctx {
-    Ctx { links: Rc::new(link_titles(root)), cites: Rc::new(cite_shorts(root)), ..base_ctx(root) }
+    project_ctx(root, &[root])
+}
+
+/// Like [`root_ctx`], but resolves `[[links]]`/`[@cites]` against every file in a
+/// project (`roots`), while front-matter variables come from the file being
+/// rendered (`active`). The text views (manuscript/preview/PDF/bibliography) use
+/// this so a reference finds a source in any project file (#89). Single-file is a
+/// project of one — `root_ctx(root)` above.
+fn project_ctx(active: &Node, roots: &[&Node]) -> Ctx {
+    Ctx { links: Rc::new(link_titles(roots)), cites: Rc::new(cite_shorts(roots)), ..base_ctx(active) }
 }
 
 /// A root context without the link map. Used where link resolution isn't needed
@@ -122,24 +131,27 @@ fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
 /// key too; for static titles that prints identically (an interpolated title
 /// resolves per-position, so a repeated `{{…}}` title would print its first
 /// occurrence — negligible, no one links such a title).
-fn link_titles(root: &Node) -> HashMap<String, String> {
-    let mut entities = Vec::new();
-    collect_entities(root, &mut entities);
-    let resolved = resolve_titles(root);
-    let title_of = |e: &Node| {
-        resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone())
-    };
+fn link_titles(roots: &[&Node]) -> HashMap<String, String> {
+    // Titles across all files (first file wins a collision), then ids (first id
+    // wins), ids overriding titles — the same flat, file-ordered precedence as
+    // `CodexIndex::build_project` (#28), so inline display and codex backlinks
+    // agree on which entity a name means. A project of one is the single-file case.
     let mut m = HashMap::new();
-    for e in &entities {
-        m.entry(fold_name(&e.title)).or_insert_with(|| title_of(e));
-    }
-    // Ids win over titles, first id wins over later ones. Build separately then
-    // extend so ids override a colliding title key without a later id clobbering
-    // an earlier one.
     let mut ids = HashMap::new();
-    for e in &entities {
-        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
-            ids.entry(fold_name(v)).or_insert_with(|| title_of(e));
+    for root in roots {
+        let mut entities = Vec::new();
+        collect_entities(root, &mut entities);
+        let resolved = resolve_titles(root);
+        let title_of = |e: &Node| {
+            resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone())
+        };
+        for e in &entities {
+            m.entry(fold_name(&e.title)).or_insert_with(|| title_of(e));
+        }
+        for e in &entities {
+            if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
+                ids.entry(fold_name(v)).or_insert_with(|| title_of(e));
+            }
         }
     }
     m.extend(ids);
@@ -156,22 +168,26 @@ fn link_text(target: &str, links: &HashMap<String, String>) -> String {
 /// entity mapped to its author-date short form (e.g. `"Ferber, 2011"`). Same
 /// key precedence as [`link_titles`] — ids win over titles, first id wins — so a
 /// citation and a `[[link]]` to the same source agree on which entity they mean.
-fn cite_shorts(root: &Node) -> HashMap<String, String> {
-    let mut entities = Vec::new();
-    collect_entities(root, &mut entities);
-    let resolved = resolve_titles(root);
-    let label_of = |e: &Node| {
-        let title = resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone());
-        cite_label(e, &title)
-    };
+fn cite_shorts(roots: &[&Node]) -> HashMap<String, String> {
+    // Same flat, file-ordered precedence as `link_titles` (ids over titles, first
+    // wins) so a `[@key]` and a `[[link]]` to the same source agree.
     let mut m = HashMap::new();
-    for e in &entities {
-        m.entry(fold_name(&e.title)).or_insert_with(|| label_of(e));
-    }
     let mut ids = HashMap::new();
-    for e in &entities {
-        if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
-            ids.entry(fold_name(v)).or_insert_with(|| label_of(e));
+    for root in roots {
+        let mut entities = Vec::new();
+        collect_entities(root, &mut entities);
+        let resolved = resolve_titles(root);
+        let label_of = |e: &Node| {
+            let title = resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone());
+            cite_label(e, &title)
+        };
+        for e in &entities {
+            m.entry(fold_name(&e.title)).or_insert_with(|| label_of(e));
+        }
+        for e in &entities {
+            if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
+                ids.entry(fold_name(v)).or_insert_with(|| label_of(e));
+            }
         }
     }
     m.extend(ids);
@@ -457,8 +473,20 @@ fn word_count_ctx(node: &Node, ctx: &Ctx) -> usize {
 /// same as the manuscript view. The PDF emitter consumes this; a future EPUB/KDP
 /// emitter can too.
 pub fn build_shunn(root: &Node) -> ShunnManuscript {
-    let (title, author, byline, contact) = shunn_meta(root);
-    assemble(title, author, byline, contact, round_wordcount(word_count(root)), doc_blocks(root))
+    build_shunn_project(&[root], 0)
+}
+
+/// Single-file Shunn manuscript for `roots[active]`, with `[[links]]`/`[@cites]`
+/// resolved across the whole project (#89). Title page + word count come from the
+/// active file; single-file [`build_shunn`] is a project of one.
+pub fn build_shunn_project(roots: &[&Node], active: usize) -> ShunnManuscript {
+    match active_root(roots, active) {
+        Some(root) => {
+            let (title, author, byline, contact) = shunn_meta(root);
+            assemble(title, author, byline, contact, round_wordcount(word_count(root)), doc_blocks(root, roots))
+        }
+        None => assemble(String::new(), String::new(), String::new(), Vec::new(), 0, Vec::new()),
+    }
 }
 
 /// Project a whole project into one Shunn book (#23 follow-up): the ordered
@@ -481,7 +509,8 @@ pub fn build_shunn_book(marker: &Node, docs: &[&Node]) -> ShunnManuscript {
     let raw_words: usize = docs.iter().map(|d| word_count(d)).sum();
     let mut blocks = Vec::new();
     for d in docs {
-        blocks.append(&mut doc_blocks(d));
+        // Resolve each file's references against the whole book (#89).
+        blocks.append(&mut doc_blocks(d, docs));
     }
     assemble(title, author, byline, contact, round_wordcount(raw_words), blocks)
 }
@@ -499,9 +528,9 @@ fn shunn_meta(node: &Node) -> (String, String, String, Vec<String>) {
 
 /// The block stream for one document (chapters/subheads/scene-breaks/prose),
 /// without title-page metadata — the reusable per-file unit a book concatenates.
-fn doc_blocks(root: &Node) -> Vec<ShunnBlock> {
+fn doc_blocks(root: &Node, roots: &[&Node]) -> Vec<ShunnBlock> {
     let mut blocks = Vec::new();
-    shunn_blocks(root, &root_ctx(root), &mut blocks);
+    shunn_blocks(root, &project_ctx(root, roots), &mut blocks);
     blocks
 }
 
@@ -564,8 +593,37 @@ fn shunn_blocks(node: &Node, ctx: &Ctx, blocks: &mut Vec<ShunnBlock>) {
 /// and scenes/metadata/comments dropped. Text is escaped; single newlines
 /// within a paragraph become `<br>` (so verse lines survive).
 pub fn render_html(root: &Node) -> String {
+    render_html_project(&[root], 0)
+}
+
+/// The file `active` picks the tree; `active` indexes `roots`, falling back to
+/// the first (an empty slice yields nothing).
+fn active_root<'a>(roots: &[&'a Node], active: usize) -> Option<&'a Node> {
+    roots.get(active).or_else(|| roots.first()).copied()
+}
+
+/// Preview HTML for `roots[active]`, with `[[links]]`/`[@cites]` resolved across
+/// the whole project (#89). Single-file [`render_html`] is a project of one.
+pub fn render_html_project(roots: &[&Node], active: usize) -> String {
     let mut out = String::new();
-    manuscript_html(root, &root_ctx(root), 0, &mut out);
+    if let Some(root) = active_root(roots, active) {
+        manuscript_html(root, &project_ctx(root, roots), 0, &mut out);
+    }
+    out
+}
+
+/// Plain-text manuscript for `roots[active]`, project-wide resolution (#89). The
+/// single-file path stays [`render`]`(root, View::Manuscript)`.
+pub fn render_manuscript_project(roots: &[&Node], active: usize) -> String {
+    let mut out = String::new();
+    if let Some(root) = active_root(roots, active) {
+        manuscript(root, &project_ctx(root, roots), 0, &mut out);
+        // Same trailing-newline collapse as `render`'s Manuscript arm.
+        out.truncate(out.trim_end_matches('\n').len());
+        if !out.is_empty() {
+            out.push('\n');
+        }
+    }
     out
 }
 
@@ -1075,37 +1133,55 @@ fn characters_walk(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &Cod
     }
 }
 
-/// The bibliography: a Harvard reference list of the sources this file cites.
-/// Every `[@key]` (in any subtree — visible prose or `%` notes) resolves to a
-/// codex entity; the cited entities are de-duplicated, sorted by first-author
-/// surname then year, and formatted from their metadata. Uncited entities do not
-/// appear (a References list, not a full catalogue). Empty (no output) if the
-/// file cites nothing. Each entry carries a `data-jump` to its source heading,
-/// like the codex. Per-file, matching inline citation resolution (#84).
+/// The bibliography for one file. Single-file wrapper over
+/// [`render_bibliography_project`] (a project of one, empty path).
 pub fn render_bibliography_html(root: &Node) -> String {
+    render_bibliography_project(&[(String::new(), root)], 0)
+}
+
+/// The bibliography: a Harvard reference list of the sources `docs[active]` cites.
+/// Every `[@key]` in that file (visible prose or `%` notes) resolves to a codex
+/// entity in **any** project file (id wins over title, first wins — same as
+/// `cite_shorts`, so the reference matches what prints inline). Cited entities are
+/// de-duplicated, sorted by first-author surname then year, and formatted from
+/// their metadata; uncited entities don't appear (a References list, not a
+/// catalogue). Each entry `data-jump`s to its source heading, plus `data-jump-file`
+/// when the source lives in another file (like the codex). Empty if nothing is
+/// cited. Single-file is a project of one (#89).
+pub fn render_bibliography_project(docs: &[(String, &Node)], active: usize) -> String {
+    let Some((_, root)) = docs.get(active).or_else(|| docs.first()) else { return String::new() };
     let mut keys = Vec::new();
     collect_cite_keys(root, &mut keys);
     if keys.is_empty() {
         return String::new();
     }
-    // Resolve keys to source entities: id wins over title, first id wins (same
-    // precedence as `cite_shorts`, so the reference matches what prints inline).
-    let mut entities = Vec::new();
-    collect_entities(root, &mut entities);
+    // Flat entity list across all files, each tagged with its doc index, plus a
+    // per-doc resolved-title map (heading offsets collide across files).
+    let paths: Vec<&str> = docs.iter().map(|(p, _)| p.as_str()).collect();
+    let mut entities: Vec<(usize, &Node)> = Vec::new();
+    let mut resolved: Vec<HashMap<usize, String>> = Vec::new();
+    for (d, (_, r)) in docs.iter().enumerate() {
+        let mut es = Vec::new();
+        collect_entities(r, &mut es);
+        for e in es {
+            entities.push((d, e));
+        }
+        resolved.push(resolve_titles(r));
+    }
+    // Resolve keys to entity indices: titles first (first file wins), ids override
+    // (first id wins) — project-wide, matching `cite_shorts`.
     let mut by_key: HashMap<String, usize> = HashMap::new();
-    for (i, e) in entities.iter().enumerate() {
+    for (i, (_, e)) in entities.iter().enumerate() {
         by_key.entry(fold_name(&e.title)).or_insert(i);
     }
     let mut ids = HashMap::new();
-    for (i, e) in entities.iter().enumerate() {
+    for (i, (_, e)) in entities.iter().enumerate() {
         if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
             ids.entry(fold_name(v)).or_insert(i);
         }
     }
     by_key.extend(ids);
-    let resolved = resolve_titles(root);
 
-    // Unique cited entities, in the order first cited (dedup, then sort).
     let mut seen = std::collections::HashSet::new();
     let mut cited: Vec<usize> = Vec::new();
     for key in keys {
@@ -1119,25 +1195,32 @@ pub fn render_bibliography_html(root: &Node) -> String {
         return String::new();
     }
     let title_of = |i: usize| {
-        resolved.get(&entities[i].heading_span.start).cloned().unwrap_or_else(|| entities[i].title.clone())
+        let (d, e) = entities[i];
+        resolved[d].get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone())
     };
     let year_of = |i: usize| {
-        entities[i].meta.iter().find(|(k, _)| k == YEAR).map(|(_, v)| v.trim().to_string()).unwrap_or_default()
+        entities[i].1.meta.iter().find(|(k, _)| k == YEAR).map(|(_, v)| v.trim().to_string()).unwrap_or_default()
     };
     // Sort by first-author surname (folded), then year.
     // ponytail: year is a lexicographic string compare — correct for 4-digit
     // years; `n.d.`/`c. 1990`/3-digit years mis-order. Secondary key only
     // (surname is primary), so low impact; parse to a sort value if it bites.
     cited.sort_by(|&a, &b| {
-        first_surname(&entities[a], &title_of(a))
-            .cmp(&first_surname(&entities[b], &title_of(b)))
+        first_surname(entities[a].1, &title_of(a))
+            .cmp(&first_surname(entities[b].1, &title_of(b)))
             .then(year_of(a).cmp(&year_of(b)))
     });
 
     let mut out = String::from("<h2>References</h2><ol class=\"bibliography\">");
     for i in cited {
-        let off = entities[i].heading_span.start;
-        write!(out, "<li class=\"reference\" data-jump=\"{off}\">{}</li>", reference_html(entities[i], &title_of(i))).ok();
+        let (d, e) = entities[i];
+        write!(
+            out,
+            "<li class=\"reference\" {}>{}</li>",
+            jump_attrs(&paths, d, e.heading_span.start),
+            reference_html(e, &title_of(i))
+        )
+        .ok();
     }
     out.push_str("</ol>");
     out
