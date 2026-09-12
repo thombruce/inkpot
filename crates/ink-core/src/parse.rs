@@ -1,7 +1,7 @@
 //! Line-oriented block scanner + inline scanner. Hand-written on purpose: the
 //! grammar is small and diverges from Markdown enough that a crate is a fight.
 
-use crate::{Block, Inline, Node, Span, Visibility};
+use crate::{Block, CiteItem, Inline, Node, Span, Visibility};
 
 /// Parse a `.ink` document into a root [`Node`] (level 0).
 ///
@@ -252,18 +252,30 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 }
             }
         }
-        // Citation [@key] or [@key, locator] — a reference to a source entity.
-        // Split the inside on the first comma: key (after `@`) + locator.
+        // Citation [@key], [@key, locator], or a group [@a; @b, p. 5]. Split the
+        // inside on `;` into items; each item is `[@]key[, locator]` — strip an
+        // optional leading `@` (the first item's `@` was the `[@` trigger; the rest
+        // carry their own), then split the first comma into key + locator.
+        // ponytail: a locator containing `;` (e.g. `pp. 1; 3`) mis-splits — `;` is
+        // the item separator; rare, unsupported.
         if text[i..].starts_with("[@") {
             if let Some(end) = find(text, i + 2, "]") {
-                let inside = &text[i + 2..end];
-                let (key, locator) = match inside.split_once(',') {
-                    Some((k, l)) => (k.trim(), l.trim()),
-                    None => (inside.trim(), ""),
-                };
-                if !key.is_empty() {
+                let items: Vec<CiteItem> = text[i + 2..end]
+                    .split(';')
+                    .filter_map(|item| {
+                        let item = item.trim();
+                        let item = item.strip_prefix('@').unwrap_or(item);
+                        let (key, locator) = match item.split_once(',') {
+                            Some((k, l)) => (k.trim(), l.trim()),
+                            None => (item.trim(), ""),
+                        };
+                        (!key.is_empty())
+                            .then(|| CiteItem { key: key.to_string(), locator: locator.to_string() })
+                    })
+                    .collect();
+                if !items.is_empty() {
                     flush_plain!(i);
-                    out.push(Inline::Cite { key: key.to_string(), locator: locator.to_string() });
+                    out.push(Inline::Cite(items));
                     i = end + 1;
                     plain_start = i;
                     continue;

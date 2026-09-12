@@ -104,7 +104,9 @@ unlike a title, an `id` never counts as an outgoing reference to another entity.
   (`author`, `year`, `title`, `edition`, `place`, `publisher`). Prints as Harvard
   author-date — `(Ferber, 2011, p. 42)` — and, like a wikilink, backlinks the
   source; the **Bibliography** view collates the cited sources into a reference
-  list. Enter `author` surname-first (`Ferber, E.`). An unresolved key stays raw.
+  list. Group several in one parenthetical with `;`: `[@smith2020; @jones2019]` →
+  `(Smith, 2020; Jones, 2019)`. Enter `author` surname-first (`Ferber, E.`). An
+  unresolved key stays raw.
 
 ### Interpolation
 

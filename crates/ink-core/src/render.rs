@@ -2,7 +2,7 @@
 
 use crate::meta::{is_self_naming, AUTHOR, BYLINE, CONTACT, EDITION, ID, PLACE, PUBLISHER, TITLE, YEAR};
 use crate::shunn::{header_keyword, round_wordcount, surname, ShunnBlock, ShunnManuscript};
-use crate::{Block, Inline, Node, Visibility};
+use crate::{Block, CiteItem, Inline, Node, Visibility};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -232,14 +232,33 @@ fn author_short(author: &str) -> String {
     }
 }
 
-/// Render a `[@key]` citation: `(Short)` or `(Short, locator)` when the key
-/// resolves to a source, else the raw `[@key]` source form — an unresolved
-/// citation stays visible as unfinished, matching `{{…}}`/`[[link]]`.
-fn cite_text(key: &str, locator: &str, cites: &HashMap<String, String>) -> String {
-    match cites.get(&fold_name(key)) {
-        Some(short) if locator.is_empty() => format!("({short})"),
-        Some(short) => format!("({short}, {locator})"),
-        None => cite_source(key, locator),
+/// Render a citation group: `(Short; Short, locator; …)`, one parenthetical over
+/// all items. An item that resolves prints its author-date short form (+locator);
+/// one that doesn't prints `@key` (+locator), inner, no brackets. If **no** item
+/// resolves, fall back to the raw `[@…]` source form — an unresolved citation
+/// stays visible as unfinished, matching `{{…}}`/`[[link]]`. A single resolved
+/// item is `(Short)`, a single unresolved one `[@key]` — unchanged from before.
+fn cite_text(items: &[CiteItem], cites: &HashMap<String, String>) -> String {
+    let mut any = false;
+    let parts: Vec<String> = items
+        .iter()
+        .map(|it| match cites.get(&fold_name(&it.key)) {
+            Some(short) => {
+                any = true;
+                if it.locator.is_empty() {
+                    short.clone()
+                } else {
+                    format!("{short}, {}", it.locator)
+                }
+            }
+            None if it.locator.is_empty() => format!("@{}", it.key),
+            None => format!("@{}, {}", it.key, it.locator),
+        })
+        .collect();
+    if any {
+        format!("({})", parts.join("; "))
+    } else {
+        cite_source(items)
     }
 }
 
@@ -874,7 +893,7 @@ fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
             }
             // A citation is a reference to its source — resolves like a link, so
             // the cited entity earns a backlink.
-            Inline::Cite { key, .. } => out.push(key),
+            Inline::Cite(items) => out.extend(items.iter().map(|it| it.key.as_str())),
             Inline::Text(_) | Inline::Comment(_) => {}
         }
     }
@@ -1295,7 +1314,7 @@ fn collect_cite_keys<'a>(node: &'a Node, out: &mut Vec<&'a str>) {
 fn cite_keys_in<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
     for s in spans {
         match s {
-            Inline::Cite { key, .. } => out.push(key),
+            Inline::Cite(items) => out.extend(items.iter().map(|it| it.key.as_str())),
             Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) | Inline::Delete(cs) => {
                 cite_keys_in(cs, out)
             }
@@ -1416,8 +1435,8 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Insert(cs) => html_inlines(cs, ctx),
         Inline::Sub { new, .. } => html_inlines(new, ctx),
         Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(&link_text(s, &ctx.links))),
-        Inline::Cite { key, locator } => {
-            format!("<span class=\"cite\">{}</span>", escape(&cite_text(key, locator, &ctx.cites)))
+        Inline::Cite(items) => {
+            format!("<span class=\"cite\">{}</span>", escape(&cite_text(items, &ctx.cites)))
         }
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
@@ -1541,20 +1560,27 @@ fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Insert(cs) => print_inlines(cs, ctx),
         Inline::Sub { new, .. } => print_inlines(new, ctx),
         Inline::Link(s) => link_text(s, &ctx.links),
-        Inline::Cite { key, locator } => cite_text(key, locator, &ctx.cites),
+        Inline::Cite(items) => cite_text(items, &ctx.cites),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
 
-/// A citation's canonical source form: `[@key]` or `[@key, locator]`. Used for
-/// the edit round-trip, and (until author-date rendering lands) as the fallback
-/// for an unresolved key in the manuscript/preview.
-fn cite_source(key: &str, locator: &str) -> String {
-    if locator.is_empty() {
-        format!("[@{key}]")
-    } else {
-        format!("[@{key}, {locator}]")
-    }
+/// A citation's canonical source form: `[@key]`, `[@key, locator]`, or a group
+/// `[@a; @b, loc]`. Used for the edit round-trip and as the fallback for a
+/// wholly-unresolved citation in the manuscript/preview. A single item reproduces
+/// the pre-grouping `[@key]` / `[@key, locator]` exactly.
+fn cite_source(items: &[CiteItem]) -> String {
+    let parts: Vec<String> = items
+        .iter()
+        .map(|it| {
+            if it.locator.is_empty() {
+                format!("@{}", it.key)
+            } else {
+                format!("@{}, {}", it.key, it.locator)
+            }
+        })
+        .collect();
+    format!("[{}]", parts.join("; "))
 }
 
 /// Inline sequence -> source form (round-trip within a paragraph).
@@ -1574,6 +1600,6 @@ fn inline_source(span: &Inline) -> String {
         }
         Inline::Comment(s) => format!("{{/{s}}}"),
         Inline::Link(s) => format!("[[{s}]]"),
-        Inline::Cite { key, locator } => cite_source(key, locator),
+        Inline::Cite(items) => cite_source(items),
     }
 }

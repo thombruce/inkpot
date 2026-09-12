@@ -356,10 +356,18 @@ fn example_notes_citations_backlink_to_sources() {
         "both example sources should be cited: {sources}"
     );
 
+    let notes = parse(include_str!("../../../examples/notes.ink"));
     // The bibliography lists both cited sources, Harvard-formatted.
-    let bib = ink_core::render_bibliography_html(&parse(include_str!("../../../examples/notes.ink")));
+    let bib = ink_core::render_bibliography_html(&notes);
     assert!(bib.contains("(2011) <em>A Social History of the London Bakehouse</em>"), "Ferber ref: {bib}");
     assert!(bib.contains("<em>Enrolment Rolls of the Bakers&#x27; Guild</em>") || bib.contains("Enrolment Rolls of the Bakers"), "guild ref: {bib}");
+
+    // The grouped citation renders both sources in one parenthetical.
+    let m = render(&notes, View::Manuscript);
+    assert!(
+        m.contains("(Worshipful Company of Bakers, 1988; Ferber, 2011)"),
+        "grouped citation in example: {m}"
+    );
 }
 
 #[test]
@@ -589,10 +597,14 @@ fn citation_parses_roundtrips_and_backlinks() {
         Block::Para(s) => Some(s),
         _ => None,
     }).unwrap();
-    let cites: Vec<_> = para.iter().filter_map(|s| match s {
-        Inline::Cite { key, locator } => Some((key.as_str(), locator.as_str())),
-        _ => None,
-    }).collect();
+    let cites: Vec<_> = para
+        .iter()
+        .filter_map(|s| match s {
+            Inline::Cite(items) => Some(items),
+            _ => None,
+        })
+        .flat_map(|items| items.iter().map(|it| (it.key.as_str(), it.locator.as_str())))
+        .collect();
     assert_eq!(cites, vec![("pears-2019", "p. 42"), ("pears-2019", "")]);
 
     // Edit round-trips both forms verbatim.
@@ -615,12 +627,54 @@ fn citation_parses_roundtrips_and_backlinks() {
     let text: String = match &lit.children[0].body[0] {
         Block::Para(spans) => spans.iter().map(|s| match s {
             Inline::Text(t) => t.clone(),
-            Inline::Cite { .. } => "<CITE>".into(),
+            Inline::Cite(..) => "<CITE>".into(),
             _ => String::new(),
         }).collect(),
         _ => String::new(),
     };
     assert!(!text.contains("<CITE>"), "malformed citation wrongly parsed: {text}");
+}
+
+#[test]
+fn grouped_multicite_renders_one_parenthetical() {
+    // `[@a; @b, p. 5]` groups several sources in one parenthetical, with per-item
+    // locators; every key backlinks its source.
+    let src = "~~~ S\n\nBoth agree [@smith2020; @jones2019, p. 5].\n\n% Sources\n\n\
+        %% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n\n\
+        %% Two\nid: jones2019\nauthor: Jones, B.\nyear: 2019\n";
+    let doc = parse(src);
+    // One Cite inline holding two items.
+    let para = doc.children[0].body.iter().find_map(|b| match b {
+        Block::Para(s) => Some(s),
+        _ => None,
+    }).unwrap();
+    let groups: Vec<usize> = para.iter().filter_map(|s| match s {
+        Inline::Cite(items) => Some(items.len()),
+        _ => None,
+    }).collect();
+    assert_eq!(groups, vec![2], "should be one group of two items: {groups:?}");
+
+    // Rendered as one parenthetical, items joined with `; `.
+    let m = render(&doc, View::Manuscript);
+    assert!(m.contains("(Smith, 2020; Jones, 2019, p. 5)"), "grouped render: {m}");
+    // Edit round-trips the group.
+    assert!(render(&doc, View::Edit).contains("[@smith2020; @jones2019, p. 5]"), "group round-trip: {}", render(&doc, View::Edit));
+    // Both sources are cited (each earns a backlink).
+    let html = ink_core::render_codex_html(&doc);
+    assert_eq!(html.matches("Referenced by").count(), 2, "both grouped sources should backlink: {html}");
+
+    // Mixed group: an unknown key prints inner `@key`; the group still renders in
+    // parens because a sibling resolved.
+    let mixed = render(&parse("~~~ S\n\n[@smith2020; @ghost].\n\n% S\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n"), View::Manuscript);
+    assert!(mixed.contains("(Smith, 2020; @ghost)"), "mixed group: {mixed}");
+
+    // All-unknown group falls back to the raw source form (unfinished signal).
+    let raw = render(&parse("~~~ S\n\n[@x; @y].\n"), View::Manuscript);
+    assert!(raw.contains("[@x; @y]"), "all-unresolved group should stay raw: {raw}");
+
+    // Single-cite regression: unchanged from before grouping.
+    let single = render(&parse("~~~ S\n\n[@smith2020].\n\n% S\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n"), View::Manuscript);
+    assert!(single.contains("(Smith, 2020)"), "single still resolves: {single}");
 }
 
 #[test]
