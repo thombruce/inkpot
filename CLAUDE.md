@@ -166,6 +166,10 @@ The release **version is single-sourced in `app/src-tauri/Cargo.toml`**
 release and tag `vX.Y.Z`. SemVer, mapped to the format: stay in `0.x` until
 the `.ink` format stabilises; `1.0`+ MAJOR = a format-breaking change.
 `ink-core`/`ink-cli` versions are separate from the app's release version.
+**Commit `app/src-tauri/Cargo.lock` with the bump** — it pins `inkpot-app`'s
+version, so a build regenerates it and leaves the tree dirty if it wasn't staged
+(`git add app/src-tauri/{Cargo.toml,Cargo.lock} CHANGELOG.md`). Harmless to the
+shipped binaries, but keep the lock in step.
 
 Log user-facing changes under `## [Unreleased]` in `CHANGELOG.md` as you go;
 when tagging, rename that heading to the new version + date and paste it into
