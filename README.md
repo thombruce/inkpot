@@ -199,17 +199,31 @@ crates/
 app/
   src/          Frontend: CodeMirror editor, outline, preview, codex, timeline, characters, map (Vite, no framework).
   src-tauri/    Tauri v2 desktop shell. Stateless commands over ink-core (parse, render views).
-examples/       A sample project (one `Inkpot` marker): sample.ink, codex.ink,
-                notes.ink, sources.ink. Open the folder in the app: the codex spans
-                every file, notes.ink's `[[wikilinks]]` resolve to codex.ink's
-                entities, and its `[@strunk-white-2000]` citation resolves to a
-                source defined in sources.ink — references span the project.
+examples/       A sample project (one `Inkpot` marker) — see below.
 docs/ipc.md     The Tauri IPC contract.
 ```
 
 Text is canonical: the editor buffer is the source of truth. Rust only parses
 and renders — nothing document-shaped is held as mutable state, so there is
 nothing to keep in sync. Rearranging a scene is a text splice, not a tree edit.
+
+### The example project
+
+`examples/` is one project (a shared `Inkpot` marker). **Open the folder in the
+app** — the codex and bibliography span every file. Each file leans on a
+different part of the toolset, so open the one that drives the view you want to
+see (planning views render the *active* file):
+
+| File | Try the view… | because it has… |
+|---|---|---|
+| `codex.ink` | **Map**, **Timeline**, **Characters**, and the time-scrub | scenes with `time:`/`location:`/`characters:`/`exits:`, and `% Locations` with `coords:` across three worlds (Earth/Mars/Moon) |
+| `notes.ink` | **Bibliography** | `[@key]` citations and `%` sources with bibliographic metadata |
+| `sources.ink` | (feeds the bibliography) | a source cited *cross-file* from `notes.ink` |
+| `sample.ink` | **Preview**, **Outline**, **Edit** | a minimal document: headings, metadata, CriticMarkup |
+
+The **Codex** and **Bibliography** are project-wide, so they show entries from
+every file whichever one is active; `notes.ink`'s `[[wikilinks]]` and its
+`[@strunk-white-2000]` citation both resolve across files.
 
 ## Usage
 
