@@ -510,6 +510,10 @@ pub fn build_shunn_book(marker: &Node, docs: &[&Node]) -> ShunnManuscript {
     let mut blocks = Vec::new();
     for d in docs {
         // Resolve each file's references against the whole book (#89).
+        // ponytail: O(files²) entity collection — each doc_blocks rebuilds the
+        // (identical) project link/cite maps over all docs. Fine for a book's
+        // handful of files; if a huge book drags, build the two maps once here
+        // and reuse them per file (they don't vary across the loop).
         blocks.append(&mut doc_blocks(d, docs));
     }
     assemble(title, author, byline, contact, round_wordcount(raw_words), blocks)
