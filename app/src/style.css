@@ -25,6 +25,7 @@ body {
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* wrap to a second row rather than push buttons off-frame */
   gap: 6px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
@@ -54,6 +55,18 @@ body {
 .toolbar .recent:disabled { color: var(--dim); cursor: default; }
 .toolbar .recent option { background: var(--panel); color: var(--ink); }
 .toolbar button.active { border-color: var(--accent); color: var(--accent); }
+/* The view picker mirrors the recent-files select; accent when off the editor. */
+.toolbar .view-select {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.toolbar .view-select:hover { border-color: var(--accent); }
+.toolbar .view-select option { background: var(--panel); color: var(--ink); }
 .toolbar .filename {
   margin-left: 8px;
   color: var(--dim);
@@ -64,7 +77,7 @@ body {
   color: var(--dim);
   font-size: 12px;
 }
-.toolbar #toggleCodex { margin-left: auto; }
+.toolbar .view-select { margin-left: auto; } /* push the view picker to the right */
 
 .panes {
   flex: 1;

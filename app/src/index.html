@@ -19,12 +19,15 @@
       <button id="exportPdf" title="Export a Shunn manuscript PDF">Export PDF</button>
       <span id="filename" class="filename">untitled</span>
       <span id="wordcount" class="wordcount"></span>
-      <button id="toggleCodex" title="Codex — characters, locations, notes">Codex</button>
-      <button id="toggleCharacters" title="Characters — your cast at a glance">Characters</button>
-      <button id="toggleMap" title="Map — locations by their coordinates">Map</button>
-      <button id="toggleTimeline" title="Timeline — scenes in story-time order">Timeline</button>
-      <button id="toggleBibliography" title="Bibliography — sources you cite with [@key]">Bibliography</button>
-      <button id="togglePreview">Preview</button>
+      <select id="viewSelect" class="view-select" title="View — the main area shows one at a time">
+        <option value="editor">Editor</option>
+        <option value="preview">Preview</option>
+        <option value="codex">Codex</option>
+        <option value="characters">Characters</option>
+        <option value="map">Map</option>
+        <option value="timeline">Timeline</option>
+        <option value="bibliography">Bibliography</option>
+      </select>
     </header>
     <main class="panes">
       <aside class="pane outline" aria-label="Outline">

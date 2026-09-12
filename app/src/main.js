@@ -823,30 +823,19 @@ outlineBtn.addEventListener("click", () => {
   outlineBtn.classList.toggle("active", !hidden);
 });
 
-// Editor / preview / codex / timeline share one space; the toolbar toggles which
-// shows. They are mutually exclusive (each hides the editor), so switching one
-// off returns to the editor and turning one on clears the others.
-const previewBtn = document.getElementById("togglePreview");
-const codexBtn = document.getElementById("toggleCodex");
-const timelineBtn = document.getElementById("toggleTimeline");
-const charactersBtn = document.getElementById("toggleCharacters");
-const bibliographyBtn = document.getElementById("toggleBibliography");
-const mapBtn = document.getElementById("toggleMap");
+// Editor / preview / codex / characters / map / timeline / bibliography share one
+// space and are mutually exclusive — exactly one shows. A single <select> picks
+// which (a mode picker, not a row of toggles); `editor` is the default. setView
+// keeps the picker in sync, so programmatic switches (a jump link, a new
+// character) move the dropdown too.
+const viewSelect = document.getElementById("viewSelect");
+const PANEL_VIEWS = ["preview", "codex", "characters", "map", "timeline", "bibliography"];
 
 function setView(view) {
-  document.body.classList.toggle("show-preview", view === "preview");
-  document.body.classList.toggle("show-codex", view === "codex");
-  document.body.classList.toggle("show-timeline", view === "timeline");
-  document.body.classList.toggle("show-characters", view === "characters");
-  document.body.classList.toggle("show-bibliography", view === "bibliography");
-  document.body.classList.toggle("show-map", view === "map");
-  previewBtn.textContent = view === "preview" ? "Edit" : "Preview";
-  previewBtn.classList.toggle("active", view === "preview");
-  codexBtn.classList.toggle("active", view === "codex");
-  timelineBtn.classList.toggle("active", view === "timeline");
-  charactersBtn.classList.toggle("active", view === "characters");
-  bibliographyBtn.classList.toggle("active", view === "bibliography");
-  mapBtn.classList.toggle("active", view === "map");
+  for (const v of PANEL_VIEWS) {
+    document.body.classList.toggle(`show-${v}`, view === v);
+  }
+  viewSelect.value = view; // `editor` (no class) is the default option
   // Leaflet needs a visible, sized container: create it on first show, and
   // recompute its size on later shows (it was display:none in between).
   if (view === "map") {
@@ -859,24 +848,7 @@ function setView(view) {
   }
 }
 
-previewBtn.addEventListener("click", () => {
-  setView(document.body.classList.contains("show-preview") ? "editor" : "preview");
-});
-codexBtn.addEventListener("click", () => {
-  setView(document.body.classList.contains("show-codex") ? "editor" : "codex");
-});
-timelineBtn.addEventListener("click", () => {
-  setView(document.body.classList.contains("show-timeline") ? "editor" : "timeline");
-});
-charactersBtn.addEventListener("click", () => {
-  setView(document.body.classList.contains("show-characters") ? "editor" : "characters");
-});
-bibliographyBtn.addEventListener("click", () => {
-  setView(document.body.classList.contains("show-bibliography") ? "editor" : "bibliography");
-});
-mapBtn.addEventListener("click", () => {
-  setView(document.body.classList.contains("show-map") ? "editor" : "map");
-});
+viewSelect.addEventListener("change", () => setView(viewSelect.value));
 
 // Codex, timeline, character, and bibliography links carry the target heading's
 // char offset. The editor is hidden while they show, so switch back first, then
