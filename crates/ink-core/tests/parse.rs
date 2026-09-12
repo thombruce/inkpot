@@ -256,6 +256,82 @@ fn codex_resolves_and_backlinks_across_project_files() {
 }
 
 #[test]
+fn citations_render_author_date() {
+    // Author-date short forms: one surname, two joined with "and", 3+ as "et al.",
+    // a locator appended, and an unresolved key left raw.
+    let src = "~~~ S\n\n[@a], [@b], [@c, p. 5], and [@none].\n\n% Sources\n\n\
+        %% One\nid: a\nauthor: Ferber, E.\nyear: 2011\n\n\
+        %% Two\nid: b\nauthor: Pears, R. and Shields, G.\nyear: 2019\n\n\
+        %% Three\nid: c\nauthor: Alpha, A. and Beta, B. and Gamma, G.\nyear: 2020\n";
+    let m = render(&parse(src), View::Manuscript);
+    assert!(m.contains("(Ferber, 2011)"), "single author: {m}");
+    assert!(m.contains("(Pears and Shields, 2019)"), "two authors: {m}");
+    assert!(m.contains("(Alpha et al., 2020, p. 5)"), "3+ authors + locator: {m}");
+    assert!(m.contains("[@none]"), "unresolved cite should stay raw: {m}");
+
+    // No author -> title fallback; year still appended. Institutional author (no
+    // comma) is kept whole rather than clipped to a surname.
+    let fb = "~~~ S\n\n[@n] [@org].\n\n% S\n\n%% Untitled Note\nid: n\nyear: 1999\n\n\
+        %% Org Source\nid: org\nauthor: World Health Organization\nyear: 2003\n";
+    let mf = render(&parse(fb), View::Manuscript);
+    assert!(mf.contains("(Untitled Note, 1999)"), "title fallback: {mf}");
+    assert!(mf.contains("(World Health Organization, 2003)"), "institutional author: {mf}");
+
+    // Preview HTML wraps the resolved citation in a cite span.
+    let html = ink_core::render_html(&parse(src));
+    assert!(html.contains("<span class=\"cite\">(Ferber, 2011)</span>"), "html cite: {html}");
+}
+
+#[test]
+fn bibliography_lists_cited_sources_harvard() {
+    let src = "~~~ S\n\n[@b] then [@a, p. 3].\n\n% Sources\n\n\
+        %% One\nid: a\nauthor: Pears, R. and Shields, G.\nyear: 2019\ntitle: Cite Them Right\nedition: 11th\nplace: London\npublisher: Red Globe Press\n\n\
+        %% Two\nid: b\nauthor: Ferber, E.\nyear: 2011\ntitle: A History\n\n\
+        %% Uncited\nid: c\nauthor: Nobody, N.\nyear: 2000\n";
+    let html = ink_core::render_bibliography_html(&parse(src));
+
+    assert!(html.contains("<h2>References</h2>"), "no heading: {html}");
+    // Full Harvard reference, title italicised, edition + place: publisher.
+    assert!(
+        html.contains("Pears, R. and Shields, G. (2019) <em>Cite Them Right</em>. 11th edn. London: Red Globe Press."),
+        "reference mis-formatted: {html}"
+    );
+    assert!(html.contains("Ferber, E. (2011) <em>A History</em>."), "minimal reference: {html}");
+    // Uncited source is absent (References list, not a catalogue).
+    assert!(!html.contains("Nobody"), "uncited source leaked in: {html}");
+    // Sorted by surname: Ferber before Pears, regardless of citation/doc order.
+    assert!(html.find("Ferber").unwrap() < html.find("Pears").unwrap(), "not surname-sorted: {html}");
+    // Each entry jumps to its source heading.
+    assert!(html.contains("class=\"reference\" data-jump="), "no jump: {html}");
+
+    // A file that cites nothing yields no bibliography.
+    assert!(ink_core::render_bibliography_html(&parse("~~~ S\n\nPlain prose.\n")).is_empty());
+}
+
+#[test]
+fn example_notes_citations_backlink_to_sources() {
+    // Guards examples/notes.ink: its inline [@key] citations resolve to the source
+    // entities defined in the same file, so each source shows a backlink.
+    let html = ink_core::render_codex_html(&parse(include_str!("../../../examples/notes.ink")));
+    // Both sources are in one "Sources" section; the section must carry the
+    // backlinks the two inline [@key] cites produce.
+    let sources = html
+        .split("<section")
+        .find(|s| s.contains("baker-guild-1988") && s.contains("ferber-2011"))
+        .unwrap_or_else(|| panic!("no Sources section: {html}"));
+    assert_eq!(
+        sources.matches("Referenced by").count(),
+        2,
+        "both example sources should be cited: {sources}"
+    );
+
+    // The bibliography lists both cited sources, Harvard-formatted.
+    let bib = ink_core::render_bibliography_html(&parse(include_str!("../../../examples/notes.ink")));
+    assert!(bib.contains("(2011) <em>A Social History of the London Bakehouse</em>"), "Ferber ref: {bib}");
+    assert!(bib.contains("<em>Enrolment Rolls of the Bakers&#x27; Guild</em>") || bib.contains("Enrolment Rolls of the Bakers"), "guild ref: {bib}");
+}
+
+#[test]
 fn example_project_codex_is_cross_file() {
     // The examples/ folder is one project; notes.ink references entities defined
     // in codex.ink. Opening the project must resolve those across files. Guards
@@ -442,6 +518,52 @@ fn wikilink_in_prose_backlinks_to_entity() {
     let html = ink_core::render_codex_html(&parse(src));
     assert!(html.contains("Referenced by"), "no backlink from prose: {html}");
     assert!(html.contains(">Scene</a>"), "scene not backlinked: {html}");
+}
+
+#[test]
+fn citation_parses_roundtrips_and_backlinks() {
+    // [@key] and [@key, locator] parse to Cite; the key resolves like a link, so
+    // the cited source earns a codex backlink. (Author-date rendering is a later
+    // phase — here the manuscript still shows the raw source form.)
+    let src = "~~~ Scene\n\nAs argued [@pears-2019, p. 42] and again [@pears-2019].\n\n% Sources\n\n%% Cite Them Right\nid: pears-2019\n";
+    let doc = parse(src);
+    let scene = &doc.children[0];
+    let para = scene.body.iter().find_map(|b| match b {
+        Block::Para(s) => Some(s),
+        _ => None,
+    }).unwrap();
+    let cites: Vec<_> = para.iter().filter_map(|s| match s {
+        Inline::Cite { key, locator } => Some((key.as_str(), locator.as_str())),
+        _ => None,
+    }).collect();
+    assert_eq!(cites, vec![("pears-2019", "p. 42"), ("pears-2019", "")]);
+
+    // Edit round-trips both forms verbatim.
+    let edit = render(&doc, View::Edit);
+    assert!(edit.contains("[@pears-2019, p. 42]"), "locator form lost: {edit}");
+    assert!(edit.contains("[@pears-2019]"), "bare form lost: {edit}");
+
+    // The cited source gets a backlink from the citing scene.
+    let html = ink_core::render_codex_html(&doc);
+    let sources = html.split("<section").find(|s| s.contains(">Cite Them Right<")).unwrap();
+    assert!(sources.contains("Referenced by"), "citation produced no backlink: {sources}");
+
+    // A citation of an unknown key still parses (leaves prose alone), but names no
+    // entity, so it produces no phantom backlink.
+    let miss = ink_core::render_codex_html(&parse("~~~ S\n\n[@ghost].\n\n% P\n\n%% Bob\nid: bob\n"));
+    assert!(!miss.contains("Referenced by"), "unknown cite key backlinked: {miss}");
+
+    // Not-a-citation stays literal: an empty key `[@]`, or `[@` with no closing `]`.
+    let lit = parse("~~~ S\n\nsee [@] and also [@ unclosed\n");
+    let text: String = match &lit.children[0].body[0] {
+        Block::Para(spans) => spans.iter().map(|s| match s {
+            Inline::Text(t) => t.clone(),
+            Inline::Cite { .. } => "<CITE>".into(),
+            _ => String::new(),
+        }).collect(),
+        _ => String::new(),
+    };
+    assert!(!text.contains("<CITE>"), "malformed citation wrongly parsed: {text}");
 }
 
 #[test]

@@ -6,7 +6,7 @@ import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
-import { DOC_KEYS, SCENE_KEYS, metaZone, valueSegment, HEADING } from "./metacomplete.js";
+import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, HEADING } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 import { scaffoldCharacter } from "./character.js";
 import L from "leaflet";
@@ -25,6 +25,7 @@ const previewEl = document.getElementById("preview");
 const codexEl = document.getElementById("codex");
 const timelineEl = document.getElementById("timeline");
 const charactersEl = document.getElementById("characters");
+const bibliographyEl = document.getElementById("bibliography");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
 const recentEl = document.getElementById("recent");
@@ -282,13 +283,14 @@ const refresh = debounce(async () => {
   const codexFiles = projectRoot
     ? await Promise.all(allFiles(projectTree).map(async (p) => ({ path: p, src: await readSource(p) })))
     : [{ path: "", src }];
-  const [tree, html, codexHtml, timelineHtml, charactersHtml, markers, sceneData] =
+  const [tree, html, codexHtml, timelineHtml, charactersHtml, bibliographyHtml, markers, sceneData] =
     await Promise.all([
       invoke("outline", { src }),
       invoke("preview", { src }),
       invoke("codex_project", { files: codexFiles }),
       invoke("timeline", { src }),
       invoke("characters", { src }),
+      invoke("bibliography", { src }),
       invoke("map", { src }),
       invoke("scenes", { src }),
     ]);
@@ -298,6 +300,7 @@ const refresh = debounce(async () => {
   codexEl.innerHTML = codexHtml;
   timelineEl.innerHTML = timelineHtml;
   charactersEl.innerHTML = charactersHtml;
+  bibliographyEl.innerHTML = bibliographyHtml;
   mapMarkers = markers;
   sceneList = sceneData;
   updateWorlds();
@@ -395,7 +398,7 @@ function completeMetaKey(context) {
   if (!context.explicit && before.length === 0) return null; // don't pop on an empty line
   const zone = metaZone((n) => context.state.doc.line(n).text, line.number);
   if (!zone) return null;
-  const keys = zone === "front" ? DOC_KEYS : SCENE_KEYS;
+  const keys = zone === "front" ? DOC_KEYS : [...new Set([...SCENE_KEYS, ...SOURCE_KEYS])];
   return {
     from: line.from,
     options: keys.map((k) => ({ label: k, type: "property", apply: `${k}: ` })),
@@ -829,6 +832,7 @@ const previewBtn = document.getElementById("togglePreview");
 const codexBtn = document.getElementById("toggleCodex");
 const timelineBtn = document.getElementById("toggleTimeline");
 const charactersBtn = document.getElementById("toggleCharacters");
+const bibliographyBtn = document.getElementById("toggleBibliography");
 const mapBtn = document.getElementById("toggleMap");
 
 function setView(view) {
@@ -836,12 +840,14 @@ function setView(view) {
   document.body.classList.toggle("show-codex", view === "codex");
   document.body.classList.toggle("show-timeline", view === "timeline");
   document.body.classList.toggle("show-characters", view === "characters");
+  document.body.classList.toggle("show-bibliography", view === "bibliography");
   document.body.classList.toggle("show-map", view === "map");
   previewBtn.textContent = view === "preview" ? "Edit" : "Preview";
   previewBtn.classList.toggle("active", view === "preview");
   codexBtn.classList.toggle("active", view === "codex");
   timelineBtn.classList.toggle("active", view === "timeline");
   charactersBtn.classList.toggle("active", view === "characters");
+  bibliographyBtn.classList.toggle("active", view === "bibliography");
   mapBtn.classList.toggle("active", view === "map");
   // Leaflet needs a visible, sized container: create it on first show, and
   // recompute its size on later shows (it was display:none in between).
@@ -867,13 +873,17 @@ timelineBtn.addEventListener("click", () => {
 charactersBtn.addEventListener("click", () => {
   setView(document.body.classList.contains("show-characters") ? "editor" : "characters");
 });
+bibliographyBtn.addEventListener("click", () => {
+  setView(document.body.classList.contains("show-bibliography") ? "editor" : "bibliography");
+});
 mapBtn.addEventListener("click", () => {
   setView(document.body.classList.contains("show-map") ? "editor" : "map");
 });
 
-// Codex, timeline, and character links carry the target heading's char offset.
-// The editor is hidden while they show, so switch back first, then scroll to it.
-for (const panel of [codexEl, timelineEl, charactersEl]) {
+// Codex, timeline, character, and bibliography links carry the target heading's
+// char offset. The editor is hidden while they show, so switch back first, then
+// scroll to it.
+for (const panel of [codexEl, timelineEl, charactersEl, bibliographyEl]) {
   panel.addEventListener("click", async (e) => {
     const link = e.target.closest("[data-jump]");
     if (!link) return;

@@ -98,6 +98,10 @@ const inkMode = StreamLanguage.define({
     // Wikilink [[Target]] — cross-reference to a codex entity.
     if (stream.match(/^\[\[[^\]]+\]\]/)) return "link";
 
+    // Citation [@key] or [@key, locator] — a reference to a source entity.
+    // Shares the link tag (a citation is a reference); distinct styling later.
+    if (stream.match(/^\[@[^\]]+\]/)) return "link";
+
     // Emphasis with flanking. Order matters: bold before italic.
     const s = stream.string, p = stream.pos;
     if (s.startsWith("**", p) && flankOpen(s, p + 2)) {

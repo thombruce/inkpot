@@ -82,17 +82,19 @@ body {
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
 body.hide-outline .outline { display: none; }
-.editor, .preview, .codex, .timeline, .characters, .map { flex: 1; border-right: none; }
-.preview, .codex, .timeline, .characters, .map { display: none; }
+.editor, .preview, .codex, .timeline, .characters, .bibliography, .map { flex: 1; border-right: none; }
+.preview, .codex, .timeline, .characters, .bibliography, .map { display: none; }
 body.show-preview .editor,
 body.show-codex .editor,
 body.show-timeline .editor,
 body.show-characters .editor,
+body.show-bibliography .editor,
 body.show-map .editor { display: none; }
 body.show-preview .preview { display: block; }
 body.show-codex .codex { display: block; }
 body.show-timeline .timeline { display: block; }
 body.show-characters .characters { display: flex; flex-direction: column; }
+body.show-bibliography .bibliography { display: block; }
 body.show-map .map { display: flex; flex-direction: column; }
 /* Map fills the pane; the time-scrub bar sits below it. Leaflet needs the
    container to have a real height — flex:1 in the column gives it one. */
@@ -301,6 +303,14 @@ body.show-map .map { display: flex; flex-direction: column; }
   color: var(--dim);
   font: 14px/1.6 system-ui, sans-serif;
 }
+/* Bibliography: a References list of the sources cited with [@key]. */
+#bibliography:empty::after {
+  content: "No citations yet — cite a source with [@key], where the key is a % entity's id.";
+  color: var(--dim);
+  font: 14px/1.6 system-ui, sans-serif;
+}
+#bibliography .bibliography { padding-left: 1.5em; }
+#bibliography .reference { margin: 0 0 0.6em; cursor: pointer; }
 
 /* Timeline: headings with a time: value, in story-time order. */
 .timeline .timeline {

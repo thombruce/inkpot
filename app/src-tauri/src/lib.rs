@@ -3,9 +3,9 @@
 
 use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
-    build_shunn, build_shunn_book, map_markers, parse, render, render_characters_html,
-    render_codex_project_html, render_html, render_timeline_html, resolve_titles, scene_timeline,
-    word_count, Node, Span, View, Visibility,
+    build_shunn, build_shunn_book, map_markers, parse, render, render_bibliography_html,
+    render_characters_html, render_codex_project_html, render_html, render_timeline_html,
+    resolve_titles, scene_timeline, word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -118,6 +118,13 @@ fn characters(src: String) -> String {
     render_characters_html(&parse(&src))
 }
 
+/// Render the bibliography — a Harvard reference list of the sources this file
+/// cites via `[@key]` — as HTML for the bibliography panel.
+#[tauri::command]
+fn bibliography(src: String) -> String {
+    render_bibliography_html(&parse(&src))
+}
+
 /// A location marker for the map view: title, position, and jump offset.
 #[derive(Serialize)]
 struct Marker {
@@ -190,8 +197,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex_project, timeline, characters, map, scenes,
-            export_shunn, export_shunn_book
+            outline, preview, manuscript, codex_project, timeline, characters, bibliography, map,
+            scenes, export_shunn, export_shunn_book
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

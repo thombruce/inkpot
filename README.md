@@ -99,6 +99,12 @@ unlike a title, an `id` never counts as an outgoing reference to another entity.
   its `id:`). Prints the entity's title in every view — `[[alice]]` shows "Alice
   Hargrove" — falling back to the raw target if nothing matches; in the codex it
   also adds the scene to that entity's backlinks. Escape a literal `[` with `\[`.
+- `[@key]` or `[@key, p. 42]` — a citation of a source. The key is a `%` entity's
+  `id:` or title; a source is just a codex entity carrying bibliographic metadata
+  (`author`, `year`, `title`, `edition`, `place`, `publisher`). Prints as Harvard
+  author-date — `(Ferber, 2011, p. 42)` — and, like a wikilink, backlinks the
+  source; the **Bibliography** view collates the cited sources into a reference
+  list. Enter `author` surname-first (`Ferber, E.`). An unresolved key stays raw.
 
 ### Interpolation
 
@@ -131,6 +137,8 @@ raw.
 - **Codex** — the excluded (`%`) subtrees as a grouped entity index: each `%`
   section (Characters, Locations, Timeline, …) with its entries and their
   metadata. A knowledge base derived from what you already write, no new syntax.
+- **Bibliography** — a Harvard reference list of the sources you cite with
+  `[@key]`, sorted by author; only cited sources appear.
 
 The desktop app adds three **planning panels** that project from the same
 metadata — read-only, click an entry to jump to it in the editor:

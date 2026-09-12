@@ -104,6 +104,19 @@ no `% Characters` section. Text is escaped for `innerHTML`. The panel's one writ
 scaffolding a new `%% Name` entry — is a frontend text splice (`app/src/character.js`),
 not an IPC call; text stays canonical.
 
+### `bibliography(src: string) -> string`
+
+Returns the **bibliography** as HTML: a Harvard reference list of the sources this
+file cites via `[@key]`. Every citation (in visible prose or `%` notes) resolves
+to a codex entity — by `id` or title, id wins, matching what prints inline — and
+the cited entities are de-duplicated, sorted by first-author surname then year,
+and formatted from their metadata (`author`, `year`, `title`, `edition`, `place`,
+`publisher`): `Author (Year) <em>Title</em>. Edition edn. Place: Publisher.` Only
+cited sources appear (a References list, not a catalogue); empty (no output) if
+the file cites nothing. Each `<li class="reference" data-jump="offset">` jumps to
+its source heading like the codex. Per-file, matching inline citation resolution
+(#84). Text is escaped for `innerHTML`.
+
 ### `map(src: string) -> Marker[]`
 
 Returns the map markers as **structured JSON** (not HTML — Leaflet places markers
