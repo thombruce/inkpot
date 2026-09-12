@@ -1125,6 +1125,9 @@ pub fn render_bibliography_html(root: &Node) -> String {
         entities[i].meta.iter().find(|(k, _)| k == YEAR).map(|(_, v)| v.trim().to_string()).unwrap_or_default()
     };
     // Sort by first-author surname (folded), then year.
+    // ponytail: year is a lexicographic string compare — correct for 4-digit
+    // years; `n.d.`/`c. 1990`/3-digit years mis-order. Secondary key only
+    // (surname is primary), so low impact; parse to a sort value if it bites.
     cited.sort_by(|&a, &b| {
         first_surname(&entities[a], &title_of(a))
             .cmp(&first_surname(&entities[b], &title_of(b)))

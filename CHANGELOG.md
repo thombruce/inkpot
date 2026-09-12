@@ -17,9 +17,6 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   formatted reference list from their `author`/`year`/`title`/`edition`/`place`/
   `publisher` metadata. Enter `author` surname-first (`Ferber, E.`). Resolution is
   per-file for now; project-wide is a follow-up (#84).
-
-### Added
-
 - **Cross-file codex**: in a multi-file project the codex now spans every file —
   a `[[wikilink]]` or metadata reference resolves to a `%` entity in any file,
   and an entity's "Referenced by" list gathers referrers project-wide. Clicking a
