@@ -636,6 +636,44 @@ fn citation_parses_roundtrips_and_backlinks() {
 }
 
 #[test]
+fn house_sigils_parse_as_aliases() {
+    // {&link} {@cite} {=interp} parse to the same constructs as [[ ]] / [@ ] / {{ }}.
+    let src = "~~~ S\n\nSee {&alice} and {@smith2020, p. 5}. Chapter {=number}.\n\n\
+        % P\n\n%% Alice Hargrove\nid: alice\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n";
+    let doc = parse(src);
+    let para = doc.children[0].body.iter().find_map(|b| match b {
+        Block::Para(s) => Some(s),
+        _ => None,
+    }).unwrap();
+    assert!(para.iter().any(|s| matches!(s, Inline::Link(t) if t == "alice")), "{{&}} not a Link: {para:?}");
+    assert!(
+        para.iter().any(|s| matches!(s, Inline::Cite(items) if items[0].key == "smith2020" && items[0].locator == "p. 5")),
+        "{{@}} not a Cite: {para:?}"
+    );
+
+    // Manuscript resolves them, and house renders identically to the borrowed forms.
+    let m = render(&doc, View::Manuscript);
+    assert!(m.contains("Alice Hargrove"), "house link unresolved: {m}");
+    assert!(m.contains("(Smith, 2020, p. 5)"), "house cite unresolved: {m}");
+    assert!(m.contains("Chapter 1."), "house interp unresolved: {m}");
+    let borrowed = "~~~ S\n\nSee [[alice]] and [@smith2020, p. 5]. Chapter {{number}}.\n\n\
+        % P\n\n%% Alice Hargrove\nid: alice\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n";
+    assert_eq!(render(&parse(borrowed), View::Manuscript), m, "house and borrowed must render identically");
+
+    // Grouped house citation.
+    let grp = parse("~~~ S\n\n{@a; @b}.\n\n% P\n\n%% A\nid: a\nauthor: X, Y.\nyear: 2020\n\n%% B\nid: b\nauthor: Z, W.\nyear: 2019\n");
+    assert!(render(&grp, View::Manuscript).contains("(X, 2020; Z, 2019)"), "house group render");
+
+    // An unresolved house interpolation keeps its own form (not rewritten to {{}}).
+    assert!(render(&parse("~~~ S\n\n{=nope}.\n"), View::Manuscript).contains("{=nope}"), "unresolved {{=}} should stay raw");
+
+    // Bare `&` in prose is untouched (only `{&` triggers); empty `{@}` isn't a cite.
+    let lit = parse("~~~ S\n\nAT&T and R&D, but {@} is nothing.\n");
+    let has_cite = matches!(&lit.children[0].body[0], Block::Para(s) if s.iter().any(|x| matches!(x, Inline::Cite(..))));
+    assert!(!has_cite, "bare & or empty {{@}} wrongly parsed");
+}
+
+#[test]
 fn grouped_multicite_renders_one_parenthetical() {
     // `[@a; @b, p. 5]` groups several sources in one parenthetical, with per-item
     // locators; every key backlinks its source.

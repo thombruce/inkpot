@@ -86,8 +86,9 @@ const inkMode = StreamLanguage.define({
       return null;
     }
 
-    // Interpolation {{expr}} — resolved at render time (numbering, metadata).
+    // Interpolation — resolved at render time. Borrowed {{expr}} or house {=expr}.
     if (stream.match(/^\{\{[^}]*\}\}/)) return "interp";
+    if (stream.match(/^\{=[^}]*\}/)) return "interp";
 
     // CriticMarkup.
     if (stream.match(/^\{\+[^}]*\}/)) return "insert";
@@ -95,13 +96,15 @@ const inkMode = StreamLanguage.define({
     if (stream.match(/^\{~[^}]*\}/)) return "sub";
     if (stream.match(/^\{\/[^}]*\}/)) return "comment";
 
-    // Wikilink [[Target]] — cross-reference to a codex entity.
-    if (stream.match(/^\[\[[^\]]+\]\]/)) return "link";
-
-    // Citation [@key], [@key, locator], or a group [@a; @b] — a reference to one
-    // or more source entities. Shares the link tag (a citation is a reference);
-    // distinct styling later.
+    // Citation — a reference to one or more source entities. Borrowed [@…] or
+    // house {@…} ([@key], [@key, loc], or a group [@a; @b]). Shares the link tag.
     if (stream.match(/^\[@[^\]]+\]/)) return "link";
+    if (stream.match(/^\{@[^}]+\}/)) return "link";
+
+    // Wikilink — cross-reference to a codex entity by name. Borrowed [[Target]] or
+    // house {&Target}. Shares the link tag.
+    if (stream.match(/^\[\[[^\]]+\]\]/)) return "link";
+    if (stream.match(/^\{&[^}]+\}/)) return "link";
 
     // Emphasis with flanking. Order matters: bold before italic.
     const s = stream.string, p = stream.pos;
