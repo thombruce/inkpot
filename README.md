@@ -129,6 +129,13 @@ A `\{{` in a heading is a literal `{{`. Interpolation is not resolved inside a
 `[[wikilink]]` target — that names an entity literally, so `[[{{key}}]]` stays
 raw.
 
+> **House-style aliases (accepted now, canonical later).** The three
+> reference/substitution forms may also be written with a leading-sigil brace —
+> `{&target}` (wikilink), `{@key}` (citation), `{=expr}` (interpolation) — which
+> read as one family with CriticMarkup's `{+ } {- } {~ } {/ }`. Today they're
+> accepted as input and render identically to the borrowed forms above; a future
+> release makes them the canonical style you'd get on save (see #102).
+
 ### Views
 
 - **Manuscript** — print view as Markdown: visible headings (`#` by depth),
