@@ -221,7 +221,7 @@ fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
 }
 
 /// Scan a paragraph's text into inline spans.
-fn scan_inline(text: &str) -> Vec<Inline> {
+pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -248,6 +248,18 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 i = next + len;
                 plain_start = i;
                 continue;
+            }
+        }
+        // Interpolation {{…}} / {=…} is resolved later by `substitute`, not here.
+        // Skip over it as literal text so its inner braces/dashes aren't mis-scanned
+        // as CriticMarkup (e.g. the `{-` in `{{-1 * n}}` is not a deletion). Kept in
+        // the plain run so the whole expression reaches `substitute` intact.
+        for (open, close) in [("{{", "}}"), ("{=", "}")] {
+            if text[i..].starts_with(open) {
+                if let Some(end) = find(text, i + open.len(), close) {
+                    i = end + close.len();
+                    continue 'scan;
+                }
             }
         }
         // CriticMarkup: {+ {- {~ {/

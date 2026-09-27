@@ -1056,3 +1056,28 @@ fn heading_size_follows_visible_depth_not_marker_count() {
     assert!(html.contains("<h1>Book Title</h1>"), "{html}");
     assert!(html.contains("<h2>Chapter One</h2>"), "{html}");
 }
+
+#[test]
+fn headings_render_inline_markup() {
+    // Emphasis + CriticMarkup in a heading (#100): Markdown keeps `**`, sub resolves.
+    let doc = parse("# The **Great** {~War~Conflict}\n\nBody.\n");
+    assert!(render(&doc, View::Manuscript).contains("# The **Great** Conflict"), "manuscript: {}", render(&doc, View::Manuscript));
+    // HTML heading renders inline as tags.
+    let html = ink_core::render_html(&doc);
+    assert!(html.contains("<h1>The <strong>Great</strong> Conflict</h1>"), "html: {html}");
+    // Edit round-trips the raw source title unchanged.
+    assert!(render(&doc, View::Edit).contains("# The **Great** {~War~Conflict}"), "edit: {}", render(&doc, View::Edit));
+    // Outline label is plain: markers stripped, sub resolved.
+    assert!(render(&doc, View::Outline).contains("The Great Conflict"), "outline: {}", render(&doc, View::Outline));
+
+    // A link in a heading resolves to the entity's title (full ctx at output).
+    let l = parse("# About [[alice]]\n\n% P\n\n%% Alice Hargrove\nid: alice\n");
+    assert!(render(&l, View::Manuscript).contains("# About Alice Hargrove"), "heading link: {}", render(&l, View::Manuscript));
+
+    // A heading with markup is still linkable by its markup-stripped title.
+    let ent = parse("~~~ S\n\n[[the great war]].\n\n% P\n\n%% The **Great** War\n");
+    assert!(ink_core::render_codex_html(&ent).contains("Referenced by"), "markup title unmatched by plain link");
+
+    // Regression: {{-1 * n}} interpolation isn't mis-scanned as a {- deletion.
+    assert!(render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"), "interp-in-heading regression");
+}
