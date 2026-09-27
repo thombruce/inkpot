@@ -237,14 +237,17 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
     }
 
     'scan: while i < bytes.len() {
-        // Backslash escape: the next char is literal (drops the backslash).
+        // Backslash escape: the next char is a literal marker. Kept as `Escaped`
+        // (not plain `Text`) so the edit/source round-trip can re-emit the `\` —
+        // otherwise the char could re-form a marker on reparse (e.g. `\{{` → live
+        // interpolation). Prints as the bare char in every other view.
         if bytes[i] == b'\\' && i + 1 < bytes.len() {
             let next = i + 1;
             let len = next_char_len(bytes, next);
             let ch = &text[next..next + len];
             if is_escapable(ch) {
                 flush_plain!(i);
-                out.push(Inline::Text(ch.to_string()));
+                out.push(Inline::Escaped(ch.to_string()));
                 i = next + len;
                 plain_start = i;
                 continue;

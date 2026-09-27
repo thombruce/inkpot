@@ -209,6 +209,7 @@ fn plain_inline(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Sub { new, .. } => plain_inlines(new, ctx),
         Inline::Link(s) => link_text(s, &ctx.links),
         Inline::Cite(items) => cite_text(items, &ctx.cites),
+        Inline::Escaped(s) => s.clone(),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -954,7 +955,7 @@ fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
             // A citation is a reference to its source — resolves like a link, so
             // the cited entity earns a backlink.
             Inline::Cite(items) => out.extend(items.iter().map(|it| it.key.as_str())),
-            Inline::Text(_) | Inline::Comment(_) => {}
+            Inline::Text(_) | Inline::Comment(_) | Inline::Escaped(_) => {}
         }
     }
 }
@@ -1498,6 +1499,7 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Cite(items) => {
             format!("<span class=\"cite\">{}</span>", escape(&cite_text(items, &ctx.cites)))
         }
+        Inline::Escaped(s) => escape(s),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -1623,6 +1625,7 @@ fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Sub { new, .. } => print_inlines(new, ctx),
         Inline::Link(s) => link_text(s, &ctx.links),
         Inline::Cite(items) => cite_text(items, &ctx.cites),
+        Inline::Escaped(s) => s.clone(),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -1698,5 +1701,7 @@ fn inline_source(span: &Inline) -> String {
         Inline::Comment(s) => format!("{{/{s}}}"),
         Inline::Link(s) => format!("{{&{s}}}"),
         Inline::Cite(items) => cite_source(items),
+        // Re-emit the escaping backslash so the literal survives a reparse.
+        Inline::Escaped(s) => format!("\\{s}"),
     }
 }

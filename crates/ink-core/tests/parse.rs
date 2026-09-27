@@ -857,16 +857,31 @@ fn leading_and_trailing_asterisks_stay_literal() {
 
 #[test]
 fn backslash_escapes_markers() {
-    // \* -> literal asterisk, no emphasis; \{ -> literal brace.
+    // \* -> literal asterisk, no emphasis; \{ -> literal brace. Escaped markers are
+    // kept as `Escaped` nodes (not plain `Text`) so the edit view can re-emit `\`.
     let spans = inlines(r"a \*star\* and a \{brace");
     let joined: String = spans
         .iter()
         .map(|s| match s {
             Inline::Text(t) => t.clone(),
+            Inline::Escaped(t) => t.clone(),
             other => panic!("unexpected span {other:?}"),
         })
         .collect();
     assert_eq!(joined, "a *star* and a {brace");
+    // The literal markers are `Escaped`, and the edit view round-trips the `\`.
+    assert!(spans.iter().any(|s| matches!(s, Inline::Escaped(t) if t == "*")), "escape not preserved: {spans:?}");
+    let doc = parse("~~~ S\n\nLiteral \\{{number}} and \\*not italic\\*.\n");
+    let edit = render(&doc, View::Edit);
+    assert!(edit.contains(r"\{{number}}"), "edit dropped the interp escape: {edit}");
+    assert!(edit.contains(r"\*not italic\*"), "edit dropped the emphasis escape: {edit}");
+    // Meaning-preserving: an escaped marker stays literal through fmt (no re-forming).
+    assert_eq!(
+        render(&parse(&edit), View::Manuscript),
+        render(&doc, View::Manuscript),
+        "escaped markers changed meaning through canonicalization"
+    );
+    assert!(render(&doc, View::Manuscript).contains("Literal {{number}} and *not italic*."), "manuscript escape: {}", render(&doc, View::Manuscript));
 }
 
 #[test]

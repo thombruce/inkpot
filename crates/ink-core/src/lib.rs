@@ -98,6 +98,11 @@ pub enum Inline {
     /// author-date reference; a group renders in one parenthetical
     /// (`(A, 2020; B, 2019)`). The bibliography collates every cited source.
     Cite(Vec<CiteItem>),
+    /// A backslash-escaped literal marker char (`\{`, `\*`, `\[`, …). Prints as the
+    /// bare char in every view *except* the edit/source round-trip, which re-emits
+    /// the `\` — so an escape survives `ink fmt` instead of the char re-forming a
+    /// marker (e.g. `\{{` staying literal rather than becoming interpolation).
+    Escaped(String),
 }
 
 /// One reference within a [`Inline::Cite`]: a source `key` (an entity's `id` or
