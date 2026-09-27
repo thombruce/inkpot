@@ -199,6 +199,27 @@ fn flush_body(node: &mut Node, lines: &mut Vec<&str>) {
     lines.clear();
 }
 
+/// Parse the inside of a citation (`[@…]` or `{@…}`) into items. Split on `;`;
+/// each item is `[@]key[, locator]` — strip an optional leading `@` (the first
+/// item's `@` was the trigger; the rest carry their own), then split the first
+/// comma into key + locator. Empty-key items are dropped.
+/// ponytail: a locator containing `;` (e.g. `pp. 1; 3`) mis-splits — `;` is the
+/// item separator; rare, unsupported.
+fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
+    inside
+        .split(';')
+        .filter_map(|item| {
+            let item = item.trim();
+            let item = item.strip_prefix('@').unwrap_or(item);
+            let (key, locator) = match item.split_once(',') {
+                Some((k, l)) => (k.trim(), l.trim()),
+                None => (item.trim(), ""),
+            };
+            (!key.is_empty()).then(|| CiteItem { key: key.to_string(), locator: locator.to_string() })
+        })
+        .collect()
+}
+
 /// Scan a paragraph's text into inline spans.
 fn scan_inline(text: &str) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
@@ -215,7 +236,7 @@ fn scan_inline(text: &str) -> Vec<Inline> {
         };
     }
 
-    while i < bytes.len() {
+    'scan: while i < bytes.len() {
         // Backslash escape: the next char is literal (drops the backslash).
         if bytes[i] == b'\\' && i + 1 < bytes.len() {
             let next = i + 1;
@@ -239,46 +260,35 @@ fn scan_inline(text: &str) -> Vec<Inline> {
                 continue;
             }
         }
-        // Wikilink [[Target]] — cross-reference to a codex entity by name.
-        if text[i..].starts_with("[[") {
-            if let Some(end) = find(text, i + 2, "]]") {
-                let target = text[i + 2..end].trim();
-                if !target.is_empty() {
-                    flush_plain!(i);
-                    out.push(Inline::Link(target.to_string()));
-                    i = end + 2;
-                    plain_start = i;
-                    continue;
+        // Citation — borrowed `[@…]` or house `{@…}`, closed by `]`/`}`. Same
+        // grouped syntax either way (#99). See `parse_cite_items`.
+        for (open, close) in [("[@", "]"), ("{@", "}")] {
+            if text[i..].starts_with(open) {
+                if let Some(end) = find(text, i + 2, close) {
+                    let items = parse_cite_items(&text[i + 2..end]);
+                    if !items.is_empty() {
+                        flush_plain!(i);
+                        out.push(Inline::Cite(items));
+                        i = end + 1;
+                        plain_start = i;
+                        continue 'scan;
+                    }
                 }
             }
         }
-        // Citation [@key], [@key, locator], or a group [@a; @b, p. 5]. Split the
-        // inside on `;` into items; each item is `[@]key[, locator]` — strip an
-        // optional leading `@` (the first item's `@` was the `[@` trigger; the rest
-        // carry their own), then split the first comma into key + locator.
-        // ponytail: a locator containing `;` (e.g. `pp. 1; 3`) mis-splits — `;` is
-        // the item separator; rare, unsupported.
-        if text[i..].starts_with("[@") {
-            if let Some(end) = find(text, i + 2, "]") {
-                let items: Vec<CiteItem> = text[i + 2..end]
-                    .split(';')
-                    .filter_map(|item| {
-                        let item = item.trim();
-                        let item = item.strip_prefix('@').unwrap_or(item);
-                        let (key, locator) = match item.split_once(',') {
-                            Some((k, l)) => (k.trim(), l.trim()),
-                            None => (item.trim(), ""),
-                        };
-                        (!key.is_empty())
-                            .then(|| CiteItem { key: key.to_string(), locator: locator.to_string() })
-                    })
-                    .collect();
-                if !items.is_empty() {
-                    flush_plain!(i);
-                    out.push(Inline::Cite(items));
-                    i = end + 1;
-                    plain_start = i;
-                    continue;
+        // Wikilink — borrowed `[[Target]]` or house `{&Target}`; both reference a
+        // codex entity by name (#99). Closed by `]]` / `}`.
+        for (open, close, skip) in [("[[", "]]", 2), ("{&", "}", 1)] {
+            if text[i..].starts_with(open) {
+                if let Some(end) = find(text, i + 2, close) {
+                    let target = text[i + 2..end].trim();
+                    if !target.is_empty() {
+                        flush_plain!(i);
+                        out.push(Inline::Link(target.to_string()));
+                        i = end + skip;
+                        plain_start = i;
+                        continue 'scan;
+                    }
                 }
             }
         }

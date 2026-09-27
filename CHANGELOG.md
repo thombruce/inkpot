@@ -7,6 +7,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **House-style inline sigils accepted** alongside the borrowed forms: `{@key}`
+  (citation, = `[@key]`), `{&target}` (wikilink, = `[[target]]`), `{=expr}`
+  (interpolation, = `{{expr}}`). Same behaviour either way — this is input
+  recognition only; both spellings render identically. Groundwork for a single
+  brace-based inline vocabulary (#99, part of #102).
+
 ## [0.12.0] - 2026-09-12
 
 ### Changed

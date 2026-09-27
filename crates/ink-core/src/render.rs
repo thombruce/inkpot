@@ -295,35 +295,44 @@ fn resolve_titles_walk(node: &Node, ctx: &Ctx, map: &mut HashMap<usize, String>)
 // Text runs at render. Upgrade to a parse-time token (like `[[wikilinks]]`) only
 // if prose needs to escape a resolvable var.
 fn substitute(text: &str, ctx: &Ctx) -> String {
-    if !text.contains("{{") {
+    // Two accepted forms (#99): borrowed `{{expr}}` and house `{=expr}` (single
+    // brace). Same evaluation; an unresolved expression stays verbatim in the form
+    // it was written (canonicalisation to house style is a later, separate step).
+    if !text.contains("{{") && !text.contains("{=") {
         return text.to_string();
     }
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(pos) = rest.find("{{") {
+    loop {
+        // The earliest interpolation opener, with its matching closer.
+        let next = [("{{", "}}"), ("{=", "}")]
+            .into_iter()
+            .filter_map(|(open, close)| rest.find(open).map(|p| (p, open, close)))
+            .min_by_key(|&(p, _, _)| p);
+        let Some((pos, open, close)) = next else { break };
         if rest[..pos].ends_with('\\') {
             out.push_str(&rest[..pos - 1]); // drop the escaping backslash
-            out.push_str("{{");
-            rest = &rest[pos + 2..];
+            out.push_str(open);
+            rest = &rest[pos + open.len()..];
             continue;
         }
         out.push_str(&rest[..pos]);
-        let after = &rest[pos + 2..];
-        match after.find("}}") {
+        let after = &rest[pos + open.len()..];
+        match after.find(close) {
             Some(end) => {
                 let expr = &after[..end];
                 match eval(expr, ctx) {
                     Some(v) => out.push_str(&v),
                     None => {
-                        out.push_str("{{");
+                        out.push_str(open);
                         out.push_str(expr);
-                        out.push_str("}}");
+                        out.push_str(close);
                     }
                 }
-                rest = &after[end + 2..];
+                rest = &after[end + close.len()..];
             }
             None => {
-                out.push_str("{{");
+                out.push_str(open);
                 out.push_str(after);
                 rest = "";
             }
