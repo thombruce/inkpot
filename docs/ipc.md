@@ -107,6 +107,16 @@ no `% Characters` section. Text is escaped for `innerHTML`. The panel's one writ
 scaffolding a new `%% Name` entry — is a frontend text splice (`app/src/character.js`),
 not an IPC call; text stays canonical.
 
+### `normalize(src: string) -> string`
+
+Returns `src` re-serialized in the canonical **house style** (the `edit` view:
+`{&link}`, `{@cite}`, `{=interp}`). The app's on-save canonicalizer (#105): it's
+called when the user *leaves* a document (window blur, close, cross-file jump,
+explicit Save) — not on the keystroke-debounced autosave, so it never reflows
+text mid-sentence. Idempotent and meaning-preserving, so re-running is safe; the
+frontend applies the result as a minimal single-span edit (`app/src/mindiff.js`)
+so CodeMirror maps the caret across it.
+
 ### `bibliography(files: { path, src }[], active: string) -> string`
 
 Returns the **bibliography** as HTML: a Harvard reference list of the sources the
