@@ -1649,9 +1649,11 @@ fn cite_source(items: &[CiteItem]) -> String {
     format!("{{{}}}", parts.join("; "))
 }
 
-/// Rewrite borrowed interpolation `{{expr}}` to the house form `{=expr}` in raw
-/// text. An escaped `\{{` and an already-house `{=…}` are left as-is. Both forms
-/// parse identically, so this is a pure re-spelling — the canonical direction.
+/// Rewrite borrowed interpolation `{{expr}}` to the house form `{=expr}` in a
+/// Text node. Both forms parse identically, so this is a pure re-spelling — the
+/// canonical direction. Escapes need no handling here: a `\{` is lifted to an
+/// `Inline::Escaped` node during scanning, so a Text node never carries a `\`
+/// before `{{`.
 fn canon_interp(text: &str) -> String {
     if !text.contains("{{") {
         return text.to_string();
@@ -1659,11 +1661,6 @@ fn canon_interp(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(pos) = rest.find("{{") {
-        if rest[..pos].ends_with('\\') {
-            out.push_str(&rest[..pos + 2]); // keep the escaped `\{{` verbatim
-            rest = &rest[pos + 2..];
-            continue;
-        }
         out.push_str(&rest[..pos]);
         let after = &rest[pos + 2..];
         match after.find("}}") {
