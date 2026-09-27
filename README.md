@@ -134,12 +134,13 @@ A `\{{` in a heading is a literal `{{`. Interpolation is not resolved inside a
 `[[wikilink]]` target — that names an entity literally, so `[[{{key}}]]` stays
 raw.
 
-> **House-style aliases (accepted now, canonical later).** The three
-> reference/substitution forms may also be written with a leading-sigil brace —
-> `{&target}` (wikilink), `{@key}` (citation), `{=expr}` (interpolation) — which
-> read as one family with CriticMarkup's `{+ } {- } {~ } {/ }`. Today they're
-> accepted as input and render identically to the borrowed forms above; a future
-> release makes them the canonical style you'd get on save (see #102).
+> **House style.** The three reference/substitution forms have a canonical
+> leading-sigil brace form — `{&target}` (wikilink), `{@key}` (citation),
+> `{=expr}` (interpolation) — one family with CriticMarkup's `{+ } {- } {~ } {/ }`.
+> The borrowed forms above still parse (paste in Obsidian/Pandoc/Mustache markup
+> freely), but the house forms are what you get back: `ink fmt` normalizes a file
+> to them, and both render identically. Run `ink fmt --write <file.ink>` to
+> convert. (See #102.)
 
 ### Views
 
@@ -246,6 +247,7 @@ cargo run -p ink-cli -- render --view=manuscript examples/sample.ink
 cargo run -p ink-cli -- render --view=outline    examples/sample.ink
 cargo run -p ink-cli -- render --view=edit       examples/sample.ink
 cargo run -p ink-cli -- render --view=codex      examples/codex.ink
+cargo run -p ink-cli -- fmt --write              examples/sample.ink  # normalize to house style
 ```
 
 ### Desktop app
