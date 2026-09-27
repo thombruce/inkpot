@@ -7,27 +7,24 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-27
+
 ### Added
 
-- **Canonical house style + `ink fmt`.** The house sigils (`{&link}`, `{@cite}`,
-  `{=interp}`) are now the canonical form: the edit view emits them, and a new
-  `ink fmt [--write] <file.ink>` normalizes a document to house style (borrowed
-  `[[ ]]`/`[@ ]`/`{{ }}` still parse — they're rewritten on format). The op is
-  idempotent and meaning-preserving. (Auto-normalize-on-save in the app is a
-  separate follow-up.) (#101)
+- **One inline vocabulary, in braces.** The reference/substitution forms now have
+  a canonical house spelling that reads as one family with CriticMarkup: `{&link}`
+  (wikilink), `{@cite}` (citation), `{=interp}` (interpolation), beside
+  `{+ } {- } {~ } {/ }`. The borrowed forms still parse — paste in Obsidian
+  `[[ ]]`, Pandoc `[@ ]`, or Mustache `{{ }}` freely — but the house forms are
+  what you get back: **`ink fmt [--write] <file.ink>`** normalizes a document to
+  them, and both spellings render identically. The normalizer is idempotent and
+  meaning-preserving (escaped markers included). (#99, #101; auto-normalize-on-save
+  in the app is a follow-up, #105.)
 - **Inline markup works in headings**, not just body prose: emphasis, links,
   citations, interpolation, and CriticMarkup all render in a title — e.g.
-  `# The **Great** {~War~Conflict}`, `# About [[alice]]`, a tracked title
-  revision. Headings resolve like prose in every view (Markdown keeps `**`, the
-  preview renders tags, the outline/codex show plain text, the edit view
-  round-trips the source). A heading with markup stays linkable by its
-  plain-text title. Also fixes `{{-1 * n}}`-style interpolation being mis-read as
-  a `{-` deletion (#100).
-- **House-style inline sigils accepted** alongside the borrowed forms: `{@key}`
-  (citation, = `[@key]`), `{&target}` (wikilink, = `[[target]]`), `{=expr}`
-  (interpolation, = `{{expr}}`). Same behaviour either way — this is input
-  recognition only; both spellings render identically. Groundwork for a single
-  brace-based inline vocabulary (#99, part of #102).
+  `# The **Great** {~War~Conflict}`, `# About [[alice]]`, or a tracked title
+  revision. Headings resolve like prose in every view; a heading with markup stays
+  linkable by its plain-text title (#100).
 
 ## [0.12.0] - 2026-09-12
 
