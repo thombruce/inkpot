@@ -9,6 +9,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Autocomplete for references in the editor.** Typing `{&`/`[[` suggests
+  wikilink targets (codex entity titles); `{@`/`[@` suggests citation keys
+  (source `id`s). Accepting one fills the target and closes the brace. Draws from
+  the current file's `%` entities (#40, #91).
 - **Auto-normalize to house style on save.** When you leave a document (switch
   window, close, jump to another file, or hit Save) the editor rewrites borrowed
   `[[ ]]`/`[@ ]`/`{{ }}` to the house `{&}`/`{@}`/`{=}` forms — paste in Obsidian

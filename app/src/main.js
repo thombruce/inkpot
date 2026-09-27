@@ -6,7 +6,7 @@ import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
-import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, HEADING } from "./metacomplete.js";
+import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, referenceSegment, HEADING } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 import { scaffoldCharacter } from "./character.js";
 import L from "leaflet";
@@ -82,9 +82,10 @@ function debounce(fn, ms) {
   };
 }
 
-// Codex entity names (titles of `%` excluded headings), refreshed each parse.
-// Feeds value completion; a plain snapshot, so the completion source stays sync.
-let entityTitles = [];
+// Codex entities (`%` excluded headings) as { title, id }, refreshed each parse.
+// Feeds metadata-value and inline-reference completion; a plain snapshot, so the
+// completion sources stay synchronous.
+let entities = [];
 
 // Map state: the latest markers from the `map` command, and the Leaflet map +
 // marker layer (created lazily the first time the map view is shown — Leaflet
@@ -269,7 +270,9 @@ function updateWorlds() {
 worldSelect.addEventListener("change", () => switchWorld(worldSelect.value));
 
 function collectEntities(node, out) {
-  if (node.visibility === "excluded" && node.title) out.push(node.title);
+  if (node.visibility === "excluded" && node.title) {
+    out.push({ title: node.title, id: node.entity_id || "" });
+  }
   for (const child of node.children) collectEntities(child, out);
   return out;
 }
@@ -293,7 +296,7 @@ const refresh = debounce(async () => {
       invoke("map", { src }),
       invoke("scenes", { src }),
     ]);
-  entityTitles = [...new Set(collectEntities(tree, []))];
+  entities = collectEntities(tree, []);
   drawOutline(tree);
   previewEl.innerHTML = html;
   codexEl.innerHTML = codexHtml;
@@ -406,7 +409,7 @@ function completeMetaKey(context) {
 
 // Complete codex entity names inside a scene meta value: `characters: Ali|` or
 // after a comma. Only in a heading's meta block (front matter names the work, not
-// entities), and only once past the colon. Reads the `entityTitles` snapshot.
+// entities), and only once past the colon. Reads the `entities` snapshot.
 function completeMetaValue(context) {
   const line = context.state.doc.lineAt(context.pos);
   // metaZone reports the prior open zone; it can't tell the current line is itself
@@ -418,9 +421,39 @@ function completeMetaValue(context) {
   if (!seg) return null; // still in the key
   if (!context.explicit && seg.typed.length === 0) return null;
   const q = seg.typed.toLowerCase();
-  const options = entityTitles
+  const options = [...new Set(entities.map((e) => e.title))]
     .filter((t) => t.toLowerCase().includes(q))
     .map((t) => ({ label: t, type: "variable" }));
+  if (options.length === 0) return null;
+  return { from: line.from + seg.fromCol, options };
+}
+
+// Complete an inline reference: wikilink targets after `[[`/`{&` (entity titles),
+// citation keys after `[@`/`{@` (entity ids, else title). Fills the target and
+// closes the delimiter when it isn't already there. Active-file entities in v1
+// (cross-file completion is a follow-up; see #86). Reads the `entities` snapshot.
+function completeReference(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  const seg = referenceSegment(line.text, context.pos - line.from);
+  if (!seg) return null;
+  if (!context.explicit && seg.typed.length === 0) return null;
+  const q = seg.typed.toLowerCase();
+  const candidates =
+    seg.kind === "cite"
+      ? entities.map((e) => e.id || e.title) // cite by id, fall back to title
+      : entities.map((e) => e.title);
+  // The opener is the two chars before the typed run; its closer completes the ref.
+  const open = line.text.slice(seg.fromCol - 2, seg.fromCol);
+  const close = { "[[": "]]", "[@": "]", "{&": "}", "{@": "}" }[open] ?? "";
+  const after = line.text.slice(context.pos - line.from);
+  const needClose = close && !after.startsWith(close);
+  const options = [...new Set(candidates)]
+    .filter((c) => c && c.toLowerCase().includes(q))
+    .map((label) => ({
+      label,
+      type: seg.kind === "cite" ? "constant" : "variable",
+      apply: needClose ? label + close : label,
+    }));
   if (options.length === 0) return null;
   return { from: line.from + seg.fromCol, options };
 }
@@ -438,7 +471,7 @@ const editor = new EditorView({
       inkFold,
       search({ top: true }),
       highlightSelectionMatches(),
-      autocompletion({ override: [completeMetaKey, completeMetaValue] }),
+      autocompletion({ override: [completeMetaKey, completeMetaValue, completeReference] }),
       // Tab accepts the highlighted completion; a no-op (falls through) when the
       // tooltip is closed. Enter also accepts, via completionKeymap.
       keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap]),
