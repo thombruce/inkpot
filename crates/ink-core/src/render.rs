@@ -57,6 +57,7 @@ fn sigil(v: Visibility) -> char {
 /// (manuscript-authoritative: `%` subtrees never consume a number). `vars` is
 /// the metadata cascade — front matter plus every ancestor's `key: value`, this
 /// node's own last, nearest wins.
+#[derive(Default)]
 struct Ctx {
     number: i64,
     total: i64,
@@ -146,7 +147,7 @@ fn link_titles(roots: &[&Node]) -> HashMap<String, String> {
             resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone())
         };
         for e in &entities {
-            m.entry(fold_name(&e.title)).or_insert_with(|| title_of(e));
+            m.entry(fold_title(&e.title)).or_insert_with(|| title_of(e));
         }
         for e in &entities {
             if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
@@ -162,6 +163,54 @@ fn link_titles(roots: &[&Node]) -> HashMap<String, String> {
 /// resolves to, or the target verbatim if nothing matches.
 fn link_text(target: &str, links: &HashMap<String, String>) -> String {
     links.get(&fold_name(target)).cloned().unwrap_or_else(|| target.to_string())
+}
+
+// --- Heading titles as inline markup (#100) ---------------------------------
+// A heading's title is the same inline vocabulary as prose — emphasis, links,
+// citations, CriticMarkup, interpolation. It's stored as the raw source string
+// and scanned per render, projected by the view: plain (outline/codex/labels),
+// Markdown (manuscript), or HTML (preview). The edit view round-trips the raw
+// title unchanged, so no source projection is needed here.
+
+/// A title flattened to display text: emphasis markers dropped, links/cites
+/// resolved, CriticMarkup applied, interpolation substituted. For the outline
+/// rail, codex entity names, wikilink display, and backlink labels.
+fn title_plain(raw: &str, ctx: &Ctx) -> String {
+    plain_inlines(&crate::parse::scan_inline(raw), ctx)
+}
+
+/// A title as Markdown (emphasis markers kept), for the plain-text manuscript.
+fn title_markdown(raw: &str, ctx: &Ctx) -> String {
+    print_inlines(&crate::parse::scan_inline(raw), ctx)
+}
+
+/// A title as HTML, for the reading-view heading.
+fn title_html(raw: &str, ctx: &Ctx) -> String {
+    html_inlines(&crate::parse::scan_inline(raw), ctx)
+}
+
+/// The folded match key for a title, used to resolve `[[links]]`/`[@cites]` by
+/// name. Markup is stripped and (having no context here) interpolation stays raw
+/// and references fall back to their target text — so `# The **Great** War` keys
+/// on `the great war`.
+fn fold_title(raw: &str) -> String {
+    fold_name(&plain_inlines(&crate::parse::scan_inline(raw), &Ctx::default()))
+}
+
+/// Like [`print_inlines`] but without the emphasis markers — a plain flatten.
+fn plain_inlines(spans: &[Inline], ctx: &Ctx) -> String {
+    spans.iter().filter_map(|s| plain_inline(s, ctx)).collect()
+}
+
+fn plain_inline(span: &Inline, ctx: &Ctx) -> Option<String> {
+    Some(match span {
+        Inline::Text(s) => substitute(s, ctx),
+        Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) => plain_inlines(cs, ctx),
+        Inline::Sub { new, .. } => plain_inlines(new, ctx),
+        Inline::Link(s) => link_text(s, &ctx.links),
+        Inline::Cite(items) => cite_text(items, &ctx.cites),
+        Inline::Delete(_) | Inline::Comment(_) => return None,
+    })
 }
 
 /// Build the `[@key]` citation map: fold(title) and fold(id) of every codex
@@ -182,7 +231,7 @@ fn cite_shorts(roots: &[&Node]) -> HashMap<String, String> {
             cite_label(e, &title)
         };
         for e in &entities {
-            m.entry(fold_name(&e.title)).or_insert_with(|| label_of(e));
+            m.entry(fold_title(&e.title)).or_insert_with(|| label_of(e));
         }
         for e in &entities {
             if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
@@ -276,7 +325,7 @@ pub fn resolve_titles(root: &Node) -> HashMap<usize, String> {
 }
 
 fn resolve_titles_walk(node: &Node, ctx: &Ctx, map: &mut HashMap<usize, String>) {
-    map.insert(node.heading_span.start, substitute(&node.title, ctx));
+    map.insert(node.heading_span.start, title_plain(&node.title, ctx));
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         resolve_titles_walk(child, &cctx, map);
     }
@@ -454,7 +503,7 @@ fn manuscript(node: &Node, ctx: &Ctx, vdepth: u8, out: &mut String) {
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
         vdepth += 1;
         let hashes = "#".repeat((vdepth.min(6)) as usize);
-        writeln!(out, "{hashes} {}\n", substitute(&node.title, ctx)).ok();
+        writeln!(out, "{hashes} {}\n", title_markdown(&node.title, ctx)).ok();
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
@@ -592,9 +641,11 @@ fn shunn_blocks(node: &Node, ctx: &Ctx, blocks: &mut Vec<ShunnBlock>) {
     if node.level > 0 && !node.title.is_empty() {
         match node.visibility {
             Visibility::Visible if node.level == 1 => {
-                blocks.push(ShunnBlock::Chapter(substitute(&node.title, ctx)));
+                // Shunn is plain Courier (genpdf prints strings literally, no
+                // Markdown), so flatten emphasis; links/cites/interp still resolve.
+                blocks.push(ShunnBlock::Chapter(title_plain(&node.title, ctx)));
             }
-            Visibility::Visible => blocks.push(ShunnBlock::Subhead(substitute(&node.title, ctx))),
+            Visibility::Visible => blocks.push(ShunnBlock::Subhead(title_plain(&node.title, ctx))),
             // A scene heading doesn't print, but marks a scene break — only
             // between prose, never right after a chapter/subhead start.
             Visibility::Scene if matches!(blocks.last(), Some(ShunnBlock::Para(_))) => {
@@ -669,7 +720,7 @@ fn manuscript_html(node: &Node, ctx: &Ctx, vdepth: u8, out: &mut String) {
     if node.level > 0 && node.visibility == Visibility::Visible && !node.title.is_empty() {
         vdepth += 1;
         let lvl = vdepth.min(6);
-        writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&substitute(&node.title, ctx))).ok();
+        writeln!(out, "<h{lvl}>{}</h{lvl}>", title_html(&node.title, ctx)).ok();
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
@@ -732,7 +783,7 @@ impl<'a> CodexIndex<'a> {
         let mut by_id = HashMap::new();
         let mut by_offset = HashMap::new();
         for (i, e) in entities.iter().enumerate() {
-            by_name.entry(fold_name(&e.title)).or_default().push(i);
+            by_name.entry(fold_title(&e.title)).or_default().push(i);
             // `id:` is a rename-proof handle; first declaration of an id wins.
             if let Some((_, v)) = e.meta.iter().find(|(k, _)| k == ID) {
                 by_id.entry(fold_name(v)).or_insert(i);
@@ -877,7 +928,7 @@ fn collect_scopes(node: &Node, ctx: &Ctx, scope: &[String], out: &mut HashMap<us
             scope.to_vec()
         } else {
             let mut s = scope.to_vec();
-            let t = fold_name(&substitute(&child.title, &cctx));
+            let t = fold_name(&title_plain(&child.title, &cctx));
             if !t.is_empty() {
                 s.push(t);
             }
@@ -1154,7 +1205,7 @@ pub fn render_characters_html(root: &Node) -> String {
 fn characters_walk(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
-            if fold_name(&child.title) == "characters" {
+            if fold_title(&child.title) == "characters" {
                 out.push_str("<section class=\"codex-section\">");
                 codex_html_entry(doc, paths, child, 0, &cctx, idx, out);
                 out.push_str("</section>");
@@ -1204,7 +1255,7 @@ pub fn render_bibliography_project(docs: &[(String, &Node)], active: usize) -> S
     // (first id wins) — project-wide, matching `cite_shorts`.
     let mut by_key: HashMap<String, usize> = HashMap::new();
     for (i, (_, e)) in entities.iter().enumerate() {
-        by_key.entry(fold_name(&e.title)).or_insert(i);
+        by_key.entry(fold_title(&e.title)).or_insert(i);
     }
     let mut ids = HashMap::new();
     for (i, (_, e)) in entities.iter().enumerate() {
@@ -1359,7 +1410,7 @@ fn codex_html(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &CodexInd
 /// Extend a scope with a visible ancestor's resolved title, dropping empties.
 fn pushed_scope(scope: &[String], title: &str, ctx: &Ctx) -> Vec<String> {
     let mut inner = scope.to_vec();
-    let t = substitute(title, ctx);
+    let t = title_plain(title, ctx);
     if !t.is_empty() {
         inner.push(t);
     }
@@ -1372,7 +1423,7 @@ fn codex_html_entry(doc: usize, paths: &[&str], node: &Node, depth: usize, ctx: 
     let title = if node.title.is_empty() {
         "(untitled)".to_string()
     } else {
-        substitute(&node.title, ctx)
+        title_plain(&node.title, ctx)
     };
     writeln!(out, "<h{lvl}>{}</h{lvl}>", escape(&title)).ok();
     if !node.meta.is_empty() {
@@ -1470,7 +1521,7 @@ fn outline(node: &Node, ctx: &Ctx, out: &mut String) {
         let title = if node.title.is_empty() {
             "(untitled)".to_string()
         } else {
-            substitute(&node.title, ctx)
+            title_plain(&node.title, ctx)
         };
         write!(out, "{indent}{marker} {title}").ok();
         if !node.meta.is_empty() {
@@ -1507,7 +1558,7 @@ fn codex_entry(node: &Node, depth: usize, ctx: &Ctx, out: &mut String) {
     let title = if node.title.is_empty() {
         "(untitled)".to_string()
     } else {
-        substitute(&node.title, ctx)
+        title_plain(&node.title, ctx)
     };
     writeln!(out, "{indent}{title}").ok();
     for (k, v) in &node.meta {

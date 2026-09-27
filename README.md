@@ -108,6 +108,11 @@ unlike a title, an `id` never counts as an outgoing reference to another entity.
   `(Smith, 2020; Jones, 2019)`. Enter `author` surname-first (`Ferber, E.`). An
   unresolved key stays raw.
 
+All of the above work in **headings** too, not just body prose — `# The **Great**
+War`, `# About [[alice]]`, or a tracked title revision `# {~Draft~Final}`. A
+heading resolves like prose in every view, and stays linkable by its plain-text
+title.
+
 ### Interpolation
 
 `{{ … }}` in a heading or prose is resolved at render time — every view that

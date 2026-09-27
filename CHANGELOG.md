@@ -9,6 +9,14 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Inline markup works in headings**, not just body prose: emphasis, links,
+  citations, interpolation, and CriticMarkup all render in a title — e.g.
+  `# The **Great** {~War~Conflict}`, `# About [[alice]]`, a tracked title
+  revision. Headings resolve like prose in every view (Markdown keeps `**`, the
+  preview renders tags, the outline/codex show plain text, the edit view
+  round-trips the source). A heading with markup stays linkable by its
+  plain-text title. Also fixes `{{-1 * n}}`-style interpolation being mis-read as
+  a `{-` deletion (#100).
 - **House-style inline sigils accepted** alongside the borrowed forms: `{@key}`
   (citation, = `[@key]`), `{&target}` (wikilink, = `[[target]]`), `{=expr}`
   (interpolation, = `{{expr}}`). Same behaviour either way — this is input
