@@ -40,6 +40,7 @@ cargo test                                    # core tests (from repo root)
 cargo test -p ink-core --features pdf          # + the Shunn PDF emitter (genpdf)
 cargo run -p ink-cli -- render --view=edit examples/sample.ink
 cargo run -p ink-cli -- export --out=/tmp/m.pdf examples/sample.ink  # Shunn PDF
+cargo run -p ink-cli -- fmt --write examples/sample.ink        # normalize to canonical house style
 node app/src/reorder.test.mjs                 # reorder splice self-check
 node app/src/fold.test.mjs                     # fold depth/section self-check
 node app/src/metacomplete.test.mjs             # metadata-completion zone self-check

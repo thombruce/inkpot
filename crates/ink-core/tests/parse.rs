@@ -176,7 +176,7 @@ fn wikilink_prints_resolved_title_across_views() {
     assert_eq!(render(&doc, View::Manuscript), "Alice Hargrove met nobody.\n");
     let html = ink_core::render_html(&doc);
     assert!(html.contains("<a class=\"wikilink\">Alice Hargrove</a>"), "html link unresolved: {html}");
-    assert!(render(&doc, View::Edit).contains("[[alice]]"), "edit must round-trip the raw handle");
+    assert!(render(&doc, View::Edit).contains("{&alice}"), "edit round-trips as the house link form");
     assert_eq!(word_count(&doc), 4, "word count should tally the resolved title");
 }
 
@@ -267,7 +267,7 @@ fn citations_render_author_date() {
     assert!(m.contains("(Ferber, 2011)"), "single author: {m}");
     assert!(m.contains("(Pears and Shields, 2019)"), "two authors: {m}");
     assert!(m.contains("(Alpha et al., 2020, p. 5)"), "3+ authors + locator: {m}");
-    assert!(m.contains("[@none]"), "unresolved cite should stay raw: {m}");
+    assert!(m.contains("{@none}"), "unresolved cite stays raw in the house form: {m}");
 
     // No author -> title fallback; year still appended. Institutional author (no
     // comma) is kept whole rather than clipped to a surname.
@@ -334,7 +334,7 @@ fn project_wide_links_and_cites_resolve_across_files() {
     // Single-file (A alone): nothing resolves — the cite stays raw, the link falls
     // back to its target text, and the bibliography is empty.
     let solo = ink_core::render_manuscript_project(&[&a], 0);
-    assert!(solo.contains("[@pears-2019, p. 5]"), "per-file cite should stay raw: {solo}");
+    assert!(solo.contains("{@pears-2019, p. 5}"), "per-file cite stays raw in the house form: {solo}");
     assert!(!solo.contains("(Pears"), "per-file must not resolve cross-file: {solo}");
     assert!(ink_core::render_bibliography_html(&a).is_empty(), "per-file bibliography should be empty");
 }
@@ -571,7 +571,7 @@ fn wikilink_parses_prints_name_and_round_trips() {
     // Manuscript prints the bare name (the link is part of the prose).
     assert_eq!(render(&root, View::Manuscript), "She saw Alice leave.\n");
     // Edit round-trips the brackets.
-    assert!(render(&root, View::Edit).contains("She saw [[Alice]] leave."));
+    assert!(render(&root, View::Edit).contains("She saw {&Alice} leave."));
     // An escaped or unclosed bracket stays literal.
     assert!(render(&parse("a \\[[b"), View::Manuscript).contains("a [[b"));
     assert_eq!(render(&parse("open [[ only\n"), View::Manuscript), "open [[ only\n");
@@ -609,8 +609,8 @@ fn citation_parses_roundtrips_and_backlinks() {
 
     // Edit round-trips both forms verbatim.
     let edit = render(&doc, View::Edit);
-    assert!(edit.contains("[@pears-2019, p. 42]"), "locator form lost: {edit}");
-    assert!(edit.contains("[@pears-2019]"), "bare form lost: {edit}");
+    assert!(edit.contains("{@pears-2019, p. 42}"), "locator form lost: {edit}");
+    assert!(edit.contains("{@pears-2019}"), "bare form lost: {edit}");
 
     // The cited source gets a backlink from the citing scene.
     let html = ink_core::render_codex_html(&doc);
@@ -696,7 +696,7 @@ fn grouped_multicite_renders_one_parenthetical() {
     let m = render(&doc, View::Manuscript);
     assert!(m.contains("(Smith, 2020; Jones, 2019, p. 5)"), "grouped render: {m}");
     // Edit round-trips the group.
-    assert!(render(&doc, View::Edit).contains("[@smith2020; @jones2019, p. 5]"), "group round-trip: {}", render(&doc, View::Edit));
+    assert!(render(&doc, View::Edit).contains("{@smith2020; @jones2019, p. 5}"), "group round-trip: {}", render(&doc, View::Edit));
     // Both sources are cited (each earns a backlink).
     let html = ink_core::render_codex_html(&doc);
     assert_eq!(html.matches("Referenced by").count(), 2, "both grouped sources should backlink: {html}");
@@ -708,7 +708,7 @@ fn grouped_multicite_renders_one_parenthetical() {
 
     // All-unknown group falls back to the raw source form (unfinished signal).
     let raw = render(&parse("~~~ S\n\n[@x; @y].\n"), View::Manuscript);
-    assert!(raw.contains("[@x; @y]"), "all-unresolved group should stay raw: {raw}");
+    assert!(raw.contains("{@x; @y}"), "all-unresolved group stays raw in the house form: {raw}");
 
     // Single-cite regression: unchanged from before grouping.
     let single = render(&parse("~~~ S\n\n[@smith2020].\n\n% S\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n"), View::Manuscript);
@@ -756,7 +756,7 @@ fn interpolation_resolves_numbering_and_metadata() {
     assert!(render(&parse(shadow), View::Manuscript).contains("# H 2\n"), "built-in wins");
 
     // Edit view round-trips the raw source, unresolved.
-    assert!(render(&parse("# Chapter {{number}}\n"), View::Edit).contains("# Chapter {{number}}"));
+    assert!(render(&parse("# Chapter {{number}}\n"), View::Edit).contains("# Chapter {=number}"));
 }
 
 #[test]
@@ -1080,4 +1080,45 @@ fn headings_render_inline_markup() {
 
     // Regression: {{-1 * n}} interpolation isn't mis-scanned as a {- deletion.
     assert!(render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"), "interp-in-heading regression");
+}
+
+#[test]
+fn edit_view_canonicalizes_to_house_style() {
+    // Borrowed forms in → house forms out (the canonical direction, #101).
+    let borrowed = "# Chapter {{number}}\n\nSee [[alice]] and [@smith, p. 5].\n\n% P\n\n%% Alice\nid: alice\n";
+    let e = render(&parse(borrowed), View::Edit);
+    assert!(e.contains("# Chapter {=number}"), "heading interp: {e}");
+    assert!(e.contains("{&alice}"), "link: {e}");
+    assert!(e.contains("{@smith, p. 5}"), "cite: {e}");
+    assert!(!e.contains("[[") && !e.contains("[@") && !e.contains("{{"), "a borrowed form leaked: {e}");
+
+    // Idempotent: canonicalizing again is a fixpoint (safe to re-apply on save).
+    assert_eq!(render(&parse(&e), View::Edit), e, "not idempotent");
+
+    // Meaning-preserving: the manuscript is identical before/after canonicalization.
+    assert_eq!(
+        render(&parse(&e), View::Manuscript),
+        render(&parse(borrowed), View::Manuscript),
+        "canonicalization changed the rendered manuscript"
+    );
+
+    // CriticMarkup and emphasis are already house/non-alias — left untouched.
+    let cm = render(&parse("# T\n\nkeep {+ins} {-del} {~a~b} **bold** *it*.\n"), View::Edit);
+    for tok in ["{+ins}", "{-del}", "{~a~b}", "**bold**", "*it*"] {
+        assert!(cm.contains(tok), "critic/emphasis changed ({tok}): {cm}");
+    }
+}
+
+#[test]
+fn edit_view_full_fidelity() {
+    // Auto-rewrite-on-save relies on Edit being lossless beyond the sigil swap:
+    // comments, excluded subtrees, scenes, and metadata must survive a round-trip.
+    let doc = "title: Book\n\n# Ch 1\ntime: dawn\n\n/ a line comment\n\nProse {/inline comment} here.\n\n~ Scene\n\nMore.\n\n% Notes\n\n%% Secret\nkey: val\n";
+    let once = render(&parse(doc), View::Edit);
+    // Everything's still there.
+    for kept in ["title: Book", "# Ch 1", "time: dawn", "/ a line comment", "{/inline comment}", "~ Scene", "% Notes", "%% Secret", "key: val"] {
+        assert!(once.contains(kept), "Edit dropped {kept:?}: {once}");
+    }
+    // And it's a fixpoint.
+    assert_eq!(render(&parse(&once), View::Edit), once, "Edit not idempotent on a rich doc");
 }

@@ -1,5 +1,6 @@
 //! `ink render --view=manuscript|outline|edit|codex <file.ink>`
 //! `ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>` (Shunn PDF)
+//! `ink fmt [--write] <file.ink>` — normalize to canonical house style
 
 use ink_core::shunn::{render_shunn_pdf, render_shunn_pdf_sized};
 use ink_core::{build_shunn, parse, render, View};
@@ -9,6 +10,9 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(|s| s.as_str()) == Some("export") {
         return export(&args[1..]);
+    }
+    if args.first().map(|s| s.as_str()) == Some("fmt") {
+        return fmt(&args[1..]);
     }
 
     let mut view = View::Manuscript;
@@ -45,6 +49,40 @@ fn main() -> ExitCode {
     };
 
     print!("{}", render(&parse(&src), view));
+    ExitCode::SUCCESS
+}
+
+/// `ink fmt [--write] <file.ink>` — normalize a document to the canonical house
+/// style (the `edit` view: `{&link}`, `{@cite}`, `{=interp}`). Prints to stdout
+/// by default (safe, diffable); `--write` rewrites the file in place. The op is
+/// idempotent and meaning-preserving, so running it is safe to repeat.
+fn fmt(args: &[String]) -> ExitCode {
+    let mut write = false;
+    let mut path: Option<String> = None;
+    for arg in args {
+        if arg == "--write" || arg == "-w" {
+            write = true;
+        } else if arg.starts_with('-') {
+            return err(format!("unknown flag '{arg}'"));
+        } else {
+            path = Some(arg.clone());
+        }
+    }
+    let Some(path) = path else {
+        return err("usage: ink fmt [--write] <file.ink>".into());
+    };
+    let src = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) => return err(format!("{path}: {e}")),
+    };
+    let out = render(&parse(&src), View::Edit);
+    if write {
+        if let Err(e) = std::fs::write(&path, out) {
+            return err(format!("{path}: {e}"));
+        }
+    } else {
+        print!("{out}");
+    }
     ExitCode::SUCCESS
 }
 

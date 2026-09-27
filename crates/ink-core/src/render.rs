@@ -1573,7 +1573,9 @@ fn edit(node: &Node, out: &mut String) {
     if node.level > 0 {
         let sigil = sigil(node.visibility);
         let marker: String = std::iter::repeat(sigil).take(node.level as usize).collect();
-        writeln!(out, "{marker} {}", node.title).ok();
+        // The title is inline markup too (#100); re-serialize it canonically so
+        // links/cites/interp in a heading normalize like body prose (#101).
+        writeln!(out, "{marker} {}", source_inlines(&crate::parse::scan_inline(&node.title))).ok();
     }
     // Meta round-trips for every node, including the root's document front matter.
     // A multiline value (embedded newlines) re-serializes as `key:` + indented
@@ -1640,17 +1642,52 @@ fn cite_source(items: &[CiteItem]) -> String {
             }
         })
         .collect();
-    format!("[{}]", parts.join("; "))
+    // House canonical form (#101): `{@a; @b, loc}`.
+    format!("{{{}}}", parts.join("; "))
 }
 
-/// Inline sequence -> source form (round-trip within a paragraph).
+/// Rewrite borrowed interpolation `{{expr}}` to the house form `{=expr}` in raw
+/// text. An escaped `\{{` and an already-house `{=…}` are left as-is. Both forms
+/// parse identically, so this is a pure re-spelling — the canonical direction.
+fn canon_interp(text: &str) -> String {
+    if !text.contains("{{") {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(pos) = rest.find("{{") {
+        if rest[..pos].ends_with('\\') {
+            out.push_str(&rest[..pos + 2]); // keep the escaped `\{{` verbatim
+            rest = &rest[pos + 2..];
+            continue;
+        }
+        out.push_str(&rest[..pos]);
+        let after = &rest[pos + 2..];
+        match after.find("}}") {
+            Some(end) => {
+                write!(out, "{{={}}}", &after[..end]).ok();
+                rest = &after[end + 2..];
+            }
+            None => {
+                out.push_str("{{");
+                out.push_str(after);
+                rest = "";
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Inline sequence -> source form (round-trip within a paragraph), in the
+/// canonical house style (#101): `{&link}`, `{@cite}`, `{=interp}`.
 fn source_inlines(spans: &[Inline]) -> String {
     spans.iter().map(inline_source).collect()
 }
 
 fn inline_source(span: &Inline) -> String {
     match span {
-        Inline::Text(s) => s.clone(),
+        Inline::Text(s) => canon_interp(s),
         Inline::Bold(cs) => format!("**{}**", source_inlines(cs)),
         Inline::Italic(cs) => format!("*{}*", source_inlines(cs)),
         Inline::Insert(cs) => format!("{{+{}}}", source_inlines(cs)),
@@ -1659,7 +1696,7 @@ fn inline_source(span: &Inline) -> String {
             format!("{{~{}~{}}}", source_inlines(old), source_inlines(new))
         }
         Inline::Comment(s) => format!("{{/{s}}}"),
-        Inline::Link(s) => format!("[[{s}]]"),
+        Inline::Link(s) => format!("{{&{s}}}"),
         Inline::Cite(items) => cite_source(items),
     }
 }

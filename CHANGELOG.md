@@ -9,6 +9,12 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Canonical house style + `ink fmt`.** The house sigils (`{&link}`, `{@cite}`,
+  `{=interp}`) are now the canonical form: the edit view emits them, and a new
+  `ink fmt [--write] <file.ink>` normalizes a document to house style (borrowed
+  `[[ ]]`/`[@ ]`/`{{ }}` still parse — they're rewritten on format). The op is
+  idempotent and meaning-preserving. (Auto-normalize-on-save in the app is a
+  separate follow-up.) (#101)
 - **Inline markup works in headings**, not just body prose: emphasis, links,
   citations, interpolation, and CriticMarkup all render in a title — e.g.
   `# The **Great** {~War~Conflict}`, `# About [[alice]]`, a tracked title
