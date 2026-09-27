@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-27
+
 ### Added
 
 - **Autocomplete for references in the editor.** Typing `{&`/`[[` suggests

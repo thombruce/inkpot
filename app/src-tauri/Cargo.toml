@@ -1,6 +1,6 @@
 [package]
 name = "inkpot-app"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2021"
 description = "inkpot desktop shell (Tauri v2)."
 
