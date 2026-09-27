@@ -6,7 +6,7 @@ import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/
 import { foldService, foldGutter, codeFolding } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
-import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, referenceSegment, HEADING } from "./metacomplete.js";
+import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, referenceSegment, refClose, HEADING } from "./metacomplete.js";
 import { spliceMove } from "./reorder.js";
 import { scaffoldCharacter } from "./character.js";
 import L from "leaflet";
@@ -442,17 +442,16 @@ function completeReference(context) {
     seg.kind === "cite"
       ? entities.map((e) => e.id || e.title) // cite by id, fall back to title
       : entities.map((e) => e.title);
-  // The opener is the two chars before the typed run; its closer completes the ref.
+  // The opener is the two chars before the typed run; append its closer unless the
+  // reference is already closed (refClose handles the double-close guard).
   const open = line.text.slice(seg.fromCol - 2, seg.fromCol);
-  const close = { "[[": "]]", "[@": "]", "{&": "}", "{@": "}" }[open] ?? "";
-  const after = line.text.slice(context.pos - line.from);
-  const needClose = close && !after.startsWith(close);
+  const close = refClose(open, line.text.slice(context.pos - line.from));
   const options = [...new Set(candidates)]
     .filter((c) => c && c.toLowerCase().includes(q))
     .map((label) => ({
       label,
       type: seg.kind === "cite" ? "constant" : "variable",
-      apply: needClose ? label + close : label,
+      apply: label + close,
     }));
   if (options.length === 0) return null;
   return { from: line.from + seg.fromCol, options };

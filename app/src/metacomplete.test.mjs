@@ -1,6 +1,6 @@
 // Run: node app/src/metacomplete.test.mjs
 import assert from "node:assert/strict";
-import { metaZone, valueSegment, referenceSegment, DOC_KEYS, SCENE_KEYS } from "./metacomplete.js";
+import { metaZone, valueSegment, referenceSegment, refClose, DOC_KEYS, SCENE_KEYS } from "./metacomplete.js";
 
 // 1-based line-text accessor over an array.
 const at = (arr) => (n) => arr[n - 1];
@@ -63,5 +63,14 @@ assert.equal(referenceSegment("{&Alice} and ", 13), null);
 assert.equal(referenceSegment("just prose", 10), null);
 // Nearest opener wins when two are open on the line.
 assert.deepEqual(referenceSegment("{&a} then {@b", 13), { kind: "cite", typed: "b", fromCol: 12 });
+
+// refClose: which closer to append when accepting a completion.
+assert.equal(refClose("{&", ""), "}"); // house link, nothing after -> close
+assert.equal(refClose("{@", " and"), "}"); // house cite -> close
+assert.equal(refClose("[[", ""), "]]"); // borrowed wikilink -> ]]
+assert.equal(refClose("[@", ""), "]"); // borrowed cite -> ]
+assert.equal(refClose("{&", "} rest"), ""); // already closed -> don't double
+assert.equal(refClose("[[", "]] rest"), ""); // already closed
+assert.equal(refClose("??", ""), ""); // unknown opener -> nothing
 
 console.log("metacomplete: all assertions passed");

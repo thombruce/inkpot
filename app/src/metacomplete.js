@@ -66,6 +66,15 @@ export function referenceSegment(lineText, caretCol) {
   return { kind, typed: m[2], fromCol: caretCol - m[2].length };
 }
 
+// The closing delimiter to append when completing a reference opened by `open`,
+// given the text `after` the caret: the matching closer, or "" if the reference
+// is already closed (don't double up) or the opener is unknown.
+const REF_CLOSE = { "[[": "]]", "[@": "]", "{&": "}", "{@": "}" };
+export function refClose(open, after) {
+  const close = REF_CLOSE[open] ?? "";
+  return close && !after.startsWith(close) ? close : "";
+}
+
 export function valueSegment(lineText, caretCol) {
   const before = lineText.slice(0, caretCol);
   const colon = before.indexOf(":");
