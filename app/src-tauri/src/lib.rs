@@ -32,6 +32,9 @@ struct OutlineNode {
     /// "visible" | "scene" | "excluded".
     visibility: &'static str,
     title: String,
+    /// The entity's `id:` handle (empty if none) — the citation key the editor
+    /// completes after `{@`/`[@` (#91).
+    entity_id: String,
     meta_keys: Vec<String>,
     /// Manuscript word count of this subtree (root carries the document total).
     words: usize,
@@ -57,6 +60,12 @@ fn to_outline(node: &Node, titles: &HashMap<usize, String>, next_id: &mut usize)
         } else {
             titles.get(&node.heading_span.start).cloned().unwrap_or_else(|| node.title.clone())
         },
+        entity_id: node
+            .meta
+            .iter()
+            .find(|(k, _)| k == ink_core::meta::ID)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default(),
         meta_keys: node.meta.iter().map(|(k, _)| k.clone()).collect(),
         words: word_count(node),
         heading_span: node.heading_span.into(),
