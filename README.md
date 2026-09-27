@@ -81,66 +81,64 @@ Same rules: it must start on line 1, and a blank line ends it. Keys are free-for
 (the set above is convention, not enforced).
 
 `id:` on a `%` entity is the one **reserved** key: it gives that entity a
-rename-proof handle. A `[[link]]` or metadata value matching an `id` resolves to
+rename-proof handle. A `{&link}` or metadata value matching an `id` resolves to
 that entity whatever its title reads (so renaming `% Alice` to `% Alicia` doesn't
-break `[[alice]]`). Ids are document-global and unique (first declaration wins);
+break `{&alice}`). Ids are document-global and unique (first declaration wins);
 unlike a title, an `id` never counts as an outgoing reference to another entity.
 
 ### Markup
 
-- Visible: `**bold**`, `*italic*` — these print.
-- CriticMarkup (non-destructive edits, none print except accepted insertions):
+Inkpot's inline markup is one **brace family** — `{sigil …}` — plus the two
+emphasis marks:
+
+- Emphasis: `**bold**`, `*italic*` — these print.
+- CriticMarkup (non-destructive edits; none print except accepted insertions):
   - `{+insertion}` — accepted into the manuscript
   - `{-deletion}` — dropped from the manuscript
   - `{~old~new}` — substitution; `new` prints
   - `{/comment}` — inline comment
 - `/` at the start of a line — a whole-line comment.
-- `[[Target]]` — a wikilink to a codex entity (a `%` heading of that name, or
-  its `id:`). Prints the entity's title in every view — `[[alice]]` shows "Alice
+- `{&target}` — a wikilink to a codex entity (a `%` heading of that name, or its
+  `id:`). Prints the entity's title in every view — `{&alice}` shows "Alice
   Hargrove" — falling back to the raw target if nothing matches; in the codex it
-  also adds the scene to that entity's backlinks. Escape a literal `[` with `\[`.
-- `[@key]` or `[@key, p. 42]` — a citation of a source. The key is a `%` entity's
-  `id:` or title; a source is just a codex entity carrying bibliographic metadata
-  (`author`, `year`, `title`, `edition`, `place`, `publisher`). Prints as Harvard
-  author-date — `(Ferber, 2011, p. 42)` — and, like a wikilink, backlinks the
-  source; the **Bibliography** view collates the cited sources into a reference
-  list. Group several in one parenthetical with `;`: `[@smith2020; @jones2019]` →
-  `(Smith, 2020; Jones, 2019)`. Enter `author` surname-first (`Ferber, E.`). An
-  unresolved key stays raw.
+  also adds the referring node to that entity's backlinks.
+- `{@key}` or `{@key, p. 42}` — a citation of a source (a `%` codex entity with
+  bibliographic metadata: `author`, `year`, `title`, `edition`, `place`,
+  `publisher`). Prints Harvard author-date — `(Ferber, 2011, p. 42)` — backlinks
+  the source, and feeds the **Bibliography** view. Group several with `;`:
+  `{@smith2020; @jones2019}` → `(Smith, 2020; Jones, 2019)`. Enter `author`
+  surname-first (`Ferber, E.`). An unresolved key stays raw.
+- `{=expr}` — interpolation (see below).
 
-All of the above work in **headings** too, not just body prose — `# The **Great**
-War`, `# About [[alice]]`, or a tracked title revision `# {~Draft~Final}`. A
-heading resolves like prose in every view, and stays linkable by its plain-text
-title.
+Escape a literal marker with a backslash (`\{`, `\*`, `\[`). All of the above work
+in **headings** too, not just body prose — `# The **Great** {~War~Conflict}`,
+`# About {&alice}`, a tracked title revision — resolving like prose in every view;
+a heading stays linkable by its plain-text title.
+
+> **Paste-friendly.** The familiar borrowed spellings — `[[wikilink]]` (wiki),
+> `[@key]` (Pandoc), `{{expr}}` (Mustache) — are also accepted, so you can paste
+> Obsidian/Pandoc/Mustache markup straight in. They parse identically to the house
+> forms and convert to them on save (or via `ink fmt`). See #102.
 
 ### Interpolation
 
-`{{ … }}` in a heading or prose is resolved at render time — every view that
-shows text (manuscript, HTML preview, outline rail, codex):
+`{= … }` in a heading or prose is resolved at render time — every view that shows
+text (manuscript, HTML preview, outline rail, codex):
 
-- `{{number}}` — this heading's 1-based position among its siblings.
-- `{{total}}` — how many siblings there are.
-- `{{key}}` — a metadata value: the nearest one on this node or an ancestor,
-  falling back to document front matter. So `{{title}}` reaches the front matter
+- `{=number}` — this heading's 1-based position among its siblings.
+- `{=total}` — how many siblings there are.
+- `{=key}` — a metadata value: the nearest one on this node or an ancestor,
+  falling back to document front matter. So `{=title}` reaches the front matter
   anywhere.
 - Integer arithmetic over the above: `+ - * / ( )` and unary `-`. E.g.
-  `# Chapter {{number}} of {{total}}`, or a countup to zero with
-  `# Chapter {{number - total}}`.
+  `# Chapter {=number} of {=total}`, or a countup to zero with
+  `# Chapter {=number - total}`.
 
 Numbering is **manuscript-authoritative**: excluded (`%`) siblings never consume
 a number. An unresolved expression (unknown key, malformed arithmetic) is left
-verbatim — a visible `{{…}}` in the page marks it unfinished, like CriticMarkup.
-A `\{{` in a heading is a literal `{{`. Interpolation is not resolved inside a
-`[[wikilink]]` target — that names an entity literally, so `[[{{key}}]]` stays
-raw.
-
-> **House style.** The three reference/substitution forms have a canonical
-> leading-sigil brace form — `{&target}` (wikilink), `{@key}` (citation),
-> `{=expr}` (interpolation) — one family with CriticMarkup's `{+ } {- } {~ } {/ }`.
-> The borrowed forms above still parse (paste in Obsidian/Pandoc/Mustache markup
-> freely), but the house forms are what you get back: `ink fmt` normalizes a file
-> to them, and both render identically. Run `ink fmt --write <file.ink>` to
-> convert. (See #102.)
+verbatim — a visible `{=…}` in the page marks it unfinished, like CriticMarkup.
+A `\{=` is a literal. Interpolation is not resolved inside a `{&wikilink}` target
+— that names an entity literally.
 
 ### Views
 
@@ -153,7 +151,7 @@ raw.
   section (Characters, Locations, Timeline, …) with its entries and their
   metadata. A knowledge base derived from what you already write, no new syntax.
 - **Bibliography** — a Harvard reference list of the sources you cite with
-  `[@key]`, sorted by author; only cited sources appear.
+  `{@key}`, sorted by author; only cited sources appear.
 
 The desktop app adds three **planning panels** that project from the same
 metadata — read-only, click an entry to jump to it in the editor:
@@ -230,13 +228,13 @@ see (planning views render the *active* file):
 | File | Try the view… | because it has… |
 |---|---|---|
 | `codex.ink` | **Map**, **Timeline**, **Characters**, and the time-scrub | scenes with `time:`/`location:`/`characters:`/`exits:`, and `% Locations` with `coords:` across three worlds (Earth/Mars/Moon) |
-| `notes.ink` | **Bibliography** | `[@key]` citations and `%` sources with bibliographic metadata |
+| `notes.ink` | **Bibliography** | `{@key}` citations and `%` sources with bibliographic metadata |
 | `sources.ink` | (feeds the bibliography) | a source cited *cross-file* from `notes.ink` |
 | `sample.ink` | **Preview**, **Outline**, **Edit** | a minimal document: headings, metadata, CriticMarkup |
 
 The **Codex** and **Bibliography** are project-wide, so they show entries from
-every file whichever one is active; `notes.ink`'s `[[wikilinks]]` and its
-`[@strunk-white-2000]` citation both resolve across files.
+every file whichever one is active; `notes.ink`'s `{&wikilink}`s and its
+`{@strunk-white-2000}` citation both resolve across files.
 
 ## Usage
 
@@ -306,6 +304,6 @@ root stays fast and webkit-free.
 (above). The full loop works: write, highlight, outline, rearrange, fold,
 preview, autosave, exclude sections, plus a **codex** knowledge base — a derived
 index of your `%` sections (characters, locations, timeline) with
-metadata/`[[wikilink]]` cross-references and per-entity backlinks
+metadata/`{&wikilink}` cross-references and per-entity backlinks
 (single-document; cross-file is #28). Builds are unsigned for now. Ongoing work
 is tracked as [issues](https://github.com/thombruce/inkpot/issues).

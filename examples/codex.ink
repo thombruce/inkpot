@@ -15,7 +15,7 @@ location: London
 pov: Alice
 characters: Alice, Bob
 
-She stood at the counter as morning came to [[London]]. [[Bob]] said nothing.
+She stood at the counter as morning came to {&London}. {&Bob} said nothing.
 
 ~~~ The Departure
 time: 2
@@ -23,7 +23,7 @@ location: Paris
 pov: Alice
 characters: Alice
 
-By evening she was across the water, and [[Bob]] was not.
+By evening she was across the water, and {&Bob} was not.
 
 ~~~ The Pursuit
 time: 3
@@ -32,7 +32,7 @@ pov: Alice
 characters: Alice, Bob
 exits: Bob
 
-By morning [[Bob]] had arrived. Alas, this is where his story ended. [[Alice]] murdered [[Bob]] in cold blood.
+By morning {&Bob} had arrived. Alas, this is where his story ended. {&Alice} murdered {&Bob} in cold blood.
 
 ~~~ The Return
 time: 4
@@ -40,7 +40,7 @@ location: London
 pov: Alice
 characters: Alice
 
-Alice returned to [[London]] alone.
+Alice returned to {&London} alone.
 
 % Characters
 
