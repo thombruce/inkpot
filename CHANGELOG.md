@@ -7,6 +7,16 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Auto-normalize to house style on save.** When you leave a document (switch
+  window, close, jump to another file, or hit Save) the editor rewrites borrowed
+  `[[ ]]`/`[@ ]`/`{{ }}` to the house `{&}`/`{@}`/`{=}` forms — paste in Obsidian
+  or Pandoc markup and it converts itself. It also tidies formatting (collapsing
+  runs of blank lines to one), like a format-on-save. The typing autosave stays
+  raw, so text never reflows mid-sentence, and the caret is preserved across the
+  conversion (#105).
+
 ## [0.13.0] - 2026-09-27
 
 ### Added

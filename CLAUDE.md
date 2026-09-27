@@ -70,7 +70,11 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   buffer. Note `onCloseRequested`'s default action is a JS `window.destroy()`,
   not a native close — so the capability must grant `core:window:allow-destroy`
   (in `capabilities/default.json`), or the app silently won't quit. Crash
-  recovery of untitled drafts (app-data snapshots) is #13.
+  recovery of untitled drafts (app-data snapshots) is #13. **Leaving a document**
+  (window blur, close, cross-file jump, explicit Save) also normalizes the buffer
+  to canonical house style via the `normalize` command (#105) — *not* the
+  keystroke autosave, so text never reflows mid-sentence; the result is applied as
+  a minimal single-span edit (`mindiff.js`) so CodeMirror keeps the caret.
 - **A project is a folder + a derived `.ink` tree, app-layer only** (#8). The root
   is found by walking up from the active file to the nearest `Inkpot` marker file
   (`syncProject`/`findRoot`, needs `fs:allow-exists`), else the file's own

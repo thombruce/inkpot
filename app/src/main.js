@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
 import { buildTree, firstFile, allFiles, findRoot, dirname } from "./filetree.js";
+import { minimalEdit } from "./mindiff.js";
 import { deepestSectionAt } from "./caretsection.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -769,6 +770,7 @@ async function switchFile(path) {
 
 async function saveFile() {
   if (!currentPath) return saveFileAs();
+  await normalizeBuffer(); // explicit save canonicalizes to house style (#105)
   await fs.writeTextFile(currentPath, editor.state.doc.toString());
   markDirty(false);
 }
@@ -777,24 +779,60 @@ async function saveFile() {
 // doc has a path — untitled/example buffers have nowhere to go and are left for
 // the user to Save As first (crash recovery of untitled drafts is the stretch
 // goal in issue #12).
-async function autosaveNow() {
+// `normalizeFirst` canonicalizes the buffer to house style before writing (#105).
+// Gated to when the user *leaves* the document (blur / close / cross-file jump /
+// explicit Save), not the keystroke-debounced typing autosave — so it never
+// reflows text mid-sentence. Idempotent and a no-op once the doc is already
+// house, so it only converts borrowed forms (e.g. just-pasted Obsidian/Pandoc/
+// Mustache markup); if normalize fails, the raw buffer is written rather than
+// losing the edit.
+async function autosaveNow(normalizeFirst = false) {
   if (!currentPath || !dirty) return;
+  if (normalizeFirst) await normalizeBuffer();
   await fs.writeTextFile(currentPath, editor.state.doc.toString());
   markDirty(false);
 }
-const autosave = debounce(autosaveNow, 1000);
+
+// Canonicalize the buffer to house style in place (#105). Idempotent and a no-op
+// once the doc is already house, so it only converts borrowed forms; on failure
+// it leaves the buffer untouched (the caller still writes what's there).
+async function normalizeBuffer() {
+  const src = editor.state.doc.toString();
+  try {
+    const normalized = await invoke("normalize", { src });
+    // The doc may have changed during the await; the diff's offsets are relative
+    // to `src`, so only apply if the buffer is still that snapshot. Otherwise skip
+    // — the next leave/save normalizes.
+    if (normalized !== src && editor.state.doc.toString() === src) {
+      applyNormalized(src, normalized);
+    }
+  } catch {
+    // normalize failed — leave the raw buffer as-is
+  }
+}
+
+// Replace the buffer with `next` as a minimal single-span edit (see mindiff.js),
+// so CodeMirror maps the caret across it — a localized borrowed→house conversion
+// keeps the cursor where it belongs. Guarded by `loading` so it doesn't
+// re-trigger dirty/autosave.
+function applyNormalized(cur, next) {
+  loading = true;
+  editor.dispatch({ changes: minimalEdit(cur, next) });
+  loading = false;
+}
+const autosave = debounce(() => autosaveNow(false), 1000); // typing: raw, no reflow
 
 // Flush a pending autosave on the way out, so the ~1s debounce window can't
 // swallow the last edits. blur covers app-switching; beforeunload covers close.
-window.addEventListener("blur", autosaveNow);
-window.addEventListener("beforeunload", autosaveNow);
+window.addEventListener("blur", () => autosaveNow(true)); // leaving the window: normalize
+window.addEventListener("beforeunload", () => autosaveNow(true));
 
 // Guard the window close: flush any pathed autosave first, then — if edits
 // remain unsaved (i.e. an untitled buffer with nowhere to autosave) — ask
 // before discarding. Tauri intercepts the OS close, so a browser beforeunload
 // prompt won't fire here; this is the real gate.
 window.__TAURI__.window?.getCurrentWindow().onCloseRequested(async (event) => {
-  await autosaveNow();
+  await autosaveNow(true);
   if (!(await confirmDiscard())) event.preventDefault();
 });
 
@@ -804,6 +842,7 @@ async function saveFileAs() {
     filters: INK_FILTERS,
   });
   if (!path) return; // cancelled
+  await normalizeBuffer(); // explicit save canonicalizes to house style (#105)
   await fs.writeTextFile(path, editor.state.doc.toString());
   currentPath = path;
   markDirty(false);
@@ -866,7 +905,7 @@ for (const panel of [codexEl, timelineEl, charactersEl, bibliographyEl]) {
     // cross-file jump inside the autosave debounce window drops unsaved edits.
     // Same file or single-buffer: jump straight in.
     if (file && file !== currentPath) {
-      await autosaveNow();
+      await autosaveNow(true);
       if (await loadPath(file)) jumpTo(offset);
     } else {
       jumpTo(offset);

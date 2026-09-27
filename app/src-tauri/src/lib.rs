@@ -3,10 +3,10 @@
 
 use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
-    build_shunn_book, build_shunn_project, map_markers, parse, render_bibliography_project,
+    build_shunn_book, build_shunn_project, map_markers, parse, render, render_bibliography_project,
     render_characters_html, render_codex_project_html, render_html_project,
     render_manuscript_project, render_timeline_html, resolve_titles, scene_timeline, word_count,
-    Node, Span, Visibility,
+    Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -127,6 +127,14 @@ fn codex_project(files: Vec<ProjectFile>) -> String {
     render_codex_project_html(&docs)
 }
 
+/// Normalize `src` to the canonical house style — the edit-view re-serialization
+/// (`{&link}`, `{@cite}`, `{=interp}`). The app's on-save canonicalizer (#105);
+/// idempotent and meaning-preserving, so re-running it is safe.
+#[tauri::command]
+fn normalize(src: String) -> String {
+    render(&parse(&src), View::Edit)
+}
+
 /// Render the timeline — headings with a `time:` value, time-ordered — as HTML.
 #[tauri::command]
 fn timeline(src: String) -> String {
@@ -225,8 +233,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, codex_project, timeline, characters, bibliography, map,
-            scenes, export_shunn, export_shunn_book
+            outline, preview, manuscript, normalize, codex_project, timeline, characters,
+            bibliography, map, scenes, export_shunn, export_shunn_book
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
