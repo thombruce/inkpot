@@ -110,7 +110,9 @@ not an IPC call; text stays canonical.
 ### `normalize(src: string) -> string`
 
 Returns `src` re-serialized in the canonical **house style** (the `edit` view:
-`{&link}`, `{@cite}`, `{=interp}`). The app's on-save canonicalizer (#105): it's
+`{&link}`, `{@cite}`, `{=interp}`). Being a full re-serialization it also tidies
+formatting (e.g. collapses runs of blank lines) — a format-on-save, not only a
+markup swap. The app's on-save canonicalizer (#105): it's
 called when the user *leaves* a document (window blur, close, cross-file jump,
 explicit Save) — not on the keystroke-debounced autosave, so it never reflows
 text mid-sentence. Idempotent and meaning-preserving, so re-running is safe; the

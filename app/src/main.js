@@ -800,7 +800,12 @@ async function normalizeBuffer() {
   const src = editor.state.doc.toString();
   try {
     const normalized = await invoke("normalize", { src });
-    if (normalized !== src) applyNormalized(src, normalized);
+    // The doc may have changed during the await; the diff's offsets are relative
+    // to `src`, so only apply if the buffer is still that snapshot. Otherwise skip
+    // — the next leave/save normalizes.
+    if (normalized !== src && editor.state.doc.toString() === src) {
+      applyNormalized(src, normalized);
+    }
   } catch {
     // normalize failed — leave the raw buffer as-is
   }
@@ -837,6 +842,7 @@ async function saveFileAs() {
     filters: INK_FILTERS,
   });
   if (!path) return; // cancelled
+  await normalizeBuffer(); // explicit save canonicalizes to house style (#105)
   await fs.writeTextFile(path, editor.state.doc.toString());
   currentPath = path;
   markDirty(false);
