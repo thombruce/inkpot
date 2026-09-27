@@ -3,7 +3,7 @@ author: Thom Bruce
 
 # Shared Sources
 
-A references file: other files in the project cite these sources with `[@key]`,
+A references file: other files in the project cite these sources with `{@key}`,
 and — because citations resolve across the whole project — the author-date form
 prints and the source lands in the citing file's bibliography, even though it is
 defined here.

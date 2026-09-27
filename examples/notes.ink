@@ -5,17 +5,17 @@ author: Thom Bruce
 
 A second file in the same project as codex.ink. The names in double brackets
 resolve *across files* to the entities defined there — open the whole folder and
-the codex lists this file under "Referenced by" on [[Alice]], [[Bob]],
-[[London]], and [[Paris]]. Clicking one of those backlinks opens this file.
+the codex lists this file under "Referenced by" on {&Alice}, {&Bob},
+{&London}, and {&Paris}. Clicking one of those backlinks opens this file.
 
 Citations reference a source by its key: London's guild kept enrolment rolls
-[@baker-guild-1988, p. 12], and the trade's history is surveyed elsewhere
-[@ferber-2011]. Each `[@key]` resolves to a source entity below and earns it a
-backlink, the way `[[wikilinks]]` do. Several sources can back one claim in a
+{@baker-guild-1988, p. 12}, and the trade's history is surveyed elsewhere
+{@ferber-2011}. Each `{@key}` resolves to a source entity below and earns it a
+backlink, just as a `{&link}` wikilink does. Several sources can back one claim in a
 single citation — both accounts agree on the guild's founding date
-[@baker-guild-1988; @ferber-2011].
+{@baker-guild-1988; @ferber-2011}.
 
-On usage and style I lean on [@strunk-white-2000] — which lives in a separate
+On usage and style I lean on {@strunk-white-2000} — which lives in a separate
 sources.ink, yet resolves and prints author-date all the same, because citations
 span the whole project.
 
@@ -31,8 +31,8 @@ publisher: Guild Press
 kind: primary source
 
 A primary-source entity, defined here rather than in codex.ink — the codex
-gathers entities from every file in the project, and `[@baker-guild-1988]`
-resolves to it. [[Alice]] trained here.
+gathers entities from every file in the project, and `{@baker-guild-1988}`
+resolves to it. {&Alice} trained here.
 
 %% Ferber, E.
 id: ferber-2011
