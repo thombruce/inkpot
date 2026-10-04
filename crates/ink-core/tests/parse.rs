@@ -149,8 +149,17 @@ fn soft_breaks_print_as_spaces_and_trailing_backslash_is_hard() {
     assert!(edit.contains("One sentence.\nTwo sentence.\n\nRoses are red,\\\nviolets *blue*.\n"), "{edit}");
     assert_eq!(render(&parse(&edit), View::Edit), edit, "fmt is idempotent");
 
-    // A trailing `\` on a paragraph's last line has nothing to break: literal.
-    assert!(render(&parse("# H\n\nend\\\n"), View::Manuscript).contains("end\\"));
+    // A `\` ending a paragraph has nothing to break: it never prints (matching the
+    // editor's muted style), even before a `/` comment, but survives fmt.
+    for src in ["# H\n\nend\\\n", "# H\n\nend\\\n/ note\n"] {
+        let doc = parse(src);
+        let md = render(&doc, View::Manuscript);
+        assert!(md.contains("end\n") && !md.contains('\\'), "{md}");
+        assert!(ink_core::render_html(&doc).contains("<p>end</p>"));
+        assert!(render(&doc, View::Edit).contains("end\\\n"), "round-trips");
+    }
+    // `\\` is the way to print a literal trailing backslash.
+    assert!(render(&parse("# H\n\nend\\\\\n"), View::Manuscript).contains("end\\\n"));
 }
 
 #[test]

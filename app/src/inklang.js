@@ -80,7 +80,8 @@ const inkMode = StreamLanguage.define({
     }
 
     // Backslash escape: consume `\` + the next char as literal. A `\` ending the
-    // line is a hard line break (#112) — muted, like other non-printing markup.
+    // line never prints — a hard break (#112), or a no-op on a paragraph's last
+    // line — so it's muted, like other non-printing markup. No lookahead needed.
     if (stream.peek() === "\\") {
       stream.next();
       if (stream.eol()) return "meta";

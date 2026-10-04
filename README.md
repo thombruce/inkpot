@@ -98,6 +98,9 @@ Roses are red,\
 violets are blue.
 ```
 
+A line-ending `\` never prints — on a paragraph's last line it simply does
+nothing. For a literal backslash there, write `\\`.
+
 ### Markup
 
 Inkpot's inline markup is one **brace family** — `{sigil …}` — plus the two

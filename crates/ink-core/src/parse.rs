@@ -241,6 +241,17 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
         // (not plain `Text`) so the edit/source round-trip can re-emit the `\` —
         // otherwise the char could re-form a marker on reparse (e.g. `\{{` → live
         // interpolation). Prints as the bare char in every other view.
+        // A `\` ending the paragraph (or title) escapes nothing: `Escaped("")`,
+        // so it never prints — like every line-ending `\` (#112), and matching the
+        // editor, which can't see whether a line is a paragraph's last — but still
+        // round-trips, so normalize never deletes a char the author typed.
+        if bytes[i] == b'\\' && i + 1 == bytes.len() {
+            flush_plain!(i);
+            out.push(Inline::Escaped(String::new()));
+            i += 1;
+            plain_start = i;
+            continue;
+        }
         if bytes[i] == b'\\' && i + 1 < bytes.len() {
             let next = i + 1;
             let len = next_char_len(bytes, next);
