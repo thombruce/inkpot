@@ -4,6 +4,7 @@
 
 import { StreamLanguage, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { Tag } from "@lezer/highlight";
+import { attributionStart } from "./attribution.js";
 
 // Custom tags so the theme can style each construct precisely.
 const t = {
@@ -36,15 +37,30 @@ function findClose(s, from, delim) {
   return -1;
 }
 
+// CriticMarkup sigil → token.
+const CRITIC = { "+": "insert", "-": "del", "~": "sub", "/": "comment" };
+
 const inkMode = StreamLanguage.define({
   // Mirrors parse.rs: meta starts active so a leading `key: value` block (document
   // front matter) highlights; a blank line or non-meta line closes it.
-  startState: () => ({ inMeta: true, multiline: false }),
+  startState: () => ({ inMeta: true, multiline: false, attr: null }),
   blankLine: (state) => {
     state.inMeta = false; // a blank line closes the metadata zone
     state.multiline = false;
   },
   token(stream, state) {
+    // Inside an attributed CriticMarkup span (#116): the suffix up to `}` is
+    // muted, then the closing brace takes the span's own style.
+    if (state.attr) {
+      const { tag, close } = state.attr;
+      if (stream.pos < close) {
+        stream.pos = close;
+        return "meta";
+      }
+      stream.next();
+      state.attr = null;
+      return tag;
+    }
     if (stream.sol()) {
       if (stream.match(/^#+\s.*/)) {
         state.inMeta = true;
@@ -93,11 +109,20 @@ const inkMode = StreamLanguage.define({
     if (stream.match(/^\{\{[^}]*\}\}/)) return "interp";
     if (stream.match(/^\{=[^}]*\}/)) return "interp";
 
-    // CriticMarkup.
-    if (stream.match(/^\{\+[^}]*\}/)) return "insert";
-    if (stream.match(/^\{-[^}]*\}/)) return "del";
-    if (stream.match(/^\{~[^}]*\}/)) return "sub";
-    if (stream.match(/^\{\/[^}]*\}/)) return "comment";
+    // CriticMarkup. An attribution suffix (#116) splits the span: the body now,
+    // the suffix and closing `}` on the next calls (see the top of `token`).
+    const cm = stream.match(/^\{([+\-~/])([^}]*)\}/, false);
+    if (cm) {
+      const tag = CRITIC[cm[1]];
+      const at = attributionStart(cm[2]);
+      if (at < 0) {
+        stream.pos += cm[0].length;
+        return tag;
+      }
+      state.attr = { tag, close: stream.pos + 2 + cm[2].length };
+      stream.pos += 2 + at;
+      return tag;
+    }
 
     // Citation — a reference to one or more source entities. Borrowed [@…] or
     // house {@…} ([@key], [@key, loc], or a group [@a; @b]). Shares the link tag.

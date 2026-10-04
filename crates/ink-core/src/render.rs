@@ -211,6 +211,7 @@ fn plain_inline(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Cite(items) => cite_text(items, &ctx.cites),
         Inline::Escaped(s) if s == "\n" => " ".to_string(),
         Inline::Escaped(s) => s.clone(),
+        Inline::Attributed(inner, _) => return plain_inline(inner, ctx),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -968,6 +969,7 @@ fn collect_links<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
             // A citation is a reference to its source — resolves like a link, so
             // the cited entity earns a backlink.
             Inline::Cite(items) => out.extend(items.iter().map(|it| it.key.as_str())),
+            Inline::Attributed(inner, _) => collect_links(std::slice::from_ref(&**inner), out),
             Inline::Text(_) | Inline::Comment(_) | Inline::Escaped(_) => {}
         }
     }
@@ -1396,6 +1398,7 @@ fn cite_keys_in<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
                 cite_keys_in(old, out);
                 cite_keys_in(new, out);
             }
+            Inline::Attributed(inner, _) => cite_keys_in(std::slice::from_ref(&**inner), out),
             _ => {}
         }
     }
@@ -1515,6 +1518,7 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         }
         Inline::Escaped(s) if s == "\n" => "<br>\n".to_string(),
         Inline::Escaped(s) => escape(s),
+        Inline::Attributed(inner, _) => return inline_html(inner, ctx),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -1644,6 +1648,7 @@ fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Cite(items) => cite_text(items, &ctx.cites),
         Inline::Escaped(s) if s == "\n" => "\\\n".to_string(),
         Inline::Escaped(s) => s.clone(),
+        Inline::Attributed(inner, _) => return inline_print(inner, ctx),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
 }
@@ -1718,5 +1723,13 @@ fn inline_source(span: &Inline) -> String {
         Inline::Cite(items) => cite_source(items),
         // Re-emit the escaping backslash so the literal survives a reparse.
         Inline::Escaped(s) => format!("\\{s}"),
+        // Re-emit the wrapped span, then splice the suffix in before its `}`.
+        Inline::Attributed(inner, a) => {
+            let span = inline_source(inner);
+            let body = span.strip_suffix('}').unwrap_or(&span);
+            let authors: Vec<String> = a.authors.iter().map(|n| format!("@{n}")).collect();
+            let date = a.date.as_ref().map(|d| format!("|{d}")).unwrap_or_default();
+            format!("{body}|{}{date}}}", authors.join(","))
+        }
     }
 }

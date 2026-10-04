@@ -7,6 +7,13 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Attributed CriticMarkup.** Any CriticMarkup span can say who suggested it,
+  and optionally when: `{+new words|@Ada Lovelace|2026-10-04}`. It changes
+  nothing in print; the editor shows the attribution muted. The groundwork for
+  reviewing edit suggestions from editors and proofreaders (#116, epic #111).
+
 ### Changed
 
 - **Soft line breaks.** A single line break inside a paragraph now prints as a

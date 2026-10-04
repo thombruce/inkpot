@@ -112,6 +112,13 @@ emphasis marks:
   - `{-deletion}` — dropped from the manuscript
   - `{~old~new}` — substitution; `new` prints
   - `{/comment}` — inline comment
+  - Any of them can carry an **attribution** suffix saying who suggested it, and
+    optionally when: `{~teh~the|@Ada Lovelace|2026-10-04}`. Names are free-form
+    (`@Ada,@Sam` for several) but can't contain `|`, `,`, `~`, or `}`; the date
+    is ISO (a date or date-time) and optional.
+    It's metadata only: an attributed span prints exactly like an unattributed
+    one. The suffix counts only when it's well formed at the very end of the
+    span, so any other `|` is just text (`{+a|b}` inserts `a|b`).
 - `/` at the start of a line — a whole-line comment.
 - `{&target}` — a wikilink to a codex entity (a `%` heading of that name, or its
   `id:`). Prints the entity's title in every view — `{&alice}` shows "Alice

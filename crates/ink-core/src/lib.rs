@@ -105,6 +105,22 @@ pub enum Inline {
     /// `Escaped("\n")` is a hard line break (a line ending in `\`); a bare `\n`
     /// inside `Text` is a soft break that prints as a space (#112).
     Escaped(String),
+    /// A CriticMarkup span (`Insert`/`Delete`/`Sub`/`Comment`) carrying an
+    /// attribution suffix — `{+text|@Ada|2026-10-04}` (#116). Metadata only: every
+    /// view renders the wrapped span exactly as if unattributed; only the edit
+    /// round-trip re-emits the suffix.
+    // ponytail: a wrapper, not a field on four variants — the parser only ever
+    // wraps CriticMarkup, and renderers just recurse.
+    Attributed(Box<Inline>, Attribution),
+}
+
+/// Who suggested a CriticMarkup span, and optionally when (#116). `authors` are
+/// free-form display names (spaces allowed), more than one when identical
+/// suggestions were coalesced; `date` is ISO 8601, a date or a date-time.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attribution {
+    pub authors: Vec<String>,
+    pub date: Option<String>,
 }
 
 /// One reference within a [`Inline::Cite`]: a source `key` (an entity's `id` or
