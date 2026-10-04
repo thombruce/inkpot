@@ -24,6 +24,8 @@ pub enum ShunnBlock {
     /// A scene break within a chapter — a centered `#`.
     SceneBreak,
     /// A body paragraph (prose, already resolved: markup/links/interpolation).
+    /// Reflowed to single spaces; an embedded `\n` is an author's hard line
+    /// break (a line ending in `\`, #112) — verse — which emitters must keep.
     Para(String),
 }
 
@@ -207,7 +209,12 @@ mod pdf {
                     doc.push(Break::new(1.0));
                 }
                 ShunnBlock::Para(text) => {
-                    doc.push(Paragraph::new(format!("{INDENT}{text}")));
+                    // genpdf can't break inside a Paragraph, so each hard-broken
+                    // line is its own; only the first carries the indent.
+                    for (i, line) in text.split('\n').enumerate() {
+                        let indent = if i == 0 { INDENT } else { "" };
+                        doc.push(Paragraph::new(format!("{indent}{line}")));
+                    }
                 }
             }
         }

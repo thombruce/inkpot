@@ -117,6 +117,43 @@ fn word_count_counts_manuscript_prose_only() {
 }
 
 #[test]
+fn soft_breaks_print_as_spaces_and_trailing_backslash_is_hard() {
+    // #112: one sentence per line reflows; a line ending in `\` keeps its break.
+    let src = "# H\n\nOne sentence.\nTwo sentence.\n\nRoses are red,\\\nviolets *blue*.\n";
+    let doc = parse(src);
+
+    let html = ink_core::render_html(&doc);
+    assert!(html.contains("<p>One sentence.\nTwo sentence.</p>"), "soft break collapses in HTML: {html}");
+    assert!(html.contains("Roses are red,<br>\nviolets <em>blue</em>."), "hard break: {html}");
+    assert!(!html.contains("sentence.<br>"), "no <br> for a soft break: {html}");
+
+    // Manuscript Markdown: soft -> space, hard -> CommonMark `\` + newline.
+    let md = render(&doc, View::Manuscript);
+    assert!(md.contains("One sentence. Two sentence.\n"), "{md}");
+    assert!(md.contains("Roses are red,\\\nviolets *blue*.\n"), "{md}");
+
+    // Shunn model: reflowed, the hard break survives as a bare `\n` (no `\`).
+    let paras: Vec<_> = build_shunn(&doc)
+        .blocks
+        .into_iter()
+        .filter_map(|b| match b {
+            ShunnBlock::Para(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(paras, vec!["One sentence. Two sentence.", "Roses are red,\nviolets *blue*."]);
+
+    // The `\` is not a word; edit round-trip keeps both break kinds verbatim.
+    assert_eq!(word_count(&doc), 9);
+    let edit = render(&doc, View::Edit);
+    assert!(edit.contains("One sentence.\nTwo sentence.\n\nRoses are red,\\\nviolets *blue*.\n"), "{edit}");
+    assert_eq!(render(&parse(&edit), View::Edit), edit, "fmt is idempotent");
+
+    // A trailing `\` on a paragraph's last line has nothing to break: literal.
+    assert!(render(&parse("# H\n\nend\\\n"), View::Manuscript).contains("end\\"));
+}
+
+#[test]
 fn outline_lists_every_heading() {
     let out = render(&parse(SAMPLE), View::Outline);
     for h in ["Chapter 1", "The Arrival", "The Kitchen", "The Hallway", "Chapter 2", "Departure"] {

@@ -336,7 +336,9 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
 
 /// Chars that a backslash escapes into a literal (markers + backslash itself).
 fn is_escapable(ch: &str) -> bool {
-    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\" | "[" | "]")
+    // `\n`: a backslash ending a line is a hard line break (CommonMark); a bare
+    // newline inside a paragraph is a soft break that prints as a space (#112).
+    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\" | "[" | "]" | "\n")
 }
 
 /// Left-flanking opener: the char at `at` exists and is not whitespace.

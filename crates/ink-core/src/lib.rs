@@ -102,6 +102,8 @@ pub enum Inline {
     /// bare char in every view *except* the edit/source round-trip, which re-emits
     /// the `\` — so an escape survives `ink fmt` instead of the char re-forming a
     /// marker (e.g. `\{{` staying literal rather than becoming interpolation).
+    /// `Escaped("\n")` is a hard line break (a line ending in `\`); a bare `\n`
+    /// inside `Text` is a soft break that prints as a space (#112).
     Escaped(String),
 }
 

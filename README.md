@@ -86,6 +86,18 @@ that entity whatever its title reads (so renaming `% Alice` to `% Alicia` doesn'
 break `{&alice}`). Ids are document-global and unique (first declaration wins);
 unlike a title, an `id` never counts as an outgoing reference to another entity.
 
+### Paragraphs and line breaks
+
+A blank line starts a new paragraph. Within a paragraph, a single line break is a
+**soft break**: it prints as a space. So you can wrap lines anywhere, or write one
+sentence per line (each sentence then edits and diffs on its own). End a line with
+a backslash `\` for a **hard break** that keeps the line, e.g. for verse:
+
+```
+Roses are red,\
+violets are blue.
+```
+
 ### Markup
 
 Inkpot's inline markup is one **brace family** — `{sigil …}` — plus the two
