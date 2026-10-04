@@ -104,6 +104,14 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   against a *real heading parent*, never the implicit root, so a document that
   opens deep (e.g. all `##`) keeps its headings as same-level siblings instead
   of demoting the first and nesting the rest.
+- **Paragraph line breaks are Markdown-style** (#112). A bare `\n` inside a
+  paragraph is a soft break (prints as a space); a line ending in `\` is a hard
+  break (`Inline::Escaped("\n")`). A `\` ending the *paragraph* escapes nothing
+  and is a silent no-op (`Escaped("")`: never prints, still round-trips) — so the
+  editor can mute every line-ending `\` without lookahead, since a `StreamLanguage`
+  can't see whether a line is a paragraph's last. That rule applies only at the
+  outermost scan: a CriticMarkup body ending in `\` (`{+C:\}`) keeps it, since
+  the span closes on the first `}`.
 - **Spans are char (Unicode scalar) offsets**, to match JS string indexing.
   They agree with CodeMirror positions for BMP text; astral chars (emoji)
   drift — a known, accepted edge. Line offsets assume `\n` (normalize CRLF).
@@ -117,12 +125,13 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   suggestion is a CriticMarkup span with a trailing `|@author[,@author…][|date]`
   suffix, parsed into `Inline::Attributed`; there is **no sidecar** — the span
   moves with the text, so anchoring is free. Attribution is metadata only: print
-  projects every unresolved span as accepted, attributed or not; guarding
-  against unreviewed text is the export's job (accept/reject/mine-only modes,
-  #117), never a different print meaning. Reviewers are reconciled by a
-  word-level 3-way merge *at ingest* (#119/#120), so overlapping suggestions are
-  never stored. Accepting removes the markup (history belongs to #44; names go
-  to a `contributors:` front-matter list).
+  projects every unresolved span as accepted, attributed or not, and never gains
+  a different print meaning. Built so far: the syntax (#116). **Planned**, not
+  yet in code: guarding against unreviewed text via export modes
+  (accept/reject/mine-only, #117); per-span accept/reject, which removes the
+  markup and adds the suggester to a `contributors:` front-matter list (#118;
+  history belongs to #44); reconciling reviewers by a word-level 3-way merge *at
+  ingest* (#119/#120), so overlapping suggestions are never stored.
 - **Frontend uses `withGlobalTauri`** — `window.__TAURI__.{core,dialog,fs}`, no
   `@tauri-apps/api`/plugin npm packages. Keep it that way unless a global is
   missing. Bundled *rendering* deps are a separate matter: CodeMirror, and
@@ -159,6 +168,8 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
 - Commit style: imperative subject, a short body explaining why, and a
   `Co-Authored-By` trailer.
 - Commit or push only when asked.
+- Merge PRs with a merge commit (`gh pr merge --merge`), then delete the branch
+  locally and on the remote — no need to ask.
 
 ## Releasing
 
