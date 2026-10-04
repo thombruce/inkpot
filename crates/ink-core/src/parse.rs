@@ -1,7 +1,7 @@
 //! Line-oriented block scanner + inline scanner. Hand-written on purpose: the
 //! grammar is small and diverges from Markdown enough that a crate is a fight.
 
-use crate::{Block, CiteItem, Inline, Node, Span, Visibility};
+use crate::{Attribution, Block, CiteItem, Inline, Node, Span, Visibility};
 
 /// Parse a `.ink` document into a root [`Node`] (level 0).
 ///
@@ -386,7 +386,9 @@ fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
     let kind = text.as_bytes().get(start + 1)?;
     let content_start = start + 2;
     let close = find(text, content_start, "}")?;
-    let content = &text[content_start..close];
+    // Peel the attribution suffix first, so a `~` in an author name can't split
+    // a substitution.
+    let (content, attr) = split_attribution(&text[content_start..close]);
     let inline = match kind {
         b'+' => Inline::Insert(scan(content, false)),
         b'-' => Inline::Delete(scan(content, false)),
@@ -400,7 +402,61 @@ fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
         }
         _ => return None,
     };
+    let inline = match attr {
+        Some(a) => Inline::Attributed(Box::new(inline), a),
+        None => inline,
+    };
     Some((inline, close + 1))
+}
+
+/// Split a CriticMarkup body into (content, attribution) (#116). The suffix is
+/// recognized only when well formed at the very end — `|@author[,@author…]` plus
+/// an optional `|date` — so any other `|` stays literal content and needs no
+/// escape (`{+a|b}` inserts `a|b`). Mirrored by `attribution.js` for the editor.
+fn split_attribution(body: &str) -> (&str, Option<Attribution>) {
+    let mut parts = body.rsplitn(3, '|');
+    let last = parts.next().unwrap_or_default();
+    let (Some(prev), rest) = (parts.next(), parts.next()) else {
+        return (body, None);
+    };
+    // `…|@authors|date`: the date is last, the authors before it.
+    if is_iso_date(last) {
+        if let (Some(authors), Some(content)) = (authors(prev), rest) {
+            let date = Some(last.to_string());
+            return (content, Some(Attribution { authors, date }));
+        }
+    }
+    // `…|@authors`: no date. The content is everything before the last `|`.
+    match authors(last) {
+        Some(authors) => (&body[..body.len() - last.len() - 1], Some(Attribution { authors, date: None })),
+        None => (body, None),
+    }
+}
+
+/// `@Ada Lovelace,@Sam` → names, or None unless every comma-separated item is
+/// `@` + a non-empty name. Whitespace around items and names is trimmed.
+fn authors(field: &str) -> Option<Vec<String>> {
+    field
+        .split(',')
+        .map(|a| {
+            let name = a.trim().strip_prefix('@')?.trim();
+            (!name.is_empty()).then(|| name.to_string())
+        })
+        .collect()
+}
+
+/// ISO 8601 date `YYYY-MM-DD`, optionally followed by a `T…` time part.
+fn is_iso_date(s: &str) -> bool {
+    let b = s.as_bytes();
+    let digits = |r: std::ops::Range<usize>| b[r].iter().all(u8::is_ascii_digit);
+    b.len() >= 10
+        && digits(0..4)
+        && b[4] == b'-'
+        && digits(5..7)
+        && b[7] == b'-'
+        && digits(8..10)
+        && (b.len() == 10
+            || (b[10] == b'T' && b[11..].iter().all(|c| c.is_ascii_digit() || b":.+-Z".contains(c))))
 }
 
 /// Byte index of the next occurrence of `needle` at or after `from`.

@@ -49,6 +49,7 @@ node app/src/timescrub.test.mjs                # time-scrub character-position s
 node app/src/mapproviders.test.mjs             # map-world folding + providers self-check
 node app/src/filetree.test.mjs                 # project .ink tree build/prune/sort self-check
 node app/src/caretsection.test.mjs             # caret -> outline-section pick self-check
+node app/src/attribution.test.mjs              # CriticMarkup attribution-suffix mirror self-check
 cd app && npm run tauri dev                   # run the app (needs a display)
 cd app && npm run build                       # frontend only -> app/dist
 ```
@@ -110,7 +111,18 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   a `StreamLanguage`). Change one, change the other. `app/src/fold.js` (fold
   service, heading depth off the marker run) and `app/src/metacomplete.js`
   (metadata-completion zone detection: heading + `key:` rules) mirror it too — a
-  heading- or meta-rule change touches all of them.
+  heading- or meta-rule change touches all of them. `app/src/attribution.js`
+  mirrors `split_attribution` (the CriticMarkup attribution-suffix grammar).
+- **Edit suggestions are inline attributed CriticMarkup** (epic #111). A
+  suggestion is a CriticMarkup span with a trailing `|@author[,@author…][|date]`
+  suffix, parsed into `Inline::Attributed`; there is **no sidecar** — the span
+  moves with the text, so anchoring is free. Attribution is metadata only: print
+  projects every unresolved span as accepted, attributed or not; guarding
+  against unreviewed text is the export's job (accept/reject/mine-only modes,
+  #117), never a different print meaning. Reviewers are reconciled by a
+  word-level 3-way merge *at ingest* (#119/#120), so overlapping suggestions are
+  never stored. Accepting removes the markup (history belongs to #44; names go
+  to a `contributors:` front-matter list).
 - **Frontend uses `withGlobalTauri`** — `window.__TAURI__.{core,dialog,fs}`, no
   `@tauri-apps/api`/plugin npm packages. Keep it that way unless a global is
   missing. Bundled *rendering* deps are a separate matter: CodeMirror, and

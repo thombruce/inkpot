@@ -169,6 +169,66 @@ fn soft_breaks_print_as_spaces_and_trailing_backslash_is_hard() {
 }
 
 #[test]
+fn criticmarkup_attribution_suffix() {
+    use ink_core::Attribution;
+    // #116: `|@authors[|date]` at the end of a span is attribution — metadata only.
+    let first = |src: &str| match &parse(src).body[0] {
+        Block::Para(spans) => spans.iter().find(|s| !matches!(s, Inline::Text(_))).cloned(),
+        _ => None,
+    };
+    let attr = |authors: &[&str], date: Option<&str>| Attribution {
+        authors: authors.iter().map(|a| a.to_string()).collect(),
+        date: date.map(str::to_string),
+    };
+
+    // Each form; spaces in names; date, date-time, or none; several authors.
+    assert_eq!(
+        first("x {+new words|@Ada Lovelace|2026-10-04} y"),
+        Some(Inline::Attributed(Box::new(Inline::Insert(txt("new words"))), attr(&["Ada Lovelace"], Some("2026-10-04"))))
+    );
+    assert_eq!(
+        first("x {-gone|@Ada} y"),
+        Some(Inline::Attributed(Box::new(Inline::Delete(txt("gone"))), attr(&["Ada"], None)))
+    );
+    assert_eq!(
+        first("x {~teh~the|@Ada, @Sam|2026-10-04T14:03Z} y"),
+        Some(Inline::Attributed(
+            Box::new(Inline::Sub { old: txt("teh"), new: txt("the") }),
+            attr(&["Ada", "Sam"], Some("2026-10-04T14:03Z"))
+        ))
+    );
+    assert_eq!(
+        first("x {/too early?|@Sam} y"),
+        Some(Inline::Attributed(Box::new(Inline::Comment("too early?".into())), attr(&["Sam"], None)))
+    );
+    // A `~` in an author name can't split the substitution: the suffix peels first.
+    assert!(matches!(first("{~a~b|@x~y}"), Some(Inline::Attributed(_, a)) if a.authors == ["x~y"]));
+
+    // Not well formed at the end → plain content, no escape needed.
+    assert_eq!(first("{+a|b}"), Some(Inline::Insert(txt("a|b"))));
+    assert_eq!(first("{+a|@}"), Some(Inline::Insert(txt("a|@"))));
+    assert_eq!(first("{+a|@Ada|soon}"), Some(Inline::Insert(txt("a|@Ada|soon"))));
+    assert_eq!(first("{+a|@Ada,Sam}"), Some(Inline::Insert(txt("a|@Ada,Sam"))));
+    // Only the last fields are the suffix: an earlier `|` stays content.
+    assert!(matches!(first("{+a|b|@Ada|2026-10-04}"),
+        Some(Inline::Attributed(i, _)) if *i == Inline::Insert(txt("a|b"))));
+
+    // Print ignores attribution: same output as the unattributed spans.
+    let src = "# H\n\nA {+new|@Ada} {-old|@Ada|2026-10-04} {~teh~the|@Sam} {/hm|@Sam} end.\n";
+    let plain = "# H\n\nA {+new} {-old} {~teh~the} {/hm} end.\n";
+    for view in [View::Manuscript, View::Outline] {
+        assert_eq!(render(&parse(src), view), render(&parse(plain), view));
+    }
+    assert_eq!(ink_core::render_html(&parse(src)), ink_core::render_html(&parse(plain)));
+    assert_eq!(word_count(&parse(src)), word_count(&parse(plain)));
+
+    // Edit round-trip keeps it (canonical `@A,@B`), and is idempotent.
+    let edit = render(&parse("# H\n\n{~teh~the|@Ada, @Sam|2026-10-04} {+a|b|@Kim}\n"), View::Edit);
+    assert!(edit.contains("{~teh~the|@Ada,@Sam|2026-10-04} {+a|b|@Kim}"), "{edit}");
+    assert_eq!(render(&parse(&edit), View::Edit), edit);
+}
+
+#[test]
 fn outline_lists_every_heading() {
     let out = render(&parse(SAMPLE), View::Outline);
     for h in ["Chapter 1", "The Arrival", "The Kitchen", "The Hallway", "Chapter 2", "Departure"] {
