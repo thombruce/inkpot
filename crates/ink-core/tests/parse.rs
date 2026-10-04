@@ -158,6 +158,12 @@ fn soft_breaks_print_as_spaces_and_trailing_backslash_is_hard() {
         assert!(ink_core::render_html(&doc).contains("<p>end</p>"));
         assert!(render(&doc, View::Edit).contains("end\\\n"), "round-trips");
     }
+    // Only the paragraph's end: a CriticMarkup body ending in `\` keeps it (the
+    // span closes on the first `}`, so the `\` is content, e.g. a Windows path).
+    let md = render(&parse("# H\n\na {+C:\\} b {-D:\\} c {~E:\\~F:} d\n"), View::Manuscript);
+    assert!(md.contains("a C:\\ b  c F: d"), "{md}");
+    let edit = render(&parse("# H\n\nx {~E:\\~F:} y\n"), View::Edit);
+    assert!(edit.contains("{~E:\\~F:}"), "old side keeps its `\\`: {edit}");
     // `\\` is the way to print a literal trailing backslash.
     assert!(render(&parse("# H\n\nend\\\\\n"), View::Manuscript).contains("end\\\n"));
 }
