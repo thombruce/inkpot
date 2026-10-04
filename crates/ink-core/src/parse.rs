@@ -386,8 +386,8 @@ fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
     let kind = text.as_bytes().get(start + 1)?;
     let content_start = start + 2;
     let close = find(text, content_start, "}")?;
-    // Peel the attribution suffix first, so a `~` in an author name can't split
-    // a substitution.
+    // Peel the attribution suffix first: it covers the whole span, so for a
+    // substitution it must not end up inside `new`.
     let (content, attr) = split_attribution(&text[content_start..close]);
     let inline = match kind {
         b'+' => Inline::Insert(scan(content, false)),
@@ -434,13 +434,15 @@ fn split_attribution(body: &str) -> (&str, Option<Attribution>) {
 }
 
 /// `@Ada Lovelace,@Sam` → names, or None unless every comma-separated item is
-/// `@` + a non-empty name. Whitespace around items and names is trimmed.
+/// `@` + a non-empty name. Whitespace around items and names is trimmed. A name
+/// can't contain a span delimiter — `|`, `,`, `}` by construction, and `~` here —
+/// so `{~a|@x~y}` stays the substitution `a|@x` → `y`, as before attribution.
 fn authors(field: &str) -> Option<Vec<String>> {
     field
         .split(',')
         .map(|a| {
             let name = a.trim().strip_prefix('@')?.trim();
-            (!name.is_empty()).then(|| name.to_string())
+            (!name.is_empty() && !name.contains('~')).then(|| name.to_string())
         })
         .collect()
 }

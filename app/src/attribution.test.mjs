@@ -10,7 +10,7 @@ assert.equal(at("a|b|@Ada|2026-10-04"), 3, "only the last fields are the suffix"
 assert.equal(at("|@Ada"), 0, "empty content is fine");
 
 // Not well formed → no suffix (the `|` is content).
-for (const body of ["a|b", "a|@", "a|@Ada|soon", "a|@Ada,Sam", "plain", "@Ada", "@Ada|2026-10-04"]) {
+for (const body of ["a|b", "a|@", "a|@Ada|soon", "a|@Ada,Sam", "plain", "@Ada", "@Ada|2026-10-04", "a|@x~y", "a~b|@x~y"]) {
   assert.equal(at(body), -1, body);
 }
 

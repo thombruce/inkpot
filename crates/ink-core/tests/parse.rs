@@ -201,8 +201,10 @@ fn criticmarkup_attribution_suffix() {
         first("x {/too early?|@Sam} y"),
         Some(Inline::Attributed(Box::new(Inline::Comment("too early?".into())), attr(&["Sam"], None)))
     );
-    // A `~` in an author name can't split the substitution: the suffix peels first.
-    assert!(matches!(first("{~a~b|@x~y}"), Some(Inline::Attributed(_, a)) if a.authors == ["x~y"]));
+    // A name can't contain `~` (a span delimiter): no suffix, so the substitution
+    // splits on the first `~` exactly as it did before attribution existed.
+    assert_eq!(first("{~a|@x~y}"), Some(Inline::Sub { old: txt("a|@x"), new: txt("y") }));
+    assert_eq!(first("{~a~b|@x~y}"), Some(Inline::Sub { old: txt("a"), new: txt("b|@x~y") }));
 
     // Not well formed at the end → plain content, no escape needed.
     assert_eq!(first("{+a|b}"), Some(Inline::Insert(txt("a|b"))));

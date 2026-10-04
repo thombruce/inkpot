@@ -5,9 +5,10 @@
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T[0-9:.+\-Z]*)?$/;
 
-// `@Ada Lovelace, @Sam` → every comma-separated item is `@` + a non-empty name.
+// `@Ada Lovelace, @Sam` → every comma-separated item is `@` + a non-empty name,
+// with no `~` (a span delimiter) in it.
 const isAuthors = (field) =>
-  field.split(",").every((a) => /^@\s*\S/.test(a.trim()));
+  field.split(",").every((a) => /^@\s*\S/.test(a.trim()) && !a.includes("~"));
 
 // Index in `body` of the `|` that starts the attribution suffix, or -1 if none.
 export function attributionStart(body) {
