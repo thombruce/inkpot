@@ -222,6 +222,12 @@ fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
 
 /// Scan a paragraph's text into inline spans.
 pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
+    scan(text, true)
+}
+
+/// `top` is false for a recursive scan of a markup body (emphasis/CriticMarkup),
+/// whose end is the span's closer, not the paragraph's.
+fn scan(text: &str, top: bool) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -241,6 +247,18 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
         // (not plain `Text`) so the edit/source round-trip can re-emit the `\` —
         // otherwise the char could re-form a marker on reparse (e.g. `\{{` → live
         // interpolation). Prints as the bare char in every other view.
+        // A `\` ending the paragraph (or title) escapes nothing: `Escaped("")`,
+        // so it never prints — like every line-ending `\` (#112), and matching the
+        // editor, which can't see whether a line is a paragraph's last — but still
+        // round-trips, so normalize never deletes a char the author typed. Only at
+        // the top: a CriticMarkup body ending in `\` (`{+C:\}`) keeps it literal.
+        if top && bytes[i] == b'\\' && i + 1 == bytes.len() {
+            flush_plain!(i);
+            out.push(Inline::Escaped(String::new()));
+            i += 1;
+            plain_start = i;
+            continue;
+        }
         if bytes[i] == b'\\' && i + 1 < bytes.len() {
             let next = i + 1;
             let len = next_char_len(bytes, next);
@@ -312,7 +330,7 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
         if text[i..].starts_with("**") && opens(text, i + 2) {
             if let Some(end) = find_closing(text, i + 2, "**") {
                 flush_plain!(i);
-                out.push(Inline::Bold(scan_inline(&text[i + 2..end])));
+                out.push(Inline::Bold(scan(&text[i + 2..end], false)));
                 i = end + 2;
                 plain_start = i;
                 continue;
@@ -322,7 +340,7 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
         if bytes[i] == b'*' && opens(text, i + 1) {
             if let Some(end) = find_closing(text, i + 1, "*") {
                 flush_plain!(i);
-                out.push(Inline::Italic(scan_inline(&text[i + 1..end])));
+                out.push(Inline::Italic(scan(&text[i + 1..end], false)));
                 i = end + 1;
                 plain_start = i;
                 continue;
@@ -336,7 +354,9 @@ pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
 
 /// Chars that a backslash escapes into a literal (markers + backslash itself).
 fn is_escapable(ch: &str) -> bool {
-    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\" | "[" | "]")
+    // `\n`: a backslash ending a line is a hard line break (CommonMark); a bare
+    // newline inside a paragraph is a soft break that prints as a space (#112).
+    matches!(ch, "*" | "{" | "}" | "#" | "~" | "/" | "\\" | "[" | "]" | "\n")
 }
 
 /// Left-flanking opener: the char at `at` exists and is not whitespace.
@@ -368,14 +388,14 @@ fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
     let close = find(text, content_start, "}")?;
     let content = &text[content_start..close];
     let inline = match kind {
-        b'+' => Inline::Insert(scan_inline(content)),
-        b'-' => Inline::Delete(scan_inline(content)),
+        b'+' => Inline::Insert(scan(content, false)),
+        b'-' => Inline::Delete(scan(content, false)),
         b'/' => Inline::Comment(content.to_string()),
         b'~' => {
             let (old, new) = content.split_once('~')?;
             Inline::Sub {
-                old: scan_inline(old),
-                new: scan_inline(new),
+                old: scan(old, false),
+                new: scan(new, false),
             }
         }
         _ => return None,

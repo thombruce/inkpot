@@ -7,6 +7,16 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Changed
+
+- **Soft line breaks.** A single line break inside a paragraph now prints as a
+  space in every view (preview, manuscript, PDF), Markdown-style. You can wrap
+  lines freely or write one sentence per line. End a line with `\` for a hard
+  line break (a `\` ending a paragraph does nothing and never prints; write
+  `\\` for a literal one). **Format change:** verse or other text that relied
+  on single line breaks printing as breaks needs a trailing `\` on each line
+  that should break (#112).
+
 ## [0.14.0] - 2026-09-27
 
 ### Added

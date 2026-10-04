@@ -79,10 +79,13 @@ const inkMode = StreamLanguage.define({
       if (stream.match(/^\/.*/)) return "comment"; // `/` line comment
     }
 
-    // Backslash escape: consume `\` + the next char as literal.
+    // Backslash escape: consume `\` + the next char as literal. A `\` ending the
+    // line never prints — a hard break (#112), or a no-op on a paragraph's last
+    // line — so it's muted, like other non-printing markup. No lookahead needed.
     if (stream.peek() === "\\") {
       stream.next();
-      if (!stream.eol()) stream.next();
+      if (stream.eol()) return "meta";
+      stream.next();
       return null;
     }
 

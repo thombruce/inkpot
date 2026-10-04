@@ -209,6 +209,7 @@ fn plain_inline(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Sub { new, .. } => plain_inlines(new, ctx),
         Inline::Link(s) => link_text(s, &ctx.links),
         Inline::Cite(items) => cite_text(items, &ctx.cites),
+        Inline::Escaped(s) if s == "\n" => " ".to_string(),
         Inline::Escaped(s) => s.clone(),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
@@ -534,7 +535,8 @@ fn word_count_ctx(node: &Node, ctx: &Ctx) -> usize {
     let mut n = 0;
     for block in &node.body {
         if let Block::Para(spans) = block {
-            n += print_inlines(spans, ctx).split_whitespace().count();
+            // Plain flatten, not print: a hard break's `\` must not count as a word.
+            n += plain_inlines(spans, ctx).split_whitespace().count();
         }
     }
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
@@ -657,11 +659,21 @@ fn shunn_blocks(node: &Node, ctx: &Ctx, blocks: &mut Vec<ShunnBlock>) {
     }
     for block in &node.body {
         if let Block::Para(spans) = block {
-            // Collapse a paragraph's soft (source) line breaks and runs of
-            // whitespace to single spaces: prose reflows in the manuscript, and a
-            // raw `\n` would render as a missing glyph. (Verse line breaks are
-            // lost — an accepted v1 simplification.)
-            let text = print_inlines(spans, ctx).split_whitespace().collect::<Vec<_>>().join(" ");
+            // Prose reflows: collapse whitespace runs to single spaces within each
+            // line. Print output's only `\n`s are hard breaks (`\` + newline,
+            // #112); keep those as bare `\n`s for the emitter, dropping the `\`.
+            let printed = print_inlines(spans, ctx);
+            let mut lines: Vec<&str> = printed.split('\n').collect();
+            let last = lines.len() - 1;
+            for line in &mut lines[..last] {
+                *line = line.strip_suffix('\\').unwrap_or(line);
+            }
+            let text = lines
+                .iter()
+                .map(|l| l.split_whitespace().collect::<Vec<_>>().join(" "))
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
             if !text.is_empty() {
                 blocks.push(ShunnBlock::Para(text));
             }
@@ -674,8 +686,9 @@ fn shunn_blocks(node: &Node, ctx: &Ctx, blocks: &mut Vec<ShunnBlock>) {
 
 /// Render `root` as a manuscript in HTML: visible headings become `<h1>`–`<h6>`,
 /// paragraphs `<p>`, bold/italic `<strong>`/`<em>`, with CriticMarkup resolved
-/// and scenes/metadata/comments dropped. Text is escaped; single newlines
-/// within a paragraph become `<br>` (so verse lines survive).
+/// and scenes/metadata/comments dropped. Text is escaped; a single newline
+/// within a paragraph is a soft break (collapses to a space), and a line ending
+/// in `\` is a hard break, `<br>` — how verse keeps its lines (#112).
 pub fn render_html(root: &Node) -> String {
     render_html_project(&[root], 0)
 }
@@ -1490,7 +1503,8 @@ fn html_inlines(spans: &[Inline], ctx: &Ctx) -> String {
 
 fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
     Some(match span {
-        Inline::Text(s) => escape(&substitute(s, ctx)).replace('\n', "<br>"),
+        // A soft break stays a bare `\n`, which HTML collapses to a space (#112).
+        Inline::Text(s) => escape(&substitute(s, ctx)),
         Inline::Bold(cs) => format!("<strong>{}</strong>", html_inlines(cs, ctx)),
         Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs, ctx)),
         Inline::Insert(cs) => html_inlines(cs, ctx),
@@ -1499,6 +1513,7 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Cite(items) => {
             format!("<span class=\"cite\">{}</span>", escape(&cite_text(items, &ctx.cites)))
         }
+        Inline::Escaped(s) if s == "\n" => "<br>\n".to_string(),
         Inline::Escaped(s) => escape(s),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
@@ -1612,19 +1627,22 @@ fn edit(node: &Node, out: &mut String) {
 }
 
 /// Inline sequence -> print output: visible markup kept, criticmarkup resolved.
+/// Markdown line semantics (#112): a soft break prints as a space, a hard break
+/// as CommonMark's `\` + newline — so the only `\n` in the output is a hard break.
 fn print_inlines(spans: &[Inline], ctx: &Ctx) -> String {
     spans.iter().filter_map(|s| inline_print(s, ctx)).collect()
 }
 
 fn inline_print(span: &Inline, ctx: &Ctx) -> Option<String> {
     Some(match span {
-        Inline::Text(s) => substitute(s, ctx),
+        Inline::Text(s) => substitute(s, ctx).replace('\n', " "),
         Inline::Bold(cs) => format!("**{}**", print_inlines(cs, ctx)),
         Inline::Italic(cs) => format!("*{}*", print_inlines(cs, ctx)),
         Inline::Insert(cs) => print_inlines(cs, ctx),
         Inline::Sub { new, .. } => print_inlines(new, ctx),
         Inline::Link(s) => link_text(s, &ctx.links),
         Inline::Cite(items) => cite_text(items, &ctx.cites),
+        Inline::Escaped(s) if s == "\n" => "\\\n".to_string(),
         Inline::Escaped(s) => s.clone(),
         Inline::Delete(_) | Inline::Comment(_) => return None,
     })
