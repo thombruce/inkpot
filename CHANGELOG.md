@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-04
+
 ### Added
 
 - **Attributed CriticMarkup.** Any CriticMarkup span can say who suggested it,
