@@ -107,6 +107,20 @@ no `% Characters` section. Text is escaped for `innerHTML`. The panel's one writ
 scaffolding a new `%% Name` entry — is a frontend text splice (`app/src/character.js`),
 not an IPC call; text stays canonical.
 
+### `notes(src: string) -> string`
+
+Returns the **notes panel** as HTML (#41): every note-to-self in document order —
+`/` line comments, inline `{/comments}`, and **TK** placeholders (`TK` or `TKTK`
+as a whole uppercase word, in printing prose — not inside deletions or comments).
+A `<p class="notes-summary">` count ("2 notes, 1 TK") precedes an
+`<ol class="notes">` of `<li class="note|tk">` items: a `<span class="kind">`, an
+`<a class="ref" data-jump="<char-offset>">` with the comment text or ~40 chars of
+TK context, an optional `<span class="by">` (an attributed comment's authors), and
+a `<span class="where">` section title. The jump lands on the block: a line
+comment's own line, else its paragraph's first line. Every section counts,
+excluded (`%`) ones included. With nothing to report it's just an empty
+`<ol class="notes"></ol>`. Text is escaped for `innerHTML`.
+
 ### `normalize(src: string) -> string`
 
 Returns `src` re-serialized in the canonical **house style** (the `edit` view:

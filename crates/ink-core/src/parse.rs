@@ -15,6 +15,7 @@ pub fn parse(src: &str) -> Node {
         title: String::new(),
         meta: Vec::new(),
         body: Vec::new(),
+        body_starts: Vec::new(),
         children: Vec::new(),
         heading_span: Span { start: 0, end: 0 },
         node_span: Span { start: 0, end: doc_len },
@@ -22,8 +23,9 @@ pub fn parse(src: &str) -> Node {
     // Stack of raw-pointer-free indices into the tree is awkward; instead we
     // keep a stack of owned nodes and fold them together as levels close.
     let mut stack: Vec<Node> = vec![root];
-    // Buffer of body lines for the node currently on top of the stack.
-    let mut body_lines: Vec<&str> = Vec::new();
+    // Buffer of body lines (with each line's char offset) for the node currently
+    // on top of the stack.
+    let mut body_lines: Vec<(usize, &str)> = Vec::new();
     // Are we in a meta zone? Starts true so a leading `key: value` block becomes
     // document front matter on the root; otherwise it opens right after a heading.
     let mut in_meta = true;
@@ -56,6 +58,7 @@ pub fn parse(src: &str) -> Node {
                 title,
                 meta: Vec::new(),
                 body: Vec::new(),
+                body_starts: Vec::new(),
                 children: Vec::new(),
                 heading_span: Span { start: line_start, end: line_end },
                 // .end is filled in by close_spans once we know where the
@@ -100,7 +103,7 @@ pub fn parse(src: &str) -> Node {
             in_meta = false; // fall through: this line is body
         }
 
-        body_lines.push(raw);
+        body_lines.push((line_start, raw));
     }
 
     flush_body(stack.last_mut().unwrap(), &mut body_lines);
@@ -171,27 +174,31 @@ fn meta_line(line: &str) -> Option<(String, String)> {
 
 /// Drain buffered body lines into the node: `/` lines become comments,
 /// blank-separated runs become paragraphs.
-fn flush_body(node: &mut Node, lines: &mut Vec<&str>) {
+fn flush_body(node: &mut Node, lines: &mut Vec<(usize, &str)>) {
     let mut para: Vec<&str> = Vec::new();
-    for &line in lines.iter() {
+    let mut para_start = 0;
+    let push_para = |node: &mut Node, para: &mut Vec<&str>, start: usize| {
+        if !para.is_empty() {
+            node.body.push(Block::Para(scan_inline(&para.join("\n"))));
+            node.body_starts.push(start);
+            para.clear();
+        }
+    };
+    for &(start, line) in lines.iter() {
         if let Some(comment) = line.strip_prefix('/') {
-            if !para.is_empty() {
-                node.body.push(Block::Para(scan_inline(&para.join("\n"))));
-                para.clear();
-            }
+            push_para(node, &mut para, para_start);
             node.body.push(Block::LineComment(comment.trim().to_string()));
+            node.body_starts.push(start);
         } else if line.trim().is_empty() {
-            if !para.is_empty() {
-                node.body.push(Block::Para(scan_inline(&para.join("\n"))));
-                para.clear();
-            }
+            push_para(node, &mut para, para_start);
         } else {
+            if para.is_empty() {
+                para_start = start;
+            }
             para.push(line);
         }
     }
-    if !para.is_empty() {
-        node.body.push(Block::Para(scan_inline(&para.join("\n"))));
-    }
+    push_para(node, &mut para, para_start);
     lines.clear();
 }
 

@@ -1445,3 +1445,47 @@ fn edit_view_full_fidelity() {
     // And it's a fixpoint.
     assert_eq!(render(&parse(&once), View::Edit), once, "Edit not idempotent on a rich doc");
 }
+
+#[test]
+fn notes_panel_collects_comments_and_tks() {
+    use ink_core::render_notes_html;
+    // #41: line comments, inline comments (attributed too), and TK placeholders,
+    // each jumping to its block; excluded sections count; deletions don't.
+    let src = "# One\n\nShe left TK and {/check the date|@Ada} too.\n/ seed the argument\n\n% Notes\n\nRemember TKTK.\n\n~ Two\n\n{-gone TK-} Tokyo, vodka, TKO, aTK.\n";
+    let html = render_notes_html(&parse(src));
+    let jump =
+        |needle: &str| src.chars().count() - src[src.find(needle).unwrap()..].chars().count();
+
+    assert!(html.contains("<p class=\"notes-summary\">2 notes, 2 TKs</p>"), "{html}");
+    // Inline comment: its paragraph's start; author shown; section title shown.
+    let para = jump("She left");
+    assert!(
+        html.contains(&format!(
+            "<a class=\"ref\" data-jump=\"{para}\">check the date</a> <span class=\"by\">Ada</span> <span class=\"where\">One</span>"
+        )),
+        "{html}"
+    );
+    // Line comment: its own line.
+    assert!(
+        html.contains(&format!("data-jump=\"{}\">seed the argument</a>", jump("/ seed"))),
+        "{html}"
+    );
+    // TK with context; TKTK counts; in an excluded section too.
+    assert!(html.contains(&format!("data-jump=\"{para}\">She left TK and too.</a>")), "{html}");
+    assert!(html.contains("Remember TKTK.</a> <span class=\"where\">Notes</span>"), "{html}");
+    // Not TKs: inside a deletion, or part of a word.
+    assert!(!html.contains("gone") && !html.contains("Tokyo"), "{html}");
+
+    // A long paragraph: ~40 chars of context each side, cut at a word, marked `…`.
+    let long = "# H\n\nThe quick brown fox jumps over the lazy dog and then TK runs off far away into the deep dark woods.\n";
+    assert!(
+        render_notes_html(&parse(long)).contains(
+            ">…fox jumps over the lazy dog and then TK runs off far away into the deep dark…</a>"
+        ),
+        "{}",
+        render_notes_html(&parse(long))
+    );
+
+    // Nothing to report: just the empty list (the CSS hint fills it).
+    assert_eq!(render_notes_html(&parse("# H\n\nClean prose.\n")), "<ol class=\"notes\"></ol>");
+}

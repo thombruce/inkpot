@@ -26,6 +26,7 @@ const previewEl = document.getElementById("preview");
 const codexEl = document.getElementById("codex");
 const timelineEl = document.getElementById("timeline");
 const charactersEl = document.getElementById("characters");
+const notesEl = document.getElementById("notes");
 const bibliographyEl = document.getElementById("bibliography");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
@@ -281,27 +282,38 @@ const refresh = debounce(async () => {
   const src = editor.state.doc.toString();
   // The codex, preview, and bibliography span the whole project — references and
   // citations resolve across files (#28, #89). Send the project bundle plus which
-  // file is active; the per-file views (outline/timeline/characters/map) still
-  // take just the active source.
+  // file is active; the per-file views (outline/timeline/characters/notes/map)
+  // still take just the active source.
   const files = await projectBundle();
   const active = currentPath ?? "";
-  const [tree, html, codexHtml, timelineHtml, charactersHtml, bibliographyHtml, markers, sceneData] =
-    await Promise.all([
-      invoke("outline", { src }),
-      invoke("preview", { files, active }),
-      invoke("codex_project", { files }),
-      invoke("timeline", { src }),
-      invoke("characters", { src }),
-      invoke("bibliography", { files, active }),
-      invoke("map", { src }),
-      invoke("scenes", { src }),
-    ]);
+  const [
+    tree,
+    html,
+    codexHtml,
+    timelineHtml,
+    charactersHtml,
+    notesHtml,
+    bibliographyHtml,
+    markers,
+    sceneData,
+  ] = await Promise.all([
+    invoke("outline", { src }),
+    invoke("preview", { files, active }),
+    invoke("codex_project", { files }),
+    invoke("timeline", { src }),
+    invoke("characters", { src }),
+    invoke("notes", { src }),
+    invoke("bibliography", { files, active }),
+    invoke("map", { src }),
+    invoke("scenes", { src }),
+  ]);
   entities = collectEntities(tree, []);
   drawOutline(tree);
   previewEl.innerHTML = html;
   codexEl.innerHTML = codexHtml;
   timelineEl.innerHTML = timelineHtml;
   charactersEl.innerHTML = charactersHtml;
+  notesEl.innerHTML = notesHtml;
   bibliographyEl.innerHTML = bibliographyHtml;
   mapMarkers = markers;
   sceneList = sceneData;
@@ -904,13 +916,13 @@ outlineBtn.addEventListener("click", () => {
   outlineBtn.classList.toggle("active", !hidden);
 });
 
-// Editor / preview / codex / characters / map / timeline / bibliography share one
+// Editor / preview / codex / characters / map / timeline / notes / bibliography share one
 // space and are mutually exclusive — exactly one shows. A single <select> picks
 // which (a mode picker, not a row of toggles); `editor` is the default. setView
 // keeps the picker in sync, so programmatic switches (a jump link, a new
 // character) move the dropdown too.
 const viewSelect = document.getElementById("viewSelect");
-const PANEL_VIEWS = ["preview", "codex", "characters", "map", "timeline", "bibliography"];
+const PANEL_VIEWS = ["preview", "codex", "characters", "map", "timeline", "notes", "bibliography"];
 
 function setView(view) {
   for (const v of PANEL_VIEWS) {
@@ -931,10 +943,10 @@ function setView(view) {
 
 viewSelect.addEventListener("change", () => setView(viewSelect.value));
 
-// Codex, timeline, character, and bibliography links carry the target heading's
-// char offset. The editor is hidden while they show, so switch back first, then
-// scroll to it.
-for (const panel of [codexEl, timelineEl, charactersEl, bibliographyEl]) {
+// Codex, timeline, character, notes, and bibliography links carry a target char
+// offset (a heading, or a notes item's block). The editor is hidden while they
+// show, so switch back first, then scroll to it.
+for (const panel of [codexEl, timelineEl, charactersEl, notesEl, bibliographyEl]) {
   panel.addEventListener("click", async (e) => {
     const link = e.target.closest("[data-jump]");
     if (!link) return;

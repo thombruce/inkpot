@@ -9,6 +9,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **Notes panel.** A new view lists every note-to-self in the document — `/` line
+  comments, `{/inline comments}` (showing who left them, if attributed), and
+  **TK** placeholders (`TK` or `TKTK` as a whole word) — with a count of what's
+  left to do. Click an entry to jump to it (#41).
 - **Fold all / unfold all.** `Ctrl-K` then `Ctrl-0` collapses the editor to its
   top-level sections; `Ctrl-K` then `Ctrl-J` unfolds everything (`Cmd` on macOS),
   as in VS Code (#18).

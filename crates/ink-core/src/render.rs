@@ -1247,6 +1247,144 @@ fn collect_scenes(node: &Node, titles: &HashMap<usize, String>, out: &mut Vec<Sc
 /// each character shows its metadata, body, and backlinks and links jump via
 /// `data-jump`. Empty (no output) if the document has no `% Characters` section.
 /// The section name match is case-folded; other `%` sections are ignored here.
+/// The notes panel (#41): every note-to-self in document order — `/` line
+/// comments, inline `{/comments}` (with their attribution, if any), and **TK**
+/// placeholders in prose — each linking via `data-jump` to its block (a comment's
+/// own line, else its paragraph's first line), plus a count summary. Every
+/// section counts, excluded (`%`) ones included: notes live in research too.
+/// Text is escaped for `innerHTML` assignment.
+pub fn render_notes_html(root: &Node) -> String {
+    let titles = resolve_titles(root);
+    let mut items = String::new();
+    let (mut notes, mut tks) = (0, 0);
+    collect_notes(root, &titles, &mut items, &mut notes, &mut tks);
+    let mut out = String::new();
+    if notes + tks > 0 {
+        let plural =
+            |n: usize, one: &str, many: &str| format!("{n} {}", if n == 1 { one } else { many });
+        write!(
+            out,
+            "<p class=\"notes-summary\">{}, {}</p>",
+            plural(notes, "note", "notes"),
+            plural(tks, "TK", "TKs")
+        )
+        .ok();
+    }
+    write!(out, "<ol class=\"notes\">{items}</ol>").ok();
+    out
+}
+
+fn collect_notes(
+    node: &Node,
+    titles: &HashMap<usize, String>,
+    out: &mut String,
+    notes: &mut usize,
+    tks: &mut usize,
+) {
+    let section = if node.level == 0 {
+        String::new()
+    } else {
+        titles.get(&node.heading_span.start).cloned().unwrap_or_else(|| node.title.clone())
+    };
+    let mut item = |kind: &str, text: &str, by: Option<&[String]>, offset: usize| {
+        let by = by.map(|a| format!(" <span class=\"by\">{}</span>", escape(&a.join(", "))));
+        write!(
+            out,
+            "<li class=\"{}\"><span class=\"kind\">{kind}</span> \
+             <a class=\"ref\" data-jump=\"{offset}\">{}</a>{} <span class=\"where\">{}</span></li>",
+            kind.to_lowercase(),
+            escape(text),
+            by.unwrap_or_default(),
+            escape(&section)
+        )
+        .ok();
+    };
+    for (block, &offset) in node.body.iter().zip(&node.body_starts) {
+        match block {
+            Block::LineComment(c) if !c.is_empty() => {
+                item("Note", c, None, offset);
+                *notes += 1;
+            }
+            Block::LineComment(_) => {}
+            Block::Para(spans) => {
+                let mut comments = Vec::new();
+                inline_comments(spans, &mut comments);
+                for (c, by) in comments {
+                    item("Note", c, by, offset);
+                    *notes += 1;
+                }
+                // TKs in what prints: deletions and comments are already gone.
+                let text = plain_inlines(spans, &Ctx::default());
+                for at in tk_positions(&text) {
+                    item("TK", &snippet(&text, at), None, offset);
+                    *tks += 1;
+                }
+            }
+        }
+    }
+    for child in &node.children {
+        collect_notes(child, titles, out, notes, tks);
+    }
+}
+
+/// Inline `{/comments}` anywhere in a span tree, with their authors if attributed.
+fn inline_comments<'a>(spans: &'a [Inline], out: &mut Vec<(&'a str, Option<&'a [String]>)>) {
+    for s in spans {
+        match s {
+            Inline::Comment(c) => out.push((c, None)),
+            Inline::Attributed(inner, a) => match &**inner {
+                Inline::Comment(c) => out.push((c, Some(&a.authors))),
+                other => inline_comments(std::slice::from_ref(other), out),
+            },
+            Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) | Inline::Delete(cs) => {
+                inline_comments(cs, out)
+            }
+            Inline::Sub { old, new } => {
+                inline_comments(old, out);
+                inline_comments(new, out);
+            }
+            Inline::Text(_) | Inline::Link(_) | Inline::Cite(_) | Inline::Escaped(_) => {}
+        }
+    }
+}
+
+/// Byte positions of each **TK** placeholder: the journalists' "to come" mark, as
+/// a whole uppercase word — `TK` or `TKTK` — so "Tokyo", "vodka", "TKO" don't match.
+fn tk_positions(text: &str) -> Vec<usize> {
+    let word = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(rel) = text[from..].find("TK") {
+        let at = from + rel;
+        let mut end = at + 2;
+        while text[end..].starts_with("TK") {
+            end += 2;
+        }
+        if !word(text[..at].chars().next_back()) && !word(text[end..].chars().next()) {
+            out.push(at);
+        }
+        from = end;
+    }
+    out
+}
+
+/// Up to ~40 chars of context either side of byte `at`, trimmed to whole words
+/// where cut, with `…` marking a cut. Whitespace runs collapse (a dropped comment
+/// or a soft line break leaves gaps).
+fn snippet(text: &str, at: usize) -> String {
+    const SIDE: usize = 40;
+    let mut start = text[..at].char_indices().rev().nth(SIDE).map_or(0, |(i, _)| i);
+    let mut end = text[at..].char_indices().nth(SIDE).map_or(text.len(), |(i, _)| at + i);
+    if start > 0 {
+        start = text[start..at].find(' ').map_or(start, |i| start + i + 1);
+    }
+    if end < text.len() {
+        end = text[at..end].rfind(' ').map_or(end, |i| at + i);
+    }
+    let (pre, post) = (if start > 0 { "…" } else { "" }, if end < text.len() { "…" } else { "" });
+    format!("{pre}{}{post}", text[start..end].split_whitespace().collect::<Vec<_>>().join(" "))
+}
+
 pub fn render_characters_html(root: &Node) -> String {
     // Single-file view: a project of one, empty path (no `data-jump-file`).
     let docs = [(String::new(), root)];

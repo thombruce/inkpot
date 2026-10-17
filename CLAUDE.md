@@ -21,15 +21,17 @@ stay in outline/edit.
   `exclude`s `app`), so `cargo test` stays fast and needs no webkit.
 - `app/src/` — bundler-built frontend (Vite). No JS framework. Layout is a
   flex row: the outline rail plus a shared main area that shows **one** of
-  editor / preview / codex / timeline / characters / map at a time. The toolbar
-  toggles a `body.show-*` class per view (`show-preview`, `show-codex`,
-  `show-timeline`, `show-characters`, `show-map`); the outline rail collapses
+  editor / preview / codex / timeline / characters / notes / bibliography / map
+  at a time. The view picker toggles a `body.show-*` class per view
+  (`show-preview`, `show-codex`, `show-timeline`, `show-characters`,
+  `show-notes`, `show-bibliography`, `show-map`); the outline rail collapses
   (`body.hide-outline`). All pure CSS class toggles in `main.js`/`style.css` —
   no grid tracks to juggle.
-- **Adding a planning view follows one pattern** (timeline/characters/map are
-  the examples): a pure projection in `ink-core` (`render_timeline_html`,
-  `render_characters_html`, `map_markers`) → a stateless `#[tauri::command]` →
-  a panel + toolbar toggle, refreshed each parse in `main.js`'s `refresh()`.
+- **Adding a planning view follows one pattern** (timeline/characters/notes/map
+  are the examples): a pure projection in `ink-core` (`render_timeline_html`,
+  `render_characters_html`, `render_notes_html`, `map_markers`) → a stateless
+  `#[tauri::command]` → a panel + view-picker option, refreshed each parse in
+  `main.js`'s `refresh()`.
   Views that emit `data-jump` offsets share one click-to-scroll handler. Read
   the view keys from `ink-core::meta` (below), never scattered string literals.
 

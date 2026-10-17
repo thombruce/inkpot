@@ -95,18 +95,20 @@ body {
    default; the toolbar toggle swaps to preview (body.show-preview). */
 .outline { flex: 0 0 260px; }
 body.hide-outline .outline { display: none; }
-.editor, .preview, .codex, .timeline, .characters, .bibliography, .map { flex: 1; border-right: none; }
-.preview, .codex, .timeline, .characters, .bibliography, .map { display: none; }
+.editor, .preview, .codex, .timeline, .characters, .notes, .bibliography, .map { flex: 1; border-right: none; }
+.preview, .codex, .timeline, .characters, .notes, .bibliography, .map { display: none; }
 body.show-preview .editor,
 body.show-codex .editor,
 body.show-timeline .editor,
 body.show-characters .editor,
+body.show-notes .editor,
 body.show-bibliography .editor,
 body.show-map .editor { display: none; }
 body.show-preview .preview { display: block; }
 body.show-codex .codex { display: block; }
 body.show-timeline .timeline { display: block; }
 body.show-characters .characters { display: flex; flex-direction: column; }
+body.show-notes .notes { display: block; }
 body.show-bibliography .bibliography { display: block; }
 body.show-map .map { display: flex; flex-direction: column; }
 /* Map fills the pane; the time-scrub bar sits below it. Leaflet needs the
@@ -348,6 +350,34 @@ body.show-map .map { display: flex; flex-direction: column; }
 /* An empty <ol class="timeline"> still renders; hint when it has no entries. */
 .timeline .timeline:empty::after {
   content: "No timeline entries — give a scene a time: value (e.g. time: 1987-05-02).";
+  color: var(--dim);
+  font: 14px/1.6 system-ui, sans-serif;
+}
+
+/* Notes: comments and TK placeholders, in document order (#41). */
+.notes-summary { margin: 0 0 0.8em; color: var(--dim); font: 13px/1.5 system-ui, sans-serif; }
+.notes .notes { list-style: none; margin: 0; padding: 0; }
+.notes li {
+  display: flex;
+  gap: 0.8em;
+  align-items: baseline;
+  padding: 0.35em 0;
+  border-bottom: 1px solid var(--border);
+}
+.notes .kind {
+  flex: 0 0 3em;
+  color: var(--dim);
+  font: 12px/1.5 ui-monospace, monospace;
+  text-transform: uppercase;
+}
+.notes .tk .kind { color: var(--accent); }
+.notes .ref { color: var(--ink); cursor: pointer; flex: 1; }
+.notes .ref:hover { text-decoration: underline; }
+.notes .by { color: var(--dim); font-style: italic; }
+.notes .where { color: var(--dim); font: 12px/1.5 system-ui, sans-serif; white-space: nowrap; }
+/* An empty <ol class="notes"> still renders; hint when there's nothing to do. */
+.notes .notes:empty::after {
+  content: "No notes — / line comments, {/inline comments}, and TK placeholders show up here.";
   color: var(--dim);
   font: 14px/1.6 system-ui, sans-serif;
 }
