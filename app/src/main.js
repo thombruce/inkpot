@@ -929,6 +929,7 @@ function setView(view) {
     document.body.classList.toggle(`show-${v}`, view === v);
   }
   viewSelect.value = view; // `editor` (no class) is the default option
+  viewSelect.classList.toggle("away", view !== "editor");
   // Leaflet needs a visible, sized container: create it on first show, and
   // recompute its size on later shows (it was display:none in between).
   if (view === "map") {
@@ -1095,7 +1096,10 @@ document.getElementById("save").addEventListener("click", saveFile);
 document.getElementById("saveAs").addEventListener("click", saveFileAs);
 
 window.addEventListener("keydown", (e) => {
-  if (!(e.ctrlKey || e.metaKey)) return;
+  // Skip keys the editor already handled — e.g. the key after a Ctrl-K chord
+  // prefix, or macOS's emacs-style Ctrl-N / Ctrl-O (cursor down, split line),
+  // which would otherwise also start a new file / open the dialog.
+  if (e.defaultPrevented || !(e.ctrlKey || e.metaKey)) return;
   if (e.key === "s") {
     e.preventDefault();
     e.shiftKey ? saveFileAs() : saveFile();
@@ -1105,6 +1109,20 @@ window.addEventListener("keydown", (e) => {
   } else if (e.key === "n") {
     e.preventDefault();
     newFile();
+  } else if (!e.altKey && /^Digit[1-9]$/.test(e.code)) {
+    // Ctrl/Cmd+1…N picks the Nth view, in picker order (#95). `e.code` is the
+    // physical key, so it works on layouts where digits need Shift (AZERTY); Alt
+    // is excluded because Windows reports AltGr as Ctrl+Alt (AltGr+8 types `[`).
+    const view = viewSelect.options[Number(e.code.slice(5)) - 1]?.value;
+    if (!view) return;
+    e.preventDefault();
+    if (e.repeat) return; // holding the keys shouldn't re-run the switch
+    setView(view);
+    // Keep typing out of a hidden buffer: focus follows the view. Blur whatever
+    // inside the editor has focus — the text, or the find/replace panel (Enter
+    // there would replace a match out of sight).
+    if (view === "editor") editor.focus();
+    else if (editor.dom.contains(document.activeElement)) document.activeElement.blur();
   }
 });
 

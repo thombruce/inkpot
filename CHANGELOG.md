@@ -9,6 +9,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **View shortcuts and a status bar.** `Ctrl+1` … `Ctrl+8` (`Cmd` on macOS)
+  switch views in the view menu's order, and the menu is highlighted while you're
+  away from the editor. The file name and word count moved out of the toolbar
+  into a status bar along the bottom (#95).
 - **Notes panel.** A new view lists every note-to-self in the document — `/` line
   comments, `{/inline comments}` (showing who left them, if attributed), and
   **TK** placeholders (`TK`, or `TKTK`, as a whole word) — with a count of what's
@@ -16,6 +20,11 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 - **Fold all / unfold all.** `Ctrl-K` then `Ctrl-0` collapses the editor to its
   top-level sections; `Ctrl-K` then `Ctrl-J` unfolds everything (`Cmd` on macOS),
   as in VS Code (#18).
+
+### Fixed
+
+- On macOS, `Ctrl-N` and `Ctrl-O` in the editor (cursor down and split line)
+  no longer also start a new file or open the file dialog.
 
 ## [0.15.0] - 2026-10-04
 

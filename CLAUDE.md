@@ -26,7 +26,9 @@ stay in outline/edit.
   (`show-preview`, `show-codex`, `show-timeline`, `show-characters`,
   `show-notes`, `show-bibliography`, `show-map`); the outline rail collapses
   (`body.hide-outline`). All pure CSS class toggles in `main.js`/`style.css` —
-  no grid tracks to juggle.
+  no grid tracks to juggle. Ctrl/Cmd+1…N picks the Nth view in picker order
+  (keyed on `e.code`, never with Alt — AltGr is Ctrl+Alt on Windows); a footer
+  status bar holds the file name and word count.
 - **Adding a planning view follows one pattern** (timeline/characters/notes/map
   are the examples): a pure projection in `ink-core` (`render_timeline_html`,
   `render_characters_html`, `render_notes_html`, `map_markers`) → a stateless

@@ -296,6 +296,10 @@ scene `~` / excluded `%`), a formatted reading preview toggled from the editor
 autosave to the current file plus an unsaved-changes guard on untitled buffers.
 It reopens your most recent file on launch and keeps a recent-files list.
 
+The main area shows one view at a time: pick it from the view menu, or press
+`Ctrl+1`, `Ctrl+2`, … (`Cmd` on macOS) for the views in menu order. The status
+bar along the bottom shows the file name and word count.
+
 ## Installing a release
 
 Prebuilt installers are published to
