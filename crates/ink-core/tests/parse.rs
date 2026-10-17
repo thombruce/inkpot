@@ -1487,6 +1487,24 @@ fn notes_panel_collects_comments_and_tks() {
         render_notes_html(&parse(long))
     );
 
+    // Reading order within a paragraph: a TK before a comment lists first.
+    let order = render_notes_html(&parse("# H\n\nTK the date. {/check with Ada}\n"));
+    let (tk, note) = (order.find("class=\"tk\"").unwrap(), order.find("check with Ada").unwrap());
+    assert!(tk < note, "{order}");
+
+    // Empty comments (bare, or empty apart from attribution) aren't notes. (A
+    // comment can't sit inside a deletion: the first `}` closes the span.)
+    let empty = render_notes_html(&parse("# H\n\n{/} {/  |@Ada} ok\n"));
+    assert_eq!(empty, "<ol class=\"notes-list\"></ol>", "{empty}");
+
+    // A cut at a line break counts as a word break (no partial word kept).
+    let wrapped = "# H\n\nwordy wordy wordy wordy wordy wordy wor\nwordy TK end.\n";
+    let w = render_notes_html(&parse(wrapped));
+    assert!(w.contains(">…wordy wordy wordy wordy wordy wor wordy TK end.</a>"), "{w}");
+
     // Nothing to report: just the empty list (the CSS hint fills it).
-    assert_eq!(render_notes_html(&parse("# H\n\nClean prose.\n")), "<ol class=\"notes\"></ol>");
+    assert_eq!(
+        render_notes_html(&parse("# H\n\nClean prose.\n")),
+        "<ol class=\"notes-list\"></ol>"
+    );
 }

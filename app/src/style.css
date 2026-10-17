@@ -356,8 +356,8 @@ body.show-map .map { display: flex; flex-direction: column; }
 
 /* Notes: comments and TK placeholders, in document order (#41). */
 .notes-summary { margin: 0 0 0.8em; color: var(--dim); font: 13px/1.5 system-ui, sans-serif; }
-.notes .notes { list-style: none; margin: 0; padding: 0; }
-.notes li {
+.notes-list { list-style: none; margin: 0; padding: 0; }
+.notes-list li {
   display: flex;
   gap: 0.8em;
   align-items: baseline;
@@ -375,8 +375,8 @@ body.show-map .map { display: flex; flex-direction: column; }
 .notes .ref:hover { text-decoration: underline; }
 .notes .by { color: var(--dim); font-style: italic; }
 .notes .where { color: var(--dim); font: 12px/1.5 system-ui, sans-serif; white-space: nowrap; }
-/* An empty <ol class="notes"> still renders; hint when there's nothing to do. */
-.notes .notes:empty::after {
+/* An empty list still renders; hint when there's nothing to do. */
+.notes-list:empty::after {
   content: "No notes — / line comments, {/inline comments}, and TK placeholders show up here.";
   color: var(--dim);
   font: 14px/1.6 system-ui, sans-serif;

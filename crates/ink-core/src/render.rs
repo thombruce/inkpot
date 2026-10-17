@@ -1243,17 +1243,14 @@ fn collect_scenes(node: &Node, titles: &HashMap<usize, String>, out: &mut Vec<Sc
     }
 }
 
-/// The character index: the codex section whose title is "Characters", rendered
-/// as entity cards for the character panel. Reuses the codex entry rendering, so
-/// each character shows its metadata, body, and backlinks and links jump via
-/// `data-jump`. Empty (no output) if the document has no `% Characters` section.
-/// The section name match is case-folded; other `%` sections are ignored here.
 /// The notes panel (#41): every note-to-self in document order — `/` line
 /// comments, inline `{/comments}` (with their attribution, if any), and **TK**
 /// placeholders in prose — each linking via `data-jump` to its block (a comment's
 /// own line, else its paragraph's first line), plus a count summary. Every
 /// section counts, excluded (`%`) ones included: notes live in research too.
 /// Text is escaped for `innerHTML` assignment.
+// ponytail: a jump lands on the block, not the note itself. Exact positions need
+// source offsets on inline spans, which #118 (per-span accept/reject) needs too.
 pub fn render_notes_html(root: &Node) -> String {
     let titles = resolve_titles(root);
     let mut items = String::new();
@@ -1271,8 +1268,14 @@ pub fn render_notes_html(root: &Node) -> String {
         )
         .ok();
     }
-    write!(out, "<ol class=\"notes\">{items}</ol>").ok();
+    write!(out, "<ol class=\"notes-list\">{items}</ol>").ok();
     out
+}
+
+/// What a paragraph holds, in reading order: an inline comment or a TK.
+enum Found<'a> {
+    Note(&'a str, Option<&'a [String]>),
+    Tk(usize),
 }
 
 fn collect_notes(
@@ -1300,6 +1303,9 @@ fn collect_notes(
         )
         .ok();
     };
+    // `body_starts` is parallel to `body`: if they ever drift, the zip below would
+    // silently drop notes, so make drift fail loudly in tests instead.
+    debug_assert_eq!(node.body.len(), node.body_starts.len());
     for (block, &offset) in node.body.iter().zip(&node.body_starts) {
         match block {
             Block::LineComment(c) if !c.is_empty() => {
@@ -1308,17 +1314,24 @@ fn collect_notes(
             }
             Block::LineComment(_) => {}
             Block::Para(spans) => {
-                let mut comments = Vec::new();
-                inline_comments(spans, &mut comments);
-                for (c, by) in comments {
-                    item("Note", c, by, offset);
-                    *notes += 1;
-                }
-                // TKs in what prints: deletions and comments are already gone.
-                let text = plain_inlines(spans, &Ctx::default());
-                for at in tk_positions(&text) {
-                    item("TK", &snippet(&text, at), None, offset);
-                    *tks += 1;
+                // One pass builds the printing text (TKs and their context come
+                // from it) and places each comment in it, so the two interleave.
+                let mut text = String::new();
+                let mut found = Vec::new();
+                note_walk(spans, &mut text, &mut found);
+                found.extend(tk_positions(&text).into_iter().map(|at| (at, Found::Tk(at))));
+                found.sort_by_key(|f| f.0); // stable: a comment just before a TK stays first
+                for (_, f) in found {
+                    match f {
+                        Found::Note(c, by) => {
+                            item("Note", c, by, offset);
+                            *notes += 1;
+                        }
+                        Found::Tk(at) => {
+                            item("TK", &snippet(&text, at), None, offset);
+                            *tks += 1;
+                        }
+                    }
                 }
             }
         }
@@ -1328,29 +1341,36 @@ fn collect_notes(
     }
 }
 
-/// Inline `{/comments}` anywhere in a span tree, with their authors if attributed.
-fn inline_comments<'a>(spans: &'a [Inline], out: &mut Vec<(&'a str, Option<&'a [String]>)>) {
+/// Flatten a paragraph's spans to the text that prints (as [`plain_inlines`]
+/// does), recording each non-empty inline `{/comment}` at its byte position in
+/// that text. Deletions and a substitution's old side are skipped, comments in
+/// them included: that text is going away.
+fn note_walk<'a>(spans: &'a [Inline], text: &mut String, found: &mut Vec<(usize, Found<'a>)>) {
     for s in spans {
         match s {
-            Inline::Comment(c) => out.push((c, None)),
+            Inline::Comment(c) if !c.trim().is_empty() => {
+                found.push((text.len(), Found::Note(c, None)))
+            }
             Inline::Attributed(inner, a) => match &**inner {
-                Inline::Comment(c) => out.push((c, Some(&a.authors))),
-                other => inline_comments(std::slice::from_ref(other), out),
+                Inline::Comment(c) if !c.trim().is_empty() => {
+                    found.push((text.len(), Found::Note(c, Some(&a.authors))))
+                }
+                other => note_walk(std::slice::from_ref(other), text, found),
             },
-            Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) | Inline::Delete(cs) => {
-                inline_comments(cs, out)
+            Inline::Bold(cs) | Inline::Italic(cs) | Inline::Insert(cs) => {
+                note_walk(cs, text, found)
             }
-            Inline::Sub { old, new } => {
-                inline_comments(old, out);
-                inline_comments(new, out);
-            }
-            Inline::Text(_) | Inline::Link(_) | Inline::Cite(_) | Inline::Escaped(_) => {}
+            Inline::Sub { new, .. } => note_walk(new, text, found),
+            // Text, links, cites, escapes print as plain does; deletions and empty
+            // comments print nothing.
+            other => text.push_str(&plain_inline(other, &Ctx::default()).unwrap_or_default()),
         }
     }
 }
 
 /// Byte positions of each **TK** placeholder: the journalists' "to come" mark, as
-/// a whole uppercase word — `TK` or `TKTK` — so "Tokyo", "vodka", "TKO" don't match.
+/// a whole uppercase word — `TK`, or a run like `TKTK` — so "Tokyo", "vodka",
+/// "TKO" don't match.
 fn tk_positions(text: &str) -> Vec<usize> {
     let word = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
     let mut out = Vec::new();
@@ -1369,23 +1389,30 @@ fn tk_positions(text: &str) -> Vec<usize> {
     out
 }
 
-/// Up to ~40 chars of context either side of byte `at`, trimmed to whole words
-/// where cut, with `…` marking a cut. Whitespace runs collapse (a dropped comment
-/// or a soft line break leaves gaps).
+/// Up to ~40 chars of context either side of byte `at`, with `…` marking a cut.
+/// A cut that lands mid-word drops the partial word; whitespace runs collapse (a
+/// dropped comment or a soft line break leaves gaps).
 fn snippet(text: &str, at: usize) -> String {
     const SIDE: usize = 40;
+    let ws = char::is_whitespace;
     let mut start = text[..at].char_indices().rev().nth(SIDE).map_or(0, |(i, _)| i);
     let mut end = text[at..].char_indices().nth(SIDE).map_or(text.len(), |(i, _)| at + i);
-    if start > 0 {
-        start = text[start..at].find(' ').map_or(start, |i| start + i + 1);
+    let mid_word = |i: usize| !text[..i].ends_with(ws) && !text[i..].starts_with(ws);
+    if start > 0 && mid_word(start) {
+        start = text[start..at].find(ws).map_or(start, |i| start + i);
     }
-    if end < text.len() {
-        end = text[at..end].rfind(' ').map_or(end, |i| at + i);
+    if end < text.len() && mid_word(end) {
+        end = text[at..end].rfind(ws).map_or(end, |i| at + i);
     }
     let (pre, post) = (if start > 0 { "…" } else { "" }, if end < text.len() { "…" } else { "" });
     format!("{pre}{}{post}", text[start..end].split_whitespace().collect::<Vec<_>>().join(" "))
 }
 
+/// The character index: the codex section whose title is "Characters", rendered
+/// as entity cards for the character panel. Reuses the codex entry rendering, so
+/// each character shows its metadata, body, and backlinks and links jump via
+/// `data-jump`. Empty (no output) if the document has no `% Characters` section.
+/// The section name match is case-folded; other `%` sections are ignored here.
 pub fn render_characters_html(root: &Node) -> String {
     // Single-file view: a project of one, empty path (no `data-jump-file`).
     let docs = [(String::new(), root)];
