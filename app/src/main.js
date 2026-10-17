@@ -1118,9 +1118,11 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     if (e.repeat) return; // holding the keys shouldn't re-run the switch
     setView(view);
-    // Keep typing out of a hidden buffer: focus follows the view.
+    // Keep typing out of a hidden buffer: focus follows the view. Blur whatever
+    // inside the editor has focus — the text, or the find/replace panel (Enter
+    // there would replace a match out of sight).
     if (view === "editor") editor.focus();
-    else editor.contentDOM.blur();
+    else if (editor.dom.contains(document.activeElement)) document.activeElement.blur();
   }
 });
 
