@@ -39,7 +39,8 @@ stay in outline/edit.
 
 ```sh
 cargo test                                    # core tests (from repo root)
-cargo fmt --all && (cd app/src-tauri && cargo fmt)  # format both workspaces (CI checks)
+cargo fmt --all                               # format (CI: --check, both workspaces)
+cargo fmt --manifest-path app/src-tauri/Cargo.toml   # …and the Tauri shell's workspace
 cargo test -p ink-core --features pdf          # + the Shunn PDF emitter (genpdf)
 cargo run -p ink-cli -- render --view=edit examples/sample.ink
 cargo run -p ink-cli -- export --out=/tmp/m.pdf examples/sample.ink  # Shunn PDF

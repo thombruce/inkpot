@@ -1291,7 +1291,8 @@ fn build_shunn_book_concatenates_files_and_sources_work_metadata() {
     assert_eq!(book.title, "The Whole Work");
     assert_eq!(book.surname, "Roe");
     assert_eq!(book.keyword, "WHOLE"); // article "The" skipped
-                                       // Body = both files' blocks, in order.
+
+    // Body = both files' blocks, in order.
     assert_eq!(
         book.blocks,
         vec![
