@@ -7,6 +7,12 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Fold all / unfold all.** `Ctrl-K` then `Ctrl-0` collapses the editor to its
+  top-level sections; `Ctrl-K` then `Ctrl-J` unfolds everything (`Cmd` on macOS),
+  as in VS Code (#18).
+
 ## [0.15.0] - 2026-10-04
 
 ### Added
