@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-17
+
 ### Added
 
 - **View shortcuts and a status bar.** `Ctrl+1` … `Ctrl+8` (`Cmd` on macOS)
