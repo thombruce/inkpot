@@ -5,8 +5,8 @@ use ink_core::shunn::render_shunn_pdf;
 use ink_core::{
     build_shunn_book, build_shunn_project, map_markers, parse, render, render_bibliography_project,
     render_characters_html, render_codex_project_html, render_html_project,
-    render_manuscript_project, render_timeline_html, resolve_titles, scene_timeline, word_count,
-    Node, Span, View, Visibility,
+    render_manuscript_project, render_notes_html, render_timeline_html, resolve_titles,
+    scene_timeline, word_count, Node, Span, View, Visibility,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -156,6 +156,12 @@ fn characters(src: String) -> String {
     render_characters_html(&parse(&src))
 }
 
+/// Render the notes panel — line/inline comments and TK placeholders — as HTML.
+#[tauri::command]
+fn notes(src: String) -> String {
+    render_notes_html(&parse(&src))
+}
+
 /// Render the bibliography — a Harvard reference list of the sources this file
 /// cites via `[@key]` — as HTML for the bibliography panel.
 #[tauri::command]
@@ -249,6 +255,7 @@ pub fn run() {
             codex_project,
             timeline,
             characters,
+            notes,
             bibliography,
             map,
             scenes,

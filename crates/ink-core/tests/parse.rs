@@ -1446,3 +1446,83 @@ fn edit_view_full_fidelity() {
     // And it's a fixpoint.
     assert_eq!(render(&parse(&once), View::Edit), once, "Edit not idempotent on a rich doc");
 }
+
+#[test]
+fn notes_panel_collects_comments_and_tks() {
+    use ink_core::render_notes_html;
+    // #41: line comments, inline comments (attributed too), and TK placeholders,
+    // each jumping to its block; excluded sections count; deletions don't.
+    let src = "# One\n\nShe left TK and {/check the date|@Ada} too.\n/ seed the argument\n\n% Notes\n\nRemember TKTK.\n\n~ Two\n\n{-gone TK-} Tokyo, vodka, TKO, aTK.\n";
+    let html = render_notes_html(&parse(src));
+    let jump =
+        |needle: &str| src.chars().count() - src[src.find(needle).unwrap()..].chars().count();
+
+    assert!(html.contains("<p class=\"notes-summary\">2 notes, 2 TKs</p>"), "{html}");
+    // Inline comment: its paragraph's start; author shown; section title shown.
+    let para = jump("She left");
+    assert!(
+        html.contains(&format!(
+            "<a class=\"ref\" data-jump=\"{para}\">check the date</a> <span class=\"by\">Ada</span> <span class=\"where\">One</span>"
+        )),
+        "{html}"
+    );
+    // Line comment: its own line.
+    assert!(
+        html.contains(&format!("data-jump=\"{}\">seed the argument</a>", jump("/ seed"))),
+        "{html}"
+    );
+    // TK with context; TKTK counts; in an excluded section too.
+    assert!(html.contains(&format!("data-jump=\"{para}\">She left TK and too.</a>")), "{html}");
+    assert!(html.contains("Remember TKTK.</a> <span class=\"where\">Notes</span>"), "{html}");
+    // Not TKs: inside a deletion, or part of a word.
+    assert!(!html.contains("gone") && !html.contains("Tokyo"), "{html}");
+
+    // A long paragraph: ~40 chars of context each side, cut at a word, marked `…`.
+    let long = "# H\n\nThe quick brown fox jumps over the lazy dog and then TK runs off far away into the deep dark woods.\n";
+    assert!(
+        render_notes_html(&parse(long)).contains(
+            ">…fox jumps over the lazy dog and then TK runs off far away into the deep dark…</a>"
+        ),
+        "{}",
+        render_notes_html(&parse(long))
+    );
+
+    // Reading order within a paragraph: a TK before a comment lists first.
+    let order = render_notes_html(&parse("# H\n\nTK the date. {/check with Ada}\n"));
+    let (tk, note) = (order.find("class=\"tk\"").unwrap(), order.find("check with Ada").unwrap());
+    assert!(tk < note, "{order}");
+
+    // Empty comments (bare, or empty apart from attribution) aren't notes. (A
+    // comment can't sit inside a deletion: the first `}` closes the span.)
+    let empty = render_notes_html(&parse("# H\n\n{/} {/  |@Ada} ok\n"));
+    assert_eq!(empty, "<ol class=\"notes-list\"></ol>", "{empty}");
+
+    // A cut at a line break counts as a word break (no partial word kept).
+    let wrapped = "# H\n\nwordy wordy wordy wordy wordy wordy wor\nwordy TK end.\n";
+    let w = render_notes_html(&parse(wrapped));
+    assert!(w.contains(">…wordy wordy wordy wordy wordy wor wordy TK end.</a>"), "{w}");
+
+    // Headings are inline markup too: their comments and TKs jump to the heading
+    // line, ahead of the body's notes.
+    let h = render_notes_html(&parse("# Chapter TK {/rename this|@Ada|2026-10-04}\n\nBody.\n"));
+    assert!(h.contains("<p class=\"notes-summary\">1 note, 1 TK</p>"), "{h}");
+    assert!(
+        h.contains(
+            "data-jump=\"0\">rename this</a> <span class=\"by\">Ada · 2026-10-04</span> <span class=\"where\">Chapter TK</span>"
+        ),
+        "dated attribution shown: {h}"
+    );
+    assert!(h.contains("data-jump=\"0\">Chapter TK</a>"), "{h}");
+
+    // Before the first heading: the front-matter title, else "(top)".
+    let titled = render_notes_html(&parse("title: The Book\n\nOpening TK.\n\n# One\n"));
+    assert!(titled.contains("<span class=\"where\">The Book</span>"), "{titled}");
+    let untitled = render_notes_html(&parse("Opening TK.\n\n# One\n"));
+    assert!(untitled.contains("<span class=\"where\">(top)</span>"), "{untitled}");
+
+    // Nothing to report: just the empty list (the CSS hint fills it).
+    assert_eq!(
+        render_notes_html(&parse("# H\n\nClean prose.\n")),
+        "<ol class=\"notes-list\"></ol>"
+    );
+}
