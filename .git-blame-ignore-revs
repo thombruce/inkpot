@@ -1,0 +1,5 @@
+# Mechanical reformats, skipped by `git blame` (GitHub reads this automatically;
+# locally: git config blame.ignoreRevsFile .git-blame-ignore-revs).
+
+# cargo fmt adoption (#87)
+f77a50c4268fa175ba81f4c9c99206e50d95bc3d

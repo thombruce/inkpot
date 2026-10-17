@@ -37,6 +37,8 @@ stay in outline/edit.
 
 ```sh
 cargo test                                    # core tests (from repo root)
+cargo fmt --all                               # format (CI: --check, both workspaces)
+cargo fmt --manifest-path app/src-tauri/Cargo.toml   # …and the Tauri shell's workspace
 cargo test -p ink-core --features pdf          # + the Shunn PDF emitter (genpdf)
 cargo run -p ink-cli -- render --view=edit examples/sample.ink
 cargo run -p ink-cli -- export --out=/tmp/m.pdf examples/sample.ink  # Shunn PDF
@@ -162,6 +164,9 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
 ## Conventions
 
 - Parsers are hand-written line/inline scanners on purpose — no parser crates.
+- Rust is formatted by `cargo fmt` (`rustfmt.toml`: `use_small_heuristics =
+  "Max"`, which keeps the compact one-line style within 100 columns); CI runs
+  `--check` on both workspaces, so format before pushing (#87).
 - Non-trivial pure logic gets one runnable self-check (see
   `reorder.test.mjs`, `fold.test.mjs`, `ink-core/tests/parse.rs`). No test
   frameworks.

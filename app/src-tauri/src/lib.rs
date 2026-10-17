@@ -242,8 +242,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            outline, preview, manuscript, normalize, codex_project, timeline, characters,
-            bibliography, map, scenes, export_shunn, export_shunn_book
+            outline,
+            preview,
+            manuscript,
+            normalize,
+            codex_project,
+            timeline,
+            characters,
+            bibliography,
+            map,
+            scenes,
+            export_shunn,
+            export_shunn_book
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

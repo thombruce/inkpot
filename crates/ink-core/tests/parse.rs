@@ -21,13 +21,11 @@ fn tree_shape_and_nesting() {
     assert_eq!(arrival.level, 2);
 
     // The Arrival holds two invisible scenes as peers.
-    let scenes: Vec<_> = arrival.children.iter().map(|n| (n.visibility, n.title.as_str())).collect();
+    let scenes: Vec<_> =
+        arrival.children.iter().map(|n| (n.visibility, n.title.as_str())).collect();
     assert_eq!(
         scenes,
-        vec![
-            (Visibility::Scene, "The Kitchen"),
-            (Visibility::Scene, "The Hallway"),
-        ]
+        vec![(Visibility::Scene, "The Kitchen"), (Visibility::Scene, "The Hallway"),]
     );
 }
 
@@ -45,7 +43,9 @@ fn metadata_parsed_but_not_prose() {
     );
     // "Bob said: nothing." must stay prose, not become metadata.
     let has_bob = kitchen.body.iter().any(|b| match b {
-        Block::Para(spans) => spans.iter().any(|s| matches!(s, Inline::Text(t) if t.contains("Bob said: nothing"))),
+        Block::Para(spans) => {
+            spans.iter().any(|s| matches!(s, Inline::Text(t) if t.contains("Bob said: nothing")))
+        }
         _ => false,
     });
     assert!(has_bob, "prose colon line was wrongly eaten as metadata");
@@ -75,11 +75,17 @@ fn leading_frontmatter_is_document_metadata() {
 fn criticmarkup_scanned() {
     let root = parse(SAMPLE);
     let kitchen = &root.children[0].children[0].children[0];
-    let first_para = kitchen.body.iter().find_map(|b| match b {
-        Block::Para(s) => Some(s),
-        _ => None,
-    }).unwrap();
-    assert!(first_para.iter().any(|s| matches!(s, Inline::Insert(cs) if *cs == txt("Steam rose from the kettle."))));
+    let first_para = kitchen
+        .body
+        .iter()
+        .find_map(|b| match b {
+            Block::Para(s) => Some(s),
+            _ => None,
+        })
+        .unwrap();
+    assert!(first_para
+        .iter()
+        .any(|s| matches!(s, Inline::Insert(cs) if *cs == txt("Steam rose from the kettle."))));
     assert!(first_para.iter().any(|s| matches!(s, Inline::Sub { old, new } if *old == txt("grey") && *new == txt("pale with morning"))));
     assert!(first_para.iter().any(|s| matches!(s, Inline::Comment(_))));
 }
@@ -108,7 +114,8 @@ fn manuscript_hides_invisible_and_resolves_markup() {
 #[test]
 fn word_count_counts_manuscript_prose_only() {
     // Heading titles excluded; scene body counts; `%` subtree contributes 0.
-    let doc = "# Chapter\n\nThree plain words.\n\n~ Scene\n\nTwo more.\n\n% Cut\n\nHidden words here.\n";
+    let doc =
+        "# Chapter\n\nThree plain words.\n\n~ Scene\n\nTwo more.\n\n% Cut\n\nHidden words here.\n";
     assert_eq!(word_count(&parse(doc)), 5); // 3 + 2, excluded drops
 
     // CriticMarkup resolves before counting: insert adds, delete drops, sub uses new.
@@ -123,7 +130,10 @@ fn soft_breaks_print_as_spaces_and_trailing_backslash_is_hard() {
     let doc = parse(src);
 
     let html = ink_core::render_html(&doc);
-    assert!(html.contains("<p>One sentence.\nTwo sentence.</p>"), "soft break collapses in HTML: {html}");
+    assert!(
+        html.contains("<p>One sentence.\nTwo sentence.</p>"),
+        "soft break collapses in HTML: {html}"
+    );
     assert!(html.contains("Roses are red,<br>\nviolets <em>blue</em>."), "hard break: {html}");
     assert!(!html.contains("sentence.<br>"), "no <br> for a soft break: {html}");
 
@@ -146,7 +156,10 @@ fn soft_breaks_print_as_spaces_and_trailing_backslash_is_hard() {
     // The `\` is not a word; edit round-trip keeps both break kinds verbatim.
     assert_eq!(word_count(&doc), 9);
     let edit = render(&doc, View::Edit);
-    assert!(edit.contains("One sentence.\nTwo sentence.\n\nRoses are red,\\\nviolets *blue*.\n"), "{edit}");
+    assert!(
+        edit.contains("One sentence.\nTwo sentence.\n\nRoses are red,\\\nviolets *blue*.\n"),
+        "{edit}"
+    );
     assert_eq!(render(&parse(&edit), View::Edit), edit, "fmt is idempotent");
 
     // A `\` ending a paragraph has nothing to break: it never prints (matching the
@@ -184,7 +197,10 @@ fn criticmarkup_attribution_suffix() {
     // Each form; spaces in names; date, date-time, or none; several authors.
     assert_eq!(
         first("x {+new words|@Ada Lovelace|2026-10-04} y"),
-        Some(Inline::Attributed(Box::new(Inline::Insert(txt("new words"))), attr(&["Ada Lovelace"], Some("2026-10-04"))))
+        Some(Inline::Attributed(
+            Box::new(Inline::Insert(txt("new words"))),
+            attr(&["Ada Lovelace"], Some("2026-10-04"))
+        ))
     );
     assert_eq!(
         first("x {-gone|@Ada} y"),
@@ -199,7 +215,10 @@ fn criticmarkup_attribution_suffix() {
     );
     assert_eq!(
         first("x {/too early?|@Sam} y"),
-        Some(Inline::Attributed(Box::new(Inline::Comment("too early?".into())), attr(&["Sam"], None)))
+        Some(Inline::Attributed(
+            Box::new(Inline::Comment("too early?".into())),
+            attr(&["Sam"], None)
+        ))
     );
     // A name can't contain `~` (a span delimiter): no suffix, so the substitution
     // splits on the first `~` exactly as it did before attribution existed.
@@ -243,7 +262,15 @@ fn codex_indexes_excluded_subtrees_with_metadata() {
     let src = "# Chapter\n\nProse.\n\n% Characters\n\n%% Alice\nrole: lead\nhome: London\n\n% Timeline\n\n%% 1989\nlocation: London\n";
     let out = render(&parse(src), View::Codex);
     // Excluded sections + nested entries + their metadata are indexed.
-    for s in ["Characters", "Alice", "role: lead", "home: London", "Timeline", "1989", "location: London"] {
+    for s in [
+        "Characters",
+        "Alice",
+        "role: lead",
+        "home: London",
+        "Timeline",
+        "1989",
+        "location: London",
+    ] {
         assert!(out.contains(s), "codex missing {s}\n---\n{out}");
     }
     // Non-excluded content stays out of the codex.
@@ -266,18 +293,25 @@ fn codex_html_nests_entities_and_metadata() {
 fn codex_scopes_repeated_notes_by_visible_ancestors() {
     // Two `%% Synopsis`, one per chapter: each renders under its chapter's scope
     // so they read distinctly instead of as two bare "Synopsis" lines.
-    let src = "# Chapter 1\n\n%% Synopsis\n\nA.\n\n# Chapter 2\n\n%% Synopsis\n\nB.\n\n% Characters\n";
+    let src =
+        "# Chapter 1\n\n%% Synopsis\n\nA.\n\n# Chapter 2\n\n%% Synopsis\n\nB.\n\n% Characters\n";
     let text = render(&parse(src), View::Codex);
     assert!(text.contains("[Chapter 1]"), "missing chapter-1 scope: {text}");
     assert!(text.contains("[Chapter 2]"), "missing chapter-2 scope: {text}");
     let html = ink_core::render_codex_html(&parse(src));
     assert!(html.contains("<div class=\"codex-scope\">Chapter 1</div>"), "no html scope: {html}");
     // A root-level `%` (Characters) carries no scope breadcrumb.
-    assert!(!html.contains("<div class=\"codex-scope\">Characters"), "root entity mis-scoped: {html}");
+    assert!(
+        !html.contains("<div class=\"codex-scope\">Characters"),
+        "root entity mis-scoped: {html}"
+    );
     // Nested scope joins ancestors.
     let nested = "# Frankenstein\n\n## Chapter 1\n\n%%% Synopsis\n\nX.\n";
     let nhtml = ink_core::render_codex_html(&parse(nested));
-    assert!(nhtml.contains("<div class=\"codex-scope\">Frankenstein / Chapter 1</div>"), "nested scope wrong: {nhtml}");
+    assert!(
+        nhtml.contains("<div class=\"codex-scope\">Frankenstein / Chapter 1</div>"),
+        "nested scope wrong: {nhtml}"
+    );
 }
 
 #[test]
@@ -289,8 +323,14 @@ fn wikilink_prints_resolved_title_across_views() {
     let doc = parse(src);
     assert_eq!(render(&doc, View::Manuscript), "Alice Hargrove met nobody.\n");
     let html = ink_core::render_html(&doc);
-    assert!(html.contains("<a class=\"wikilink\">Alice Hargrove</a>"), "html link unresolved: {html}");
-    assert!(render(&doc, View::Edit).contains("{&alice}"), "edit round-trips as the house link form");
+    assert!(
+        html.contains("<a class=\"wikilink\">Alice Hargrove</a>"),
+        "html link unresolved: {html}"
+    );
+    assert!(
+        render(&doc, View::Edit).contains("{&alice}"),
+        "edit round-trips as the house link form"
+    );
     assert_eq!(word_count(&doc), 4, "word count should tally the resolved title");
 }
 
@@ -318,7 +358,10 @@ fn codex_id_is_a_rename_proof_handle() {
     // rendered plain, never linked or self-referenced.
     let src = "~~~ Kitchen\nsee: alice\n\n[[alice]] cooks.\n\n% People\n\n%% Alice Hargrove\nid: alice\nrole: lead\n";
     let html = ink_core::render_codex_html(&parse(src));
-    assert!(html.contains("<dt>id</dt><dd>alice</dd>"), "id should render plain, not linked: {html}");
+    assert!(
+        html.contains("<dt>id</dt><dd>alice</dd>"),
+        "id should render plain, not linked: {html}"
+    );
     assert!(html.contains("Referenced by"), "id reference produced no backlink: {html}");
     assert!(html.contains(">Kitchen</a>"), "scene not backlinked via id: {html}");
     // Sanity: an unknown handle stays unresolved (no phantom backlink).
@@ -344,13 +387,21 @@ fn codex_resolves_and_backlinks_across_project_files() {
     ]);
     // Split into entity sections to reason about each target separately.
     let secs: Vec<&str> = html.split("<section").skip(1).collect();
-    let sec = |needle: &str| *secs.iter().find(|s| s.contains(needle)).unwrap_or_else(|| panic!("no section for {needle}: {html}"));
+    let sec = |needle: &str| {
+        *secs
+            .iter()
+            .find(|s| s.contains(needle))
+            .unwrap_or_else(|| panic!("no section for {needle}: {html}"))
+    };
 
     // (a) cross-file title resolution: Ravna (in research) is referenced from the
     // manuscript, so its backlink carries the manuscript's path.
     let ravna = sec(">Ravna<");
     assert!(ravna.contains("Referenced by"), "Ravna got no cross-file backlink: {ravna}");
-    assert!(ravna.contains("data-jump-file=\"manuscript.ink\""), "Ravna backlink lacks file: {ravna}");
+    assert!(
+        ravna.contains("data-jump-file=\"manuscript.ink\""),
+        "Ravna backlink lacks file: {ravna}"
+    );
 
     // (b) cross-file id handle: [[home-planet]] resolves to Homeworld across files.
     let home = sec(">Homeworld<");
@@ -362,7 +413,10 @@ fn codex_resolves_and_backlinks_across_project_files() {
     let ms_note = sec("<dd>manuscript</dd>");
     let research_note = sec("<dd>research</dd>");
     assert!(ms_note.contains("Referenced by"), "same-file Note should win: {ms_note}");
-    assert!(!research_note.contains("Referenced by"), "cross-file Note must not steal the reference: {research_note}");
+    assert!(
+        !research_note.contains("Referenced by"),
+        "cross-file Note must not steal the reference: {research_note}"
+    );
 
     // The single-file codex never emits data-jump-file (unchanged jump path).
     let single = ink_core::render_codex_html(&ms);
@@ -414,7 +468,10 @@ fn bibliography_lists_cited_sources_harvard() {
     // Uncited source is absent (References list, not a catalogue).
     assert!(!html.contains("Nobody"), "uncited source leaked in: {html}");
     // Sorted by surname: Ferber before Pears, regardless of citation/doc order.
-    assert!(html.find("Ferber").unwrap() < html.find("Pears").unwrap(), "not surname-sorted: {html}");
+    assert!(
+        html.find("Ferber").unwrap() < html.find("Pears").unwrap(),
+        "not surname-sorted: {html}"
+    );
     // Each entry jumps to its source heading.
     assert!(html.contains("class=\"reference\" data-jump="), "no jump: {html}");
 
@@ -438,19 +495,29 @@ fn project_wide_links_and_cites_resolve_across_files() {
     assert!(m.contains("Ravna Bergsndot argued (Pears, 2019, p. 5)."), "project manuscript: {m}");
     let html = ink_core::render_html_project(&roots, 0);
     assert!(html.contains("Ravna Bergsndot"), "project preview link: {html}");
-    assert!(html.contains("<span class=\"cite\">(Pears, 2019, p. 5)</span>"), "project preview cite: {html}");
+    assert!(
+        html.contains("<span class=\"cite\">(Pears, 2019, p. 5)</span>"),
+        "project preview cite: {html}"
+    );
 
     // Bibliography of A lists B's source, with a cross-file jump to B.
-    let bib = ink_core::render_bibliography_project(&[("a.ink".into(), &a), ("b.ink".into(), &b)], 0);
+    let bib =
+        ink_core::render_bibliography_project(&[("a.ink".into(), &a), ("b.ink".into(), &b)], 0);
     assert!(bib.contains("Pears, R. (2019) <em>CTR</em>."), "cross-file bibliography: {bib}");
     assert!(bib.contains("data-jump-file=\"b.ink\""), "bibliography cross-file jump: {bib}");
 
     // Single-file (A alone): nothing resolves — the cite stays raw, the link falls
     // back to its target text, and the bibliography is empty.
     let solo = ink_core::render_manuscript_project(&[&a], 0);
-    assert!(solo.contains("{@pears-2019, p. 5}"), "per-file cite stays raw in the house form: {solo}");
+    assert!(
+        solo.contains("{@pears-2019, p. 5}"),
+        "per-file cite stays raw in the house form: {solo}"
+    );
     assert!(!solo.contains("(Pears"), "per-file must not resolve cross-file: {solo}");
-    assert!(ink_core::render_bibliography_html(&a).is_empty(), "per-file bibliography should be empty");
+    assert!(
+        ink_core::render_bibliography_html(&a).is_empty(),
+        "per-file bibliography should be empty"
+    );
 }
 
 #[test]
@@ -473,8 +540,15 @@ fn example_notes_citations_backlink_to_sources() {
     let notes = parse(include_str!("../../../examples/notes.ink"));
     // The bibliography lists both cited sources, Harvard-formatted.
     let bib = ink_core::render_bibliography_html(&notes);
-    assert!(bib.contains("(2011) <em>A Social History of the London Bakehouse</em>"), "Ferber ref: {bib}");
-    assert!(bib.contains("<em>Enrolment Rolls of the Bakers&#x27; Guild</em>") || bib.contains("Enrolment Rolls of the Bakers"), "guild ref: {bib}");
+    assert!(
+        bib.contains("(2011) <em>A Social History of the London Bakehouse</em>"),
+        "Ferber ref: {bib}"
+    );
+    assert!(
+        bib.contains("<em>Enrolment Rolls of the Bakers&#x27; Guild</em>")
+            || bib.contains("Enrolment Rolls of the Bakers"),
+        "guild ref: {bib}"
+    );
 
     // The grouped citation renders both sources in one parenthetical.
     let m = render(&notes, View::Manuscript);
@@ -502,12 +576,18 @@ fn example_project_citation_is_cross_file() {
         bib.contains("Strunk, W. and White, E. B. (2000) <em>The Elements of Style</em>"),
         "cross-file source missing from bibliography: {bib}"
     );
-    assert!(bib.contains("data-jump-file=\"sources.ink\""), "no cross-file jump to sources.ink: {bib}");
+    assert!(
+        bib.contains("data-jump-file=\"sources.ink\""),
+        "no cross-file jump to sources.ink: {bib}"
+    );
 
     // The manuscript of notes.ink renders the cross-file cite author-date.
     let roots = [&codex, &notes, &sources];
     let m = ink_core::render_manuscript_project(&roots, 1);
-    assert!(m.contains("(Strunk and White, 2000)"), "cross-file cite not resolved in manuscript: {m}");
+    assert!(
+        m.contains("(Strunk and White, 2000)"),
+        "cross-file cite not resolved in manuscript: {m}"
+    );
 }
 
 #[test]
@@ -539,8 +619,14 @@ fn codex_resolves_references_to_nearest_scope() {
     let secs: Vec<&str> = html.split("<section").skip(1).collect();
     let s_aaa = secs.iter().find(|s| s.contains("AAA")).expect("ch1 synopsis section");
     let s_bbb = secs.iter().find(|s| s.contains("BBB")).expect("ch2 synopsis section");
-    assert!(s_aaa.contains("Recap 1") && !s_aaa.contains("Recap 2"), "ch1 synopsis mis-scoped: {s_aaa}");
-    assert!(s_bbb.contains("Recap 2") && !s_bbb.contains("Recap 1"), "ch2 synopsis mis-scoped: {s_bbb}");
+    assert!(
+        s_aaa.contains("Recap 1") && !s_aaa.contains("Recap 2"),
+        "ch1 synopsis mis-scoped: {s_aaa}"
+    );
+    assert!(
+        s_bbb.contains("Recap 2") && !s_bbb.contains("Recap 1"),
+        "ch2 synopsis mis-scoped: {s_bbb}"
+    );
 }
 
 #[test]
@@ -550,7 +636,10 @@ fn codex_resolves_metadata_refs_and_backlinks() {
     let src = "~~~ The Kitchen\ncharacters: Alice\n\nProse.\n\n% Characters\n\n%% Alice\nhome: London\n\n% Locations\n\n%% London\n\n% Timeline\n\n%% 1989\nlocation: London\ncharacters: Alice\n";
     let html = ink_core::render_codex_html(&parse(src));
     // Alice's `home: London` resolves to the London entity (a link).
-    assert!(html.contains("<dt>home</dt><dd><a class=\"ref\" data-jump="), "home not linked: {html}");
+    assert!(
+        html.contains("<dt>home</dt><dd><a class=\"ref\" data-jump="),
+        "home not linked: {html}"
+    );
     assert!(html.contains(">London</a>"), "London not linked: {html}");
     // London is referenced by Alice and 1989; Alice by the scene and 1989.
     assert!(html.contains("Referenced by"), "no backlinks: {html}");
@@ -576,7 +665,10 @@ fn multiline_metadata_value_and_round_trip() {
 
     // Edit view round-trips the multiline value back to the indented form.
     let edited = render(&root, View::Edit);
-    assert!(edited.contains("contact:\n  221B Baker Street\n  London NW1 6XE\n"), "round-trip: {edited}");
+    assert!(
+        edited.contains("contact:\n  221B Baker Street\n  London NW1 6XE\n"),
+        "round-trip: {edited}"
+    );
     // Re-parsing the edit output yields the same value (stable round-trip).
     assert_eq!(parse(&edited).meta.iter().find(|(k, _)| k == "contact").unwrap().1, contact.1);
 }
@@ -588,7 +680,9 @@ fn timeline_sorts_numeric_times_as_numbers() {
     // (-13700000000), and 1000 before 900.
     let src = "~ Now\ntime: 2026\n\n~ BigBang\ntime: -13700000000\n\n~ Fall\ntime: -1000\n\n~ Year900\ntime: 900\n\n~ Year1000\ntime: 1000\n";
     let html = ink_core::render_timeline_html(&parse(src));
-    let pos = |name: &str| html.find(&format!(">{name}<")).unwrap_or_else(|| panic!("missing {name}: {html}"));
+    let pos = |name: &str| {
+        html.find(&format!(">{name}<")).unwrap_or_else(|| panic!("missing {name}: {html}"))
+    };
     assert!(pos("BigBang") < pos("Fall"), "Big Bang should precede 1000 BC: {html}");
     assert!(pos("Fall") < pos("Year900"), "1000 BC should precede 900 AD");
     assert!(pos("Year900") < pos("Year1000"), "900 should precede 1000 (not lexical)");
@@ -621,10 +715,20 @@ fn map_markers_from_coords_metadata() {
     let src = "% Locations\n\n%% London\ncoords: 51.5074, -0.1278\n\n%% Nowhere\n\n%% Bad\ncoords: not, coords\n\n%% OutOfRange\ncoords: 200, 0\n";
     let markers = ink_core::map_markers(&parse(src));
     // Only London has a valid pair: Nowhere has none, Bad won't parse, OutOfRange is off-globe.
-    assert_eq!(markers.len(), 1, "expected only London: {:?}", markers.iter().map(|m| &m.title).collect::<Vec<_>>());
+    assert_eq!(
+        markers.len(),
+        1,
+        "expected only London: {:?}",
+        markers.iter().map(|m| &m.title).collect::<Vec<_>>()
+    );
     let m = &markers[0];
     assert_eq!(m.title, "London");
-    assert!((m.lat - 51.5074).abs() < 1e-9 && (m.lon - -0.1278).abs() < 1e-9, "coords off: {},{}", m.lat, m.lon);
+    assert!(
+        (m.lat - 51.5074).abs() < 1e-9 && (m.lon - -0.1278).abs() < 1e-9,
+        "coords off: {},{}",
+        m.lat,
+        m.lon
+    );
     assert_eq!(m.map, "", "no map: means the default world");
     assert!(m.offset > 0, "offset should point at the heading");
 
@@ -673,7 +777,11 @@ fn metadata_value_is_a_comma_separated_array() {
     let html = ink_core::render_codex_html(&parse(src));
     // Both named parts resolve: Alice and Bob each get a backlink from the scene.
     // (The unknown part "Nobody" names no entity, so it adds no backlink.)
-    assert_eq!(html.matches(">Scene</a>").count(), 2, "both array parts should backlink the scene: {html}");
+    assert_eq!(
+        html.matches(">Scene</a>").count(),
+        2,
+        "both array parts should backlink the scene: {html}"
+    );
     assert!(!html.contains(">Nobody</a>"), "unknown array part must stay plain: {html}");
 }
 
@@ -707,10 +815,14 @@ fn citation_parses_roundtrips_and_backlinks() {
     let src = "~~~ Scene\n\nAs argued [@pears-2019, p. 42] and again [@pears-2019].\n\n% Sources\n\n%% Cite Them Right\nid: pears-2019\n";
     let doc = parse(src);
     let scene = &doc.children[0];
-    let para = scene.body.iter().find_map(|b| match b {
-        Block::Para(s) => Some(s),
-        _ => None,
-    }).unwrap();
+    let para = scene
+        .body
+        .iter()
+        .find_map(|b| match b {
+            Block::Para(s) => Some(s),
+            _ => None,
+        })
+        .unwrap();
     let cites: Vec<_> = para
         .iter()
         .filter_map(|s| match s {
@@ -733,17 +845,21 @@ fn citation_parses_roundtrips_and_backlinks() {
 
     // A citation of an unknown key still parses (leaves prose alone), but names no
     // entity, so it produces no phantom backlink.
-    let miss = ink_core::render_codex_html(&parse("~~~ S\n\n[@ghost].\n\n% P\n\n%% Bob\nid: bob\n"));
+    let miss =
+        ink_core::render_codex_html(&parse("~~~ S\n\n[@ghost].\n\n% P\n\n%% Bob\nid: bob\n"));
     assert!(!miss.contains("Referenced by"), "unknown cite key backlinked: {miss}");
 
     // Not-a-citation stays literal: an empty key `[@]`, or `[@` with no closing `]`.
     let lit = parse("~~~ S\n\nsee [@] and also [@ unclosed\n");
     let text: String = match &lit.children[0].body[0] {
-        Block::Para(spans) => spans.iter().map(|s| match s {
-            Inline::Text(t) => t.clone(),
-            Inline::Cite(..) => "<CITE>".into(),
-            _ => String::new(),
-        }).collect(),
+        Block::Para(spans) => spans
+            .iter()
+            .map(|s| match s {
+                Inline::Text(t) => t.clone(),
+                Inline::Cite(..) => "<CITE>".into(),
+                _ => String::new(),
+            })
+            .collect(),
         _ => String::new(),
     };
     assert!(!text.contains("<CITE>"), "malformed citation wrongly parsed: {text}");
@@ -755,11 +871,18 @@ fn house_sigils_parse_as_aliases() {
     let src = "~~~ S\n\nSee {&alice} and {@smith2020, p. 5}. Chapter {=number}.\n\n\
         % P\n\n%% Alice Hargrove\nid: alice\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n";
     let doc = parse(src);
-    let para = doc.children[0].body.iter().find_map(|b| match b {
-        Block::Para(s) => Some(s),
-        _ => None,
-    }).unwrap();
-    assert!(para.iter().any(|s| matches!(s, Inline::Link(t) if t == "alice")), "{{&}} not a Link: {para:?}");
+    let para = doc.children[0]
+        .body
+        .iter()
+        .find_map(|b| match b {
+            Block::Para(s) => Some(s),
+            _ => None,
+        })
+        .unwrap();
+    assert!(
+        para.iter().any(|s| matches!(s, Inline::Link(t) if t == "alice")),
+        "{{&}} not a Link: {para:?}"
+    );
     assert!(
         para.iter().any(|s| matches!(s, Inline::Cite(items) if items[0].key == "smith2020" && items[0].locator == "p. 5")),
         "{{@}} not a Cite: {para:?}"
@@ -772,14 +895,21 @@ fn house_sigils_parse_as_aliases() {
     assert!(m.contains("Chapter 1."), "house interp unresolved: {m}");
     let borrowed = "~~~ S\n\nSee [[alice]] and [@smith2020, p. 5]. Chapter {{number}}.\n\n\
         % P\n\n%% Alice Hargrove\nid: alice\n\n%% One\nid: smith2020\nauthor: Smith, A.\nyear: 2020\n";
-    assert_eq!(render(&parse(borrowed), View::Manuscript), m, "house and borrowed must render identically");
+    assert_eq!(
+        render(&parse(borrowed), View::Manuscript),
+        m,
+        "house and borrowed must render identically"
+    );
 
     // Grouped house citation.
     let grp = parse("~~~ S\n\n{@a; @b}.\n\n% P\n\n%% A\nid: a\nauthor: X, Y.\nyear: 2020\n\n%% B\nid: b\nauthor: Z, W.\nyear: 2019\n");
     assert!(render(&grp, View::Manuscript).contains("(X, 2020; Z, 2019)"), "house group render");
 
     // An unresolved house interpolation keeps its own form (not rewritten to {{}}).
-    assert!(render(&parse("~~~ S\n\n{=nope}.\n"), View::Manuscript).contains("{=nope}"), "unresolved {{=}} should stay raw");
+    assert!(
+        render(&parse("~~~ S\n\n{=nope}.\n"), View::Manuscript).contains("{=nope}"),
+        "unresolved {{=}} should stay raw"
+    );
 
     // Bare `&` in prose is untouched (only `{&` triggers); empty `{@}` isn't a cite.
     let lit = parse("~~~ S\n\nAT&T and R&D, but {@} is nothing.\n");
@@ -796,24 +926,39 @@ fn grouped_multicite_renders_one_parenthetical() {
         %% Two\nid: jones2019\nauthor: Jones, B.\nyear: 2019\n";
     let doc = parse(src);
     // One Cite inline holding two items.
-    let para = doc.children[0].body.iter().find_map(|b| match b {
-        Block::Para(s) => Some(s),
-        _ => None,
-    }).unwrap();
-    let groups: Vec<usize> = para.iter().filter_map(|s| match s {
-        Inline::Cite(items) => Some(items.len()),
-        _ => None,
-    }).collect();
+    let para = doc.children[0]
+        .body
+        .iter()
+        .find_map(|b| match b {
+            Block::Para(s) => Some(s),
+            _ => None,
+        })
+        .unwrap();
+    let groups: Vec<usize> = para
+        .iter()
+        .filter_map(|s| match s {
+            Inline::Cite(items) => Some(items.len()),
+            _ => None,
+        })
+        .collect();
     assert_eq!(groups, vec![2], "should be one group of two items: {groups:?}");
 
     // Rendered as one parenthetical, items joined with `; `.
     let m = render(&doc, View::Manuscript);
     assert!(m.contains("(Smith, 2020; Jones, 2019, p. 5)"), "grouped render: {m}");
     // Edit round-trips the group.
-    assert!(render(&doc, View::Edit).contains("{@smith2020; @jones2019, p. 5}"), "group round-trip: {}", render(&doc, View::Edit));
+    assert!(
+        render(&doc, View::Edit).contains("{@smith2020; @jones2019, p. 5}"),
+        "group round-trip: {}",
+        render(&doc, View::Edit)
+    );
     // Both sources are cited (each earns a backlink).
     let html = ink_core::render_codex_html(&doc);
-    assert_eq!(html.matches("Referenced by").count(), 2, "both grouped sources should backlink: {html}");
+    assert_eq!(
+        html.matches("Referenced by").count(),
+        2,
+        "both grouped sources should backlink: {html}"
+    );
 
     // Mixed group: an unknown key prints inner `@key`; the group still renders in
     // parens because a sibling resolved.
@@ -842,7 +987,9 @@ fn interpolation_resolves_numbering_and_metadata() {
     let m2 = render(&parse(cd), View::Manuscript);
     assert!(m2.contains("# -1\n") && m2.contains("# 0\n"), "{m2}");
     // Precedence + parens + unary minus.
-    assert!(render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"));
+    assert!(
+        render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n")
+    );
     // Overflow is left verbatim, not a panic (debug) or wrapped garbage (release).
     assert!(render(&parse("# {{9999999999 * 9999999999}}\n"), View::Manuscript)
         .contains("{{9999999999 * 9999999999}}"));
@@ -876,8 +1023,9 @@ fn interpolation_resolves_numbering_and_metadata() {
 #[test]
 fn interpolation_resolves_in_outline_and_codex() {
     // resolve_titles gives the same resolved titles the views show, keyed by offset.
-    let titles =
-        ink_core::resolve_titles(&parse("# Chapter {{number}}\n\n# Chapter {{number}} of {{total}}\n"));
+    let titles = ink_core::resolve_titles(&parse(
+        "# Chapter {{number}}\n\n# Chapter {{number}} of {{total}}\n",
+    ));
     assert!(titles.values().any(|t| t == "Chapter 1"), "{titles:?}");
     assert!(titles.values().any(|t| t == "Chapter 2 of 2"), "{titles:?}");
 
@@ -984,7 +1132,10 @@ fn backslash_escapes_markers() {
         .collect();
     assert_eq!(joined, "a *star* and a {brace");
     // The literal markers are `Escaped`, and the edit view round-trips the `\`.
-    assert!(spans.iter().any(|s| matches!(s, Inline::Escaped(t) if t == "*")), "escape not preserved: {spans:?}");
+    assert!(
+        spans.iter().any(|s| matches!(s, Inline::Escaped(t) if t == "*")),
+        "escape not preserved: {spans:?}"
+    );
     let doc = parse("~~~ S\n\nLiteral \\{{number}} and \\*not italic\\*.\n");
     let edit = render(&doc, View::Edit);
     assert!(edit.contains(r"\{{number}}"), "edit dropped the interp escape: {edit}");
@@ -995,7 +1146,11 @@ fn backslash_escapes_markers() {
         render(&doc, View::Manuscript),
         "escaped markers changed meaning through canonicalization"
     );
-    assert!(render(&doc, View::Manuscript).contains("Literal {{number}} and *not italic*."), "manuscript escape: {}", render(&doc, View::Manuscript));
+    assert!(
+        render(&doc, View::Manuscript).contains("Literal {{number}} and *not italic*."),
+        "manuscript escape: {}",
+        render(&doc, View::Manuscript)
+    );
 }
 
 #[test]
@@ -1136,6 +1291,7 @@ fn build_shunn_book_concatenates_files_and_sources_work_metadata() {
     assert_eq!(book.title, "The Whole Work");
     assert_eq!(book.surname, "Roe");
     assert_eq!(book.keyword, "WHOLE"); // article "The" skipped
+
     // Body = both files' blocks, in order.
     assert_eq!(
         book.blocks,
@@ -1169,7 +1325,10 @@ fn build_shunn_book_concatenates_files_and_sources_work_metadata() {
     assert_eq!(book4.title, "");
     assert_eq!(book4.surname, "");
     assert!(book4.contact.is_empty());
-    assert_eq!(book4.blocks, vec![ShunnBlock::Chapter("One".into()), ShunnBlock::Para("x.".into())]);
+    assert_eq!(
+        book4.blocks,
+        vec![ShunnBlock::Chapter("One".into()), ShunnBlock::Para("x.".into())]
+    );
 }
 
 #[test]
@@ -1190,36 +1349,62 @@ fn heading_size_follows_visible_depth_not_marker_count() {
 fn headings_render_inline_markup() {
     // Emphasis + CriticMarkup in a heading (#100): Markdown keeps `**`, sub resolves.
     let doc = parse("# The **Great** {~War~Conflict}\n\nBody.\n");
-    assert!(render(&doc, View::Manuscript).contains("# The **Great** Conflict"), "manuscript: {}", render(&doc, View::Manuscript));
+    assert!(
+        render(&doc, View::Manuscript).contains("# The **Great** Conflict"),
+        "manuscript: {}",
+        render(&doc, View::Manuscript)
+    );
     // HTML heading renders inline as tags.
     let html = ink_core::render_html(&doc);
     assert!(html.contains("<h1>The <strong>Great</strong> Conflict</h1>"), "html: {html}");
     // Edit round-trips the raw source title unchanged.
-    assert!(render(&doc, View::Edit).contains("# The **Great** {~War~Conflict}"), "edit: {}", render(&doc, View::Edit));
+    assert!(
+        render(&doc, View::Edit).contains("# The **Great** {~War~Conflict}"),
+        "edit: {}",
+        render(&doc, View::Edit)
+    );
     // Outline label is plain: markers stripped, sub resolved.
-    assert!(render(&doc, View::Outline).contains("The Great Conflict"), "outline: {}", render(&doc, View::Outline));
+    assert!(
+        render(&doc, View::Outline).contains("The Great Conflict"),
+        "outline: {}",
+        render(&doc, View::Outline)
+    );
 
     // A link in a heading resolves to the entity's title (full ctx at output).
     let l = parse("# About [[alice]]\n\n% P\n\n%% Alice Hargrove\nid: alice\n");
-    assert!(render(&l, View::Manuscript).contains("# About Alice Hargrove"), "heading link: {}", render(&l, View::Manuscript));
+    assert!(
+        render(&l, View::Manuscript).contains("# About Alice Hargrove"),
+        "heading link: {}",
+        render(&l, View::Manuscript)
+    );
 
     // A heading with markup is still linkable by its markup-stripped title.
     let ent = parse("~~~ S\n\n[[the great war]].\n\n% P\n\n%% The **Great** War\n");
-    assert!(ink_core::render_codex_html(&ent).contains("Referenced by"), "markup title unmatched by plain link");
+    assert!(
+        ink_core::render_codex_html(&ent).contains("Referenced by"),
+        "markup title unmatched by plain link"
+    );
 
     // Regression: {{-1 * n}} interpolation isn't mis-scanned as a {- deletion.
-    assert!(render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"), "interp-in-heading regression");
+    assert!(
+        render(&parse("# {{-1 * (total - number)}}\n\n# x\n"), View::Manuscript).contains("# -1\n"),
+        "interp-in-heading regression"
+    );
 }
 
 #[test]
 fn edit_view_canonicalizes_to_house_style() {
     // Borrowed forms in → house forms out (the canonical direction, #101).
-    let borrowed = "# Chapter {{number}}\n\nSee [[alice]] and [@smith, p. 5].\n\n% P\n\n%% Alice\nid: alice\n";
+    let borrowed =
+        "# Chapter {{number}}\n\nSee [[alice]] and [@smith, p. 5].\n\n% P\n\n%% Alice\nid: alice\n";
     let e = render(&parse(borrowed), View::Edit);
     assert!(e.contains("# Chapter {=number}"), "heading interp: {e}");
     assert!(e.contains("{&alice}"), "link: {e}");
     assert!(e.contains("{@smith, p. 5}"), "cite: {e}");
-    assert!(!e.contains("[[") && !e.contains("[@") && !e.contains("{{"), "a borrowed form leaked: {e}");
+    assert!(
+        !e.contains("[[") && !e.contains("[@") && !e.contains("{{"),
+        "a borrowed form leaked: {e}"
+    );
 
     // Idempotent: canonicalizing again is a fixpoint (safe to re-apply on save).
     assert_eq!(render(&parse(&e), View::Edit), e, "not idempotent");
@@ -1245,7 +1430,17 @@ fn edit_view_full_fidelity() {
     let doc = "title: Book\n\n# Ch 1\ntime: dawn\n\n/ a line comment\n\nProse {/inline comment} here.\n\n~ Scene\n\nMore.\n\n% Notes\n\n%% Secret\nkey: val\n";
     let once = render(&parse(doc), View::Edit);
     // Everything's still there.
-    for kept in ["title: Book", "# Ch 1", "time: dawn", "/ a line comment", "{/inline comment}", "~ Scene", "% Notes", "%% Secret", "key: val"] {
+    for kept in [
+        "title: Book",
+        "# Ch 1",
+        "time: dawn",
+        "/ a line comment",
+        "{/inline comment}",
+        "~ Scene",
+        "% Notes",
+        "%% Secret",
+        "key: val",
+    ] {
         assert!(once.contains(kept), "Edit dropped {kept:?}: {once}");
     }
     // And it's a fixpoint.

@@ -86,7 +86,10 @@ pub enum Inline {
     /// `{-deletion}` — CriticMarkup, dropped from print.
     Delete(Vec<Inline>),
     /// `{~old~new}` — CriticMarkup substitution; `new` prints.
-    Sub { old: Vec<Inline>, new: Vec<Inline> },
+    Sub {
+        old: Vec<Inline>,
+        new: Vec<Inline>,
+    },
     /// `{/comment}` — inline comment, never prints. Kept raw (never rendered).
     Comment(String),
     /// `[[Target]]` — a wikilink to a codex entity by name. Prints as the target

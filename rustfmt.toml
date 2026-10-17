@@ -1,0 +1,4 @@
+# The codebase favours compact one-liners (struct literals, chains, short calls)
+# within the default 100 columns. "Max" lets rustfmt keep those on one line up to
+# max_width instead of its small per-construct defaults (#87). CI checks it.
+use_small_heuristics = "Max"
