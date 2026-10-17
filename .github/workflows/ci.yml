@@ -11,6 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # rustfmt.toml at the root covers both workspaces (#87). The Tauri shell is
+      # its own workspace; fmt only reads metadata, so no webkit is needed.
+      - name: Rust formatting
+        run: |
+          cargo fmt --all --check
+          cargo fmt --check --manifest-path app/src-tauri/Cargo.toml
+
       # ink-core + ink-cli. The workspace excludes app/src-tauri, so no webkit
       # is needed here.
       - name: Rust tests
