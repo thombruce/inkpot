@@ -7,6 +7,12 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Fold all / unfold all.** `Ctrl-Alt-[` folds every section in the editor and
+  `Ctrl-Alt-]` unfolds them. `Ctrl-Shift-[` / `Ctrl-Shift-]` (`Cmd-Alt-[` /
+  `Cmd-Alt-]` on macOS) fold or unfold the section at the caret (#18).
+
 ## [0.15.0] - 2026-10-04
 
 ### Added

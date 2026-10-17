@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/autocomplete";
-import { foldService, foldGutter, codeFolding } from "@codemirror/language";
+import { foldService, foldGutter, codeFolding, foldKeymap } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
 import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, referenceSegment, refClose, HEADING } from "./metacomplete.js";
@@ -472,8 +472,11 @@ const editor = new EditorView({
       highlightSelectionMatches(),
       autocompletion({ override: [completeMetaKey, completeMetaValue, completeReference] }),
       // Tab accepts the highlighted completion; a no-op (falls through) when the
-      // tooltip is closed. Enter also accepts, via completionKeymap.
-      keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap]),
+      // tooltip is closed. Enter also accepts, via completionKeymap. foldKeymap
+      // (not in minimalSetup) adds fold/unfold at the caret (Ctrl-Shift-[ / ],
+      // Cmd-Alt-[ / ] on macOS) and fold-all / unfold-all (Ctrl-Alt-[ / ]) over
+      // the heading folds (#18).
+      keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap, ...foldKeymap]),
       theme,
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
