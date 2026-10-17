@@ -9,6 +9,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **View shortcuts and a status bar.** `Ctrl+1` … `Ctrl+8` (`Cmd` on macOS)
+  switch views in the view menu's order, and the menu is highlighted while you're
+  away from the editor. The file name and word count moved out of the toolbar
+  into a status bar along the bottom (#95).
 - **Notes panel.** A new view lists every note-to-self in the document — `/` line
   comments, `{/inline comments}` (showing who left them, if attributed), and
   **TK** placeholders (`TK`, or `TKTK`, as a whole word) — with a count of what's

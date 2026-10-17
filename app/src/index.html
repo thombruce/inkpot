@@ -17,9 +17,7 @@
       <button id="saveAs">Save As</button>
       <button id="export" title="Export the rendered manuscript as Markdown">Export</button>
       <button id="exportPdf" title="Export a Shunn manuscript PDF">Export PDF</button>
-      <span id="filename" class="filename">untitled</span>
-      <span id="wordcount" class="wordcount"></span>
-      <select id="viewSelect" class="view-select" title="View — the main area shows one at a time">
+      <select id="viewSelect" class="view-select" title="View (Ctrl/Cmd+1, 2, …) — the main area shows one at a time">
         <option value="editor">Editor</option>
         <option value="preview">Preview</option>
         <option value="codex">Codex</option>
@@ -73,6 +71,10 @@
         </div>
       </section>
     </main>
+    <footer class="statusbar">
+      <span id="filename" class="filename">untitled</span>
+      <span id="wordcount" class="wordcount"></span>
+    </footer>
     <script type="module" src="./main.js"></script>
   </body>
 </html>
