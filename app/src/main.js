@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/autocomplete";
-import { foldService, foldGutter, codeFolding, foldKeymap } from "@codemirror/language";
+import { foldService, foldGutter, codeFolding, foldAll, unfoldAll } from "@codemirror/language";
 import { ink } from "./inklang.js";
 import { headingDepth, sectionEndLine } from "./fold.js";
 import { DOC_KEYS, SCENE_KEYS, SOURCE_KEYS, metaZone, valueSegment, referenceSegment, refClose, HEADING } from "./metacomplete.js";
@@ -472,11 +472,18 @@ const editor = new EditorView({
       highlightSelectionMatches(),
       autocompletion({ override: [completeMetaKey, completeMetaValue, completeReference] }),
       // Tab accepts the highlighted completion; a no-op (falls through) when the
-      // tooltip is closed. Enter also accepts, via completionKeymap. foldKeymap
-      // (not in minimalSetup) adds fold/unfold at the caret (Ctrl-Shift-[ / ],
-      // Cmd-Alt-[ / ] on macOS) and fold-all / unfold-all (Ctrl-Alt-[ / ]) over
-      // the heading folds (#18).
-      keymap.of([{ key: "Tab", run: acceptCompletion }, ...searchKeymap, ...completionKeymap, ...foldKeymap]),
+      // tooltip is closed. Enter also accepts, via completionKeymap.
+      // Fold all / unfold all (#18) as VS Code's chords. Not CodeMirror's
+      // foldKeymap: its Ctrl-Alt-[ is AltGr+8 on Windows German/Nordic/Polish
+      // layouts, so it would swallow typed `[` (any Ctrl-Alt chord collides with
+      // some layout's AltGr), and its per-section keys only fire on a heading line.
+      keymap.of([
+        { key: "Tab", run: acceptCompletion },
+        { key: "Mod-k Mod-0", run: foldAll },
+        { key: "Mod-k Mod-j", run: unfoldAll },
+        ...searchKeymap,
+        ...completionKeymap,
+      ]),
       theme,
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
