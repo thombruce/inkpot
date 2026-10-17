@@ -119,11 +119,7 @@ pub fn parse(src: &str) -> Node {
 fn close_spans(node: &mut Node, end: usize) {
     node.node_span.end = end;
     for i in 0..node.children.len() {
-        let child_end = node
-            .children
-            .get(i + 1)
-            .map(|next| next.node_span.start)
-            .unwrap_or(end);
+        let child_end = node.children.get(i + 1).map(|next| next.node_span.start).unwrap_or(end);
         close_spans(&mut node.children[i], child_end);
     }
 }
@@ -215,7 +211,8 @@ fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
                 Some((k, l)) => (k.trim(), l.trim()),
                 None => (item.trim(), ""),
             };
-            (!key.is_empty()).then(|| CiteItem { key: key.to_string(), locator: locator.to_string() })
+            (!key.is_empty())
+                .then(|| CiteItem { key: key.to_string(), locator: locator.to_string() })
         })
         .collect()
 }
@@ -395,10 +392,7 @@ fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
         b'/' => Inline::Comment(content.to_string()),
         b'~' => {
             let (old, new) = content.split_once('~')?;
-            Inline::Sub {
-                old: scan(old, false),
-                new: scan(new, false),
-            }
+            Inline::Sub { old: scan(old, false), new: scan(new, false) }
         }
         _ => return None,
     };
@@ -428,7 +422,9 @@ fn split_attribution(body: &str) -> (&str, Option<Attribution>) {
     }
     // `…|@authors`: no date. The content is everything before the last `|`.
     match authors(last) {
-        Some(authors) => (&body[..body.len() - last.len() - 1], Some(Attribution { authors, date: None })),
+        Some(authors) => {
+            (&body[..body.len() - last.len() - 1], Some(Attribution { authors, date: None }))
+        }
         None => (body, None),
     }
 }
@@ -458,7 +454,8 @@ fn is_iso_date(s: &str) -> bool {
         && b[7] == b'-'
         && digits(8..10)
         && (b.len() == 10
-            || (b[10] == b'T' && b[11..].iter().all(|c| c.is_ascii_digit() || b":.+-Z".contains(c))))
+            || (b[10] == b'T'
+                && b[11..].iter().all(|c| c.is_ascii_digit() || b":.+-Z".contains(c))))
 }
 
 /// Byte index of the next occurrence of `needle` at or after `from`.

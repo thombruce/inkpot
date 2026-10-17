@@ -1,6 +1,8 @@
 //! Three read-only views over the [`Node`] tree.
 
-use crate::meta::{is_self_naming, AUTHOR, BYLINE, CONTACT, EDITION, ID, PLACE, PUBLISHER, TITLE, YEAR};
+use crate::meta::{
+    is_self_naming, AUTHOR, BYLINE, CONTACT, EDITION, ID, PLACE, PUBLISHER, TITLE, YEAR,
+};
 use crate::shunn::{header_keyword, round_wordcount, surname, ShunnBlock, ShunnManuscript};
 use crate::{Block, CiteItem, Inline, Node, Visibility};
 use std::cmp::Ordering;
@@ -83,7 +85,11 @@ fn root_ctx(root: &Node) -> Ctx {
 /// this so a reference finds a source in any project file (#89). Single-file is a
 /// project of one — `root_ctx(root)` above.
 fn project_ctx(active: &Node, roots: &[&Node]) -> Ctx {
-    Ctx { links: Rc::new(link_titles(roots)), cites: Rc::new(cite_shorts(roots)), ..base_ctx(active) }
+    Ctx {
+        links: Rc::new(link_titles(roots)),
+        cites: Rc::new(cite_shorts(roots)),
+        ..base_ctx(active)
+    }
 }
 
 /// A root context without the link map. Used where link resolution isn't needed
@@ -94,17 +100,20 @@ fn base_ctx(root: &Node) -> Ctx {
     for (k, v) in &root.meta {
         vars.insert(k.clone(), v.clone());
     }
-    Ctx { number: 0, total: 0, vars, links: Rc::new(HashMap::new()), cites: Rc::new(HashMap::new()) }
+    Ctx {
+        number: 0,
+        total: 0,
+        vars,
+        links: Rc::new(HashMap::new()),
+        cites: Rc::new(HashMap::new()),
+    }
 }
 
 /// One `Ctx` per child of `node`, in order: numbering over the non-excluded
 /// siblings, and the parent cascade extended with each child's own metadata.
 fn child_ctxs(node: &Node, ctx: &Ctx) -> Vec<Ctx> {
-    let total = node
-        .children
-        .iter()
-        .filter(|c| c.visibility != Visibility::Excluded)
-        .count() as i64;
+    let total =
+        node.children.iter().filter(|c| c.visibility != Visibility::Excluded).count() as i64;
     let mut number = 0i64;
     node.children
         .iter()
@@ -230,7 +239,8 @@ fn cite_shorts(roots: &[&Node]) -> HashMap<String, String> {
         collect_entities(root, &mut entities);
         let resolved = resolve_titles(root);
         let label_of = |e: &Node| {
-            let title = resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone());
+            let title =
+                resolved.get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone());
             cite_label(e, &title)
         };
         for e in &entities {
@@ -435,8 +445,14 @@ impl ExprParser<'_> {
             match self.b.get(self.i) {
                 // checked_* so an overflowing expression resolves to None and is
                 // left verbatim, never panicking (debug) or wrapping (release).
-                Some(b'+') => { self.i += 1; v = v.checked_add(self.term()?)?; }
-                Some(b'-') => { self.i += 1; v = v.checked_sub(self.term()?)?; }
+                Some(b'+') => {
+                    self.i += 1;
+                    v = v.checked_add(self.term()?)?;
+                }
+                Some(b'-') => {
+                    self.i += 1;
+                    v = v.checked_sub(self.term()?)?;
+                }
                 _ => return Some(v),
             }
         }
@@ -446,9 +462,15 @@ impl ExprParser<'_> {
         loop {
             self.ws();
             match self.b.get(self.i) {
-                Some(b'*') => { self.i += 1; v = v.checked_mul(self.factor()?)?; }
+                Some(b'*') => {
+                    self.i += 1;
+                    v = v.checked_mul(self.factor()?)?;
+                }
                 // checked_div covers both zero and the i64::MIN / -1 overflow.
-                Some(b'/') => { self.i += 1; v = v.checked_div(self.factor()?)?; }
+                Some(b'/') => {
+                    self.i += 1;
+                    v = v.checked_div(self.factor()?)?;
+                }
                 _ => return Some(v),
             }
         }
@@ -457,7 +479,10 @@ impl ExprParser<'_> {
         self.ws();
         let &c = self.b.get(self.i)?;
         match c {
-            b'-' => { self.i += 1; self.factor()?.checked_neg() }
+            b'-' => {
+                self.i += 1;
+                self.factor()?.checked_neg()
+            }
             b'(' => {
                 self.i += 1;
                 let v = self.expr()?;
@@ -564,7 +589,14 @@ pub fn build_shunn_project(roots: &[&Node], active: usize) -> ShunnManuscript {
     match active_root(roots, active) {
         Some(root) => {
             let (title, author, byline, contact) = shunn_meta(root);
-            assemble(title, author, byline, contact, round_wordcount(word_count(root)), doc_blocks(root, roots))
+            assemble(
+                title,
+                author,
+                byline,
+                contact,
+                round_wordcount(word_count(root)),
+                doc_blocks(root, roots),
+            )
         }
         None => assemble(String::new(), String::new(), String::new(), Vec::new(), 0, Vec::new()),
     }
@@ -767,11 +799,11 @@ struct Backref {
 /// just a project of one doc (see [`render_codex_html`]).
 struct CodexIndex<'a> {
     entities: Vec<&'a Node>,
-    entity_doc: Vec<usize>,                        // parallel to `entities`: which doc each is in
-    by_name: HashMap<String, Vec<usize>>,          // folded title -> entity indices, project order
-    by_id: HashMap<String, usize>,                 // folded `id:` meta -> entities idx (first wins)
-    by_offset: HashMap<(usize, usize), usize>,     // (doc, heading offset) -> entities idx
-    scopes: HashMap<(usize, usize), Vec<String>>,  // (doc, heading offset) -> folded visible-ancestor scope
+    entity_doc: Vec<usize>, // parallel to `entities`: which doc each is in
+    by_name: HashMap<String, Vec<usize>>, // folded title -> entity indices, project order
+    by_id: HashMap<String, usize>, // folded `id:` meta -> entities idx (first wins)
+    by_offset: HashMap<(usize, usize), usize>, // (doc, heading offset) -> entities idx
+    scopes: HashMap<(usize, usize), Vec<String>>, // (doc, heading offset) -> folded visible-ancestor scope
     backlinks: Vec<Vec<Backref>>,
 }
 
@@ -813,7 +845,8 @@ impl<'a> CodexIndex<'a> {
             scopes.extend(s.into_iter().map(|(off, sc)| ((d, off), sc)));
         }
         let backlinks = (0..entities.len()).map(|_| Vec::new()).collect();
-        let mut idx = CodexIndex { entities, entity_doc, by_name, by_id, by_offset, scopes, backlinks };
+        let mut idx =
+            CodexIndex { entities, entity_doc, by_name, by_id, by_offset, scopes, backlinks };
         idx.backlinks = idx.compute_backlinks(docs);
         idx
     }
@@ -825,7 +858,8 @@ impl<'a> CodexIndex<'a> {
     fn ref_scope(&self, doc: usize, node: &Node, titles: &HashMap<usize, String>) -> Vec<String> {
         let mut s = self.scopes.get(&(doc, node.heading_span.start)).cloned().unwrap_or_default();
         if node.visibility != Visibility::Excluded {
-            let t = fold_name(titles.get(&node.heading_span.start).map_or(node.title.as_str(), |x| x));
+            let t =
+                fold_name(titles.get(&node.heading_span.start).map_or(node.title.as_str(), |x| x));
             if !t.is_empty() {
                 s.push(t);
             }
@@ -875,7 +909,8 @@ impl<'a> CodexIndex<'a> {
     /// from the holding node, resolved by nearest scope in that node's own file.
     /// Whole-project, deduped per referrer, self-skip.
     fn compute_backlinks(&self, docs: &[(String, &Node)]) -> Vec<Vec<Backref>> {
-        let mut backlinks: Vec<Vec<Backref>> = (0..self.entities.len()).map(|_| Vec::new()).collect();
+        let mut backlinks: Vec<Vec<Backref>> =
+            (0..self.entities.len()).map(|_| Vec::new()).collect();
         for (d, (_, root)) in docs.iter().enumerate() {
             // Referrer labels use the same resolved titles as the views, so a
             // `# Chapter {{number}}` backlink reads "Chapter 3", not the raw formula.
@@ -1058,7 +1093,9 @@ fn parse_number(s: &str) -> Option<f64> {
 fn sort_by_time<T>(items: &mut [T], time_of: impl Fn(&T) -> &str) {
     if items.iter().all(|it| parse_number(time_of(it)).is_some()) {
         items.sort_by(|a, b| {
-            parse_number(time_of(a)).partial_cmp(&parse_number(time_of(b))).unwrap_or(Ordering::Equal)
+            parse_number(time_of(a))
+                .partial_cmp(&parse_number(time_of(b)))
+                .unwrap_or(Ordering::Equal)
         });
     } else {
         items.sort_by(|a, b| time_of(a).cmp(time_of(b)));
@@ -1175,7 +1212,9 @@ fn collect_scenes(node: &Node, titles: &HashMap<usize, String>, out: &mut Vec<Sc
             .meta
             .iter()
             .find(|(k, _)| k == key)
-            .map(|(_, v)| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+            .map(|(_, v)| {
+                v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+            })
             .unwrap_or_default()
     };
     for child in &node.children {
@@ -1218,7 +1257,14 @@ pub fn render_characters_html(root: &Node) -> String {
     out
 }
 
-fn characters_walk(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
+fn characters_walk(
+    doc: usize,
+    paths: &[&str],
+    node: &Node,
+    ctx: &Ctx,
+    idx: &CodexIndex,
+    out: &mut String,
+) {
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
             if fold_title(&child.title) == "characters" {
@@ -1298,7 +1344,13 @@ pub fn render_bibliography_project(docs: &[(String, &Node)], active: usize) -> S
         resolved[d].get(&e.heading_span.start).cloned().unwrap_or_else(|| e.title.clone())
     };
     let year_of = |i: usize| {
-        entities[i].1.meta.iter().find(|(k, _)| k == YEAR).map(|(_, v)| v.trim().to_string()).unwrap_or_default()
+        entities[i]
+            .1
+            .meta
+            .iter()
+            .find(|(k, _)| k == YEAR)
+            .map(|(_, v)| v.trim().to_string())
+            .unwrap_or_default()
     };
     // Sort by first-author surname (folded), then year.
     // ponytail: year is a lexicographic string compare — correct for 4-digit
@@ -1409,7 +1461,15 @@ fn cite_keys_in<'a>(spans: &'a [Inline], out: &mut Vec<&'a str>) {
 /// scope `["Chapter 1"]`, so two same-named notes in different chapters read
 /// distinctly, and references (`[[…]]`, metadata) resolve to the nearest such
 /// note by scope.
-fn codex_html(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &CodexIndex, scope: &[String], out: &mut String) {
+fn codex_html(
+    doc: usize,
+    paths: &[&str],
+    node: &Node,
+    ctx: &Ctx,
+    idx: &CodexIndex,
+    scope: &[String],
+    out: &mut String,
+) {
     for (child, cctx) in node.children.iter().zip(child_ctxs(node, ctx)) {
         if child.visibility == Visibility::Excluded {
             out.push_str("<section class=\"codex-section\">");
@@ -1419,7 +1479,15 @@ fn codex_html(doc: usize, paths: &[&str], node: &Node, ctx: &Ctx, idx: &CodexInd
             codex_html_entry(doc, paths, child, 0, &cctx, idx, out);
             out.push_str("</section>");
         } else {
-            codex_html(doc, paths, child, &cctx, idx, &pushed_scope(scope, &child.title, &cctx), out);
+            codex_html(
+                doc,
+                paths,
+                child,
+                &cctx,
+                idx,
+                &pushed_scope(scope, &child.title, &cctx),
+                out,
+            );
         }
     }
 }
@@ -1434,7 +1502,15 @@ fn pushed_scope(scope: &[String], title: &str, ctx: &Ctx) -> Vec<String> {
     inner
 }
 
-fn codex_html_entry(doc: usize, paths: &[&str], node: &Node, depth: usize, ctx: &Ctx, idx: &CodexIndex, out: &mut String) {
+fn codex_html_entry(
+    doc: usize,
+    paths: &[&str],
+    node: &Node,
+    depth: usize,
+    ctx: &Ctx,
+    idx: &CodexIndex,
+    out: &mut String,
+) {
     // Section title at h2, entities h3, deeper nesting steps down, capped at h6.
     let lvl = (depth + 2).min(6);
     let title = if node.title.is_empty() {
@@ -1450,7 +1526,11 @@ fn codex_html_entry(doc: usize, paths: &[&str], node: &Node, depth: usize, ctx: 
         out.push_str("<dl>");
         for (k, v) in &node.meta {
             // `id` names this entity; render it plain, never as a self-link.
-            let dd = if is_self_naming(k) { escape(v) } else { meta_value_html(v, idx, doc, &rscope, paths) };
+            let dd = if is_self_naming(k) {
+                escape(v)
+            } else {
+                meta_value_html(v, idx, doc, &rscope, paths)
+            };
             write!(out, "<dt>{}</dt><dd>{}</dd>", escape(k), dd).ok();
         }
         out.push_str("</dl>");
@@ -1473,7 +1553,13 @@ fn codex_html_entry(doc: usize, paths: &[&str], node: &Node, depth: usize, ctx: 
                     out.push_str(", ");
                 }
                 let t = if b.title.is_empty() { "(untitled)" } else { &b.title };
-                write!(out, "<a class=\"ref\" {}>{}</a>", jump_attrs(paths, b.doc, b.offset), escape(t)).ok();
+                write!(
+                    out,
+                    "<a class=\"ref\" {}>{}</a>",
+                    jump_attrs(paths, b.doc, b.offset),
+                    escape(t)
+                )
+                .ok();
             }
             out.push_str("</div>");
         }
@@ -1488,12 +1574,20 @@ fn codex_html_entry(doc: usize, paths: &[&str], node: &Node, depth: usize, ctx: 
 
 /// A metadata value's comma parts, each linked if it names an entity. Empty
 /// parts (a trailing comma) are dropped.
-fn meta_value_html(v: &str, idx: &CodexIndex, ref_doc: usize, ref_scope: &[String], paths: &[&str]) -> String {
+fn meta_value_html(
+    v: &str,
+    idx: &CodexIndex,
+    ref_doc: usize,
+    ref_scope: &[String],
+    paths: &[&str],
+) -> String {
     v.split(',')
         .map(str::trim)
         .filter(|p| !p.is_empty())
         .map(|part| match idx.resolve(part, ref_doc, ref_scope) {
-            Some((doc, off)) => format!("<a class=\"ref\" {}>{}</a>", jump_attrs(paths, doc, off), escape(part)),
+            Some((doc, off)) => {
+                format!("<a class=\"ref\" {}>{}</a>", jump_attrs(paths, doc, off), escape(part))
+            }
             None => escape(part),
         })
         .collect::<Vec<_>>()
@@ -1512,7 +1606,9 @@ fn inline_html(span: &Inline, ctx: &Ctx) -> Option<String> {
         Inline::Italic(cs) => format!("<em>{}</em>", html_inlines(cs, ctx)),
         Inline::Insert(cs) => html_inlines(cs, ctx),
         Inline::Sub { new, .. } => html_inlines(new, ctx),
-        Inline::Link(s) => format!("<a class=\"wikilink\">{}</a>", escape(&link_text(s, &ctx.links))),
+        Inline::Link(s) => {
+            format!("<a class=\"wikilink\">{}</a>", escape(&link_text(s, &ctx.links)))
+        }
         Inline::Cite(items) => {
             format!("<span class=\"cite\">{}</span>", escape(&cite_text(items, &ctx.cites)))
         }
