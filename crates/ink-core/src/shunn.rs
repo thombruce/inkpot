@@ -89,7 +89,8 @@ mod tests {
         assert_eq!(round_wordcount(7_649), 7_600);
         assert_eq!(round_wordcount(7_650), 7_700);
         assert_eq!(round_wordcount(9_950), 10_000); // crosses into the 1000-step band
-                                                    // At/above 10k: nearest 1000.
+
+        // At/above 10k: nearest 1000.
         assert_eq!(round_wordcount(80_400), 80_000);
         assert_eq!(round_wordcount(80_500), 81_000);
     }

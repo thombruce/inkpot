@@ -803,7 +803,8 @@ struct CodexIndex<'a> {
     by_name: HashMap<String, Vec<usize>>, // folded title -> entity indices, project order
     by_id: HashMap<String, usize>, // folded `id:` meta -> entities idx (first wins)
     by_offset: HashMap<(usize, usize), usize>, // (doc, heading offset) -> entities idx
-    scopes: HashMap<(usize, usize), Vec<String>>, // (doc, heading offset) -> folded visible-ancestor scope
+    // (doc, heading offset) -> folded visible-ancestor scope
+    scopes: HashMap<(usize, usize), Vec<String>>,
     backlinks: Vec<Vec<Backref>>,
 }
 
