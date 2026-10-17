@@ -21,6 +21,11 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   top-level sections; `Ctrl-K` then `Ctrl-J` unfolds everything (`Cmd` on macOS),
   as in VS Code (#18).
 
+### Fixed
+
+- On macOS, `Ctrl-N` and `Ctrl-O` in the editor (cursor down and split line)
+  no longer also start a new file or open the file dialog.
+
 ## [0.15.0] - 2026-10-04
 
 ### Added

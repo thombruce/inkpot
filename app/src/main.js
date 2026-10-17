@@ -1096,7 +1096,10 @@ document.getElementById("save").addEventListener("click", saveFile);
 document.getElementById("saveAs").addEventListener("click", saveFileAs);
 
 window.addEventListener("keydown", (e) => {
-  if (!(e.ctrlKey || e.metaKey)) return;
+  // Skip keys the editor already handled — e.g. the key after a Ctrl-K chord
+  // prefix, or macOS's emacs-style Ctrl-N / Ctrl-O (cursor down, split line),
+  // which would otherwise also start a new file / open the dialog.
+  if (e.defaultPrevented || !(e.ctrlKey || e.metaKey)) return;
   if (e.key === "s") {
     e.preventDefault();
     e.shiftKey ? saveFileAs() : saveFile();
@@ -1113,8 +1116,11 @@ window.addEventListener("keydown", (e) => {
     const view = viewSelect.options[Number(e.code.slice(5)) - 1]?.value;
     if (!view) return;
     e.preventDefault();
+    if (e.repeat) return; // holding the keys shouldn't re-run the switch
     setView(view);
+    // Keep typing out of a hidden buffer: focus follows the view.
     if (view === "editor") editor.focus();
+    else editor.contentDOM.blur();
   }
 });
 
