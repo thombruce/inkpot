@@ -4,7 +4,7 @@ use crate::meta::{
     is_self_naming, AUTHOR, BYLINE, CONTACT, EDITION, ID, PLACE, PUBLISHER, TITLE, YEAR,
 };
 use crate::shunn::{header_keyword, round_wordcount, surname, ShunnBlock, ShunnManuscript};
-use crate::{Block, CiteItem, Inline, Node, Visibility};
+use crate::{Attribution, Block, CiteItem, Inline, Node, Visibility};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -1272,9 +1272,9 @@ pub fn render_notes_html(root: &Node) -> String {
     out
 }
 
-/// What a paragraph holds, in reading order: an inline comment or a TK.
+/// What a heading or paragraph holds, in reading order: a comment or a TK.
 enum Found<'a> {
-    Note(&'a str, Option<&'a [String]>),
+    Note(&'a str, Option<&'a Attribution>),
     Tk(usize),
 }
 
@@ -1285,54 +1285,66 @@ fn collect_notes(
     notes: &mut usize,
     tks: &mut usize,
 ) {
+    // Where an item lives: its section, or for notes before the first heading the
+    // document's front-matter title.
     let section = if node.level == 0 {
-        String::new()
+        node.meta.iter().find(|(k, _)| k == TITLE).map_or("(top)".to_string(), |(_, v)| v.clone())
     } else {
-        titles.get(&node.heading_span.start).cloned().unwrap_or_else(|| node.title.clone())
+        // Trimmed: a comment dropped from the end of a title leaves a space.
+        titles.get(&node.heading_span.start).map_or(node.title.as_str(), |t| t).trim().to_string()
     };
-    let mut item = |kind: &str, text: &str, by: Option<&[String]>, offset: usize| {
-        let by = by.map(|a| format!(" <span class=\"by\">{}</span>", escape(&a.join(", "))));
-        write!(
-            out,
-            "<li class=\"{}\"><span class=\"kind\">{kind}</span> \
-             <a class=\"ref\" data-jump=\"{offset}\">{}</a>{} <span class=\"where\">{}</span></li>",
-            kind.to_lowercase(),
-            escape(text),
-            by.unwrap_or_default(),
-            escape(&section)
-        )
-        .ok();
+    let mut emit = |text: &str, found: Vec<(usize, Found)>, offset: usize| {
+        for (_, f) in found {
+            let (kind, body, by) = match f {
+                Found::Note(c, by) => {
+                    *notes += 1;
+                    ("Note", c.to_string(), by)
+                }
+                Found::Tk(at) => {
+                    *tks += 1;
+                    ("TK", snippet(text, at), None)
+                }
+            };
+            // An attributed comment shows who, and when if dated.
+            let by = by.map(|a| {
+                let date = a.date.as_ref().map(|d| format!(" · {d}")).unwrap_or_default();
+                format!(
+                    " <span class=\"by\">{}{}</span>",
+                    escape(&a.authors.join(", ")),
+                    escape(&date)
+                )
+            });
+            write!(
+                out,
+                "<li class=\"{}\"><span class=\"kind\">{kind}</span> \
+                 <a class=\"ref\" data-jump=\"{offset}\">{}</a>{} <span class=\"where\">{}</span></li>",
+                kind.to_lowercase(),
+                escape(&body),
+                by.unwrap_or_default(),
+                escape(&section)
+            )
+            .ok();
+        }
     };
+    // The heading title is inline markup too (#100): its comments and TKs jump to
+    // the heading line.
+    let title = crate::parse::scan_inline(&node.title);
+    if node.level > 0 {
+        let (text, found) = notes_in(&title);
+        emit(&text, found, node.heading_span.start);
+    }
     // `body_starts` is parallel to `body`: if they ever drift, the zip below would
     // silently drop notes, so make drift fail loudly in tests instead.
     debug_assert_eq!(node.body.len(), node.body_starts.len());
     for (block, &offset) in node.body.iter().zip(&node.body_starts) {
         match block {
             Block::LineComment(c) if !c.is_empty() => {
-                item("Note", c, None, offset);
-                *notes += 1;
+                emit("", vec![(0, Found::Note(c, None))], offset)
             }
             Block::LineComment(_) => {}
             Block::Para(spans) => {
-                // One pass builds the printing text (TKs and their context come
-                // from it) and places each comment in it, so the two interleave.
-                let mut text = String::new();
-                let mut found = Vec::new();
-                note_walk(spans, &mut text, &mut found);
-                found.extend(tk_positions(&text).into_iter().map(|at| (at, Found::Tk(at))));
-                found.sort_by_key(|f| f.0); // stable: a comment just before a TK stays first
-                for (_, f) in found {
-                    match f {
-                        Found::Note(c, by) => {
-                            item("Note", c, by, offset);
-                            *notes += 1;
-                        }
-                        Found::Tk(at) => {
-                            item("TK", &snippet(&text, at), None, offset);
-                            *tks += 1;
-                        }
-                    }
-                }
+                let (text, found) = notes_in(spans);
+                emit(&text, found, offset);
             }
         }
     }
@@ -1341,10 +1353,23 @@ fn collect_notes(
     }
 }
 
-/// Flatten a paragraph's spans to the text that prints (as [`plain_inlines`]
-/// does), recording each non-empty inline `{/comment}` at its byte position in
-/// that text. Deletions and a substitution's old side are skipped, comments in
-/// them included: that text is going away.
+/// A span tree's comments and TKs in reading order, plus the printing text the
+/// TK positions (and snippets) refer to. One pass builds the text and places each
+/// comment in it; the TKs found in it then merge in by position.
+fn notes_in(spans: &[Inline]) -> (String, Vec<(usize, Found<'_>)>) {
+    let mut text = String::new();
+    let mut found = Vec::new();
+    note_walk(spans, &mut text, &mut found);
+    found.extend(tk_positions(&text).into_iter().map(|at| (at, Found::Tk(at))));
+    found.sort_by_key(|f| f.0); // stable: a comment just before a TK stays first
+    (text, found)
+}
+
+/// Flatten spans to the text that prints, recording each non-empty inline
+/// `{/comment}` at its byte position in that text. Leaves go through
+/// [`plain_inline`]; the containers below mirror its rules (bold/italic/insert
+/// recurse, a substitution keeps `new`, deletions drop) — change one, check the
+/// other.
 fn note_walk<'a>(spans: &'a [Inline], text: &mut String, found: &mut Vec<(usize, Found<'a>)>) {
     for s in spans {
         match s {
@@ -1353,7 +1378,7 @@ fn note_walk<'a>(spans: &'a [Inline], text: &mut String, found: &mut Vec<(usize,
             }
             Inline::Attributed(inner, a) => match &**inner {
                 Inline::Comment(c) if !c.trim().is_empty() => {
-                    found.push((text.len(), Found::Note(c, Some(&a.authors))))
+                    found.push((text.len(), Found::Note(c, Some(a))))
                 }
                 other => note_walk(std::slice::from_ref(other), text, found),
             },

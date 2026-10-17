@@ -1502,6 +1502,24 @@ fn notes_panel_collects_comments_and_tks() {
     let w = render_notes_html(&parse(wrapped));
     assert!(w.contains(">…wordy wordy wordy wordy wordy wor wordy TK end.</a>"), "{w}");
 
+    // Headings are inline markup too: their comments and TKs jump to the heading
+    // line, ahead of the body's notes.
+    let h = render_notes_html(&parse("# Chapter TK {/rename this|@Ada|2026-10-04}\n\nBody.\n"));
+    assert!(h.contains("<p class=\"notes-summary\">1 note, 1 TK</p>"), "{h}");
+    assert!(
+        h.contains(
+            "data-jump=\"0\">rename this</a> <span class=\"by\">Ada · 2026-10-04</span> <span class=\"where\">Chapter TK</span>"
+        ),
+        "dated attribution shown: {h}"
+    );
+    assert!(h.contains("data-jump=\"0\">Chapter TK</a>"), "{h}");
+
+    // Before the first heading: the front-matter title, else "(top)".
+    let titled = render_notes_html(&parse("title: The Book\n\nOpening TK.\n\n# One\n"));
+    assert!(titled.contains("<span class=\"where\">The Book</span>"), "{titled}");
+    let untitled = render_notes_html(&parse("Opening TK.\n\n# One\n"));
+    assert!(untitled.contains("<span class=\"where\">(top)</span>"), "{untitled}");
+
     // Nothing to report: just the empty list (the CSS hint fills it).
     assert_eq!(
         render_notes_html(&parse("# H\n\nClean prose.\n")),

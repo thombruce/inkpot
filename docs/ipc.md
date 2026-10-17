@@ -109,16 +109,21 @@ not an IPC call; text stays canonical.
 
 ### `notes(src: string) -> string`
 
-Returns the **notes panel** as HTML (#41): every note-to-self in document order —
+Returns the **notes panel** as HTML (#41): every note-to-self, in reading order —
 `/` line comments, inline `{/comments}` (non-empty), and **TK** placeholders
-(`TK`, or a run like `TKTK`, as a whole uppercase word, in printing prose).
+(`TK`, or a run like `TKTK`, as a whole uppercase word). Comments and TKs are
+found in heading titles as well as body prose. A TK counts only in text that
+isn't being removed — not inside a deletion or a substitution's old side, nor
+inside a comment. **Every section counts, excluded (`%`) ones included.**
+
 A `<p class="notes-summary">` count ("2 notes, 1 TK") precedes an
-`<ol class="notes-list">` of `<li class="note|tk">` items, in reading order: a `<span class="kind">`, an
-`<a class="ref" data-jump="<char-offset>">` with the comment text or ~40 chars of
-TK context, an optional `<span class="by">` (an attributed comment's authors), and
-a `<span class="where">` section title. The jump lands on the block: a line
-comment's own line, else its paragraph's first line. Every section counts,
-excluded (`%`) ones included. With nothing to report it's just an empty
+`<ol class="notes-list">` of `<li class="note|tk">` items: a `<span class="kind">`,
+an `<a class="ref" data-jump="<char-offset>">` with the comment text or ~40 chars
+of TK context, an optional `<span class="by">` (an attributed comment's authors,
+plus ` · <date>` if dated), and a `<span class="where">` label — the section
+title, or before the first heading the front-matter `title:` (else `(top)`). The
+jump lands on the line or block: a heading's own line, a line comment's own line,
+else its paragraph's first line. With nothing to report it's just an empty
 `<ol class="notes-list"></ol>`. Text is escaped for `innerHTML`.
 
 ### `normalize(src: string) -> string`

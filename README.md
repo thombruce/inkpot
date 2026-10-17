@@ -197,7 +197,8 @@ metadata — read-only, click an entry to jump to it in the editor:
 A **Notes** panel gathers every note-to-self in one list — `/` line comments,
 `{/inline comments}` (with who left them, if attributed), and **TK** placeholders
 (the "to come" mark: `TK`, or `TKTK`, as a whole uppercase word) — with a count
-("6 notes, 3 TKs") so you can see what's unfinished. Click one to jump to it.
+("6 notes, 3 TKs") so you can see what's unfinished. Headings count too, and every
+section, notes sections included. Click one to jump to it.
 
 **Open Folder** opens a folder of `.ink` files as a project — the files show as a
 collapsible tree (subdirectories included) at the top of the outline rail, click
