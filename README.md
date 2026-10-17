@@ -281,15 +281,14 @@ npm run tauri dev      # live dev with hot reload
 npm run tauri build    # standalone build
 ```
 
-The app: a live-highlighted `.ink` editor with foldable sections (`Ctrl-K Ctrl-0`
-collapses to the top-level sections, `Ctrl-K Ctrl-J` unfolds all; `Cmd` on macOS),
-a collapsible
-outline panel (click to jump, drag to rearrange scenes and chapters, and toggle
-any heading between visible `#` / scene `~` / excluded `%`), a formatted reading
-preview toggled from the editor (rendered headings, bold, and italics — no
-markers), and file open/save with autosave to the current file plus an
-unsaved-changes guard on untitled buffers. It reopens your most recent file on
-launch and keeps a recent-files list.
+The app: a live-highlighted `.ink` editor with foldable sections
+(`Ctrl-K Ctrl-0` collapses to the top-level sections, `Ctrl-K Ctrl-J` unfolds
+all; `Cmd` on macOS), a collapsible outline panel (click to jump, drag to
+rearrange scenes and chapters, and toggle any heading between visible `#` /
+scene `~` / excluded `%`), a formatted reading preview toggled from the editor
+(rendered headings, bold, and italics — no markers), and file open/save with
+autosave to the current file plus an unsaved-changes guard on untitled buffers.
+It reopens your most recent file on launch and keeps a recent-files list.
 
 ## Installing a release
 
