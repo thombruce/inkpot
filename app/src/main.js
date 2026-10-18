@@ -696,11 +696,19 @@ function setDoc(text) {
 
 // Clear the way to replace the buffer. A file with a path autosaves, so flush it
 // rather than ask (#143); only an untitled buffer (nowhere to save) or a failed
-// write still prompts. Returns false if the user declined to discard.
+// write still prompts — naming the failure, so Yes isn't a blind loss. Returns
+// false if the user declined to discard.
 async function confirmDiscard() {
-  await autosaveNow(true).catch(() => {}); // a failed write leaves it dirty: ask
+  let err;
+  try {
+    await autosaveNow(true);
+    while (currentPath && dirty) await writeCurrent(); // keystrokes landed mid-flush
+  } catch (e) {
+    err = e;
+  }
   if (!dirty) return true;
-  return dialog.confirm("Discard unsaved changes?", { title: "inkpot" });
+  const why = err ? `Couldn't save ${currentPath.split("/").pop()}: ${err}\n\n` : "";
+  return dialog.confirm(`${why}Discard unsaved changes?`, { title: "inkpot" });
 }
 
 async function newFile() {
@@ -733,9 +741,8 @@ async function loadPath(path) {
 }
 
 async function openFile() {
-  if (!(await confirmDiscard())) return;
   const path = await dialog.open({ multiple: false, filters: INK_FILTERS });
-  if (!path) return; // cancelled
+  if (!path || !(await confirmDiscard())) return; // cancelled
   await loadPath(path);
 }
 
@@ -750,9 +757,8 @@ const hasMarker = (dir) => fs.exists(`${dir}/${PROJECT_MARKER}`);
 // project by writing the `Inkpot` marker (so opening a file nested in it later
 // walks up and finds the whole project). App-layer only, no state across IPC.
 async function openFolder() {
-  if (!(await confirmDiscard())) return;
   const dir = await dialog.open({ directory: true });
-  if (!dir) return; // cancelled
+  if (!dir || !(await confirmDiscard())) return; // cancelled
   if (!(await fs.exists(`${dir}/${PROJECT_MARKER}`))) {
     await fs.writeTextFile(`${dir}/${PROJECT_MARKER}`, "");
   }
@@ -954,12 +960,10 @@ const autosave = debounce(() => autosaveNow(false), 1000); // typing: raw, no re
 window.addEventListener("blur", () => autosaveNow(true)); // leaving the window: normalize
 window.addEventListener("beforeunload", () => autosaveNow(true));
 
-// Guard the window close: flush any pathed autosave first, then — if edits
-// remain unsaved (i.e. an untitled buffer with nowhere to autosave) — ask
-// before discarding. Tauri intercepts the OS close, so a browser beforeunload
-// prompt won't fire here; this is the real gate.
+// Guard the window close. Tauri intercepts the OS close, so a browser
+// beforeunload prompt won't fire here; this is the real gate.
 window.__TAURI__.window?.getCurrentWindow().onCloseRequested(async (event) => {
-  if (!(await confirmDiscard())) event.preventDefault(); // flushes the autosave first
+  if (!(await confirmDiscard())) event.preventDefault();
 });
 
 async function saveFileAs() {
@@ -1029,14 +1033,11 @@ for (const panel of [codexEl, timelineEl, charactersEl, notesEl, bibliographyEl]
     const offset = Number(link.dataset.jump);
     const file = link.dataset.jumpFile; // set only for a cross-file codex backlink
     setView("editor");
-    // A different project file: open it first (loadPath sets the doc, then
-    // refreshes), then scroll. loadPath has no discard guard and overwrites the
-    // buffer, so flush the active file's pending autosave first — otherwise a
-    // cross-file jump inside the autosave debounce window drops unsaved edits.
-    // Same file or single-buffer: jump straight in.
+    // A different project file: clear the buffer the usual way (saves a pathed
+    // file, asks for an untitled one), open it, then scroll. Same file or
+    // single-buffer: jump straight in.
     if (file && file !== currentPath) {
-      await autosaveNow(true);
-      if (await loadPath(file)) jumpTo(offset);
+      if ((await confirmDiscard()) && (await loadPath(file))) jumpTo(offset);
     } else {
       jumpTo(offset);
     }
