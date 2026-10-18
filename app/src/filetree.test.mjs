@@ -1,6 +1,6 @@
 // Run: node app/src/filetree.test.mjs
 import assert from "node:assert/strict";
-import { buildTree, firstFile, allFiles, findRoot } from "./filetree.js";
+import { buildTree, firstFile, allFiles, findRoot, conflictPath, isConflictCopy } from "./filetree.js";
 
 // A fake filesystem: dir path -> entries. readDir throws on unknown dirs.
 const FS = {
@@ -81,6 +81,25 @@ assert.deepEqual(await buildTree("/nope", readDir), []);
   const depthOf = (nodes) =>
     nodes.reduce((m, n) => Math.max(m, n.children ? 1 + depthOf(n.children) : 1), 0);
   assert.ok(depthOf(tree) <= 10, `depth should be capped, got ${depthOf(tree)}`);
+}
+
+// Conflicted-copy naming: the stamp goes before the extension; a dotfile or an
+// extension-less name gets it appended.
+{
+  const d = new Date(2026, 9, 18, 14, 3, 5);
+  assert.equal(conflictPath("/p/ch1.ink", d), "/p/ch1.conflict-2026-10-18-140305.ink");
+  assert.equal(conflictPath("/p.d/notes", d), "/p.d/notes.conflict-2026-10-18-140305");
+  assert.equal(conflictPath("/p/.hidden", d), "/p/.hidden.conflict-2026-10-18-140305");
+  for (const p of ["/p/ch1.ink", "/p.d/notes", "/p/.hidden"]) assert.ok(isConflictCopy(conflictPath(p, d)));
+  assert.ok(!isConflictCopy("/p/ch1.ink") && !isConflictCopy("/p/the.conflict-of-ages.ink"));
+
+  // Copies sort before their original but are skipped by firstFile/allFiles.
+  const tree = [
+    { name: "ch1.conflict-2026-10-18-140305.ink", path: "/p/ch1.conflict-2026-10-18-140305.ink" },
+    { name: "ch1.ink", path: "/p/ch1.ink" },
+  ];
+  assert.equal(firstFile(tree), "/p/ch1.ink");
+  assert.deepEqual(allFiles(tree), ["/p/ch1.ink"]);
 }
 
 console.log("filetree: all assertions passed");

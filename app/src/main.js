@@ -1,5 +1,5 @@
 import { EditorView, minimalSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Transaction } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/autocomplete";
@@ -13,7 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { characterPositions, occupiedLocations } from "./timescrub.js";
 import { PROVIDERS, worldOf, worldLabel } from "./mapproviders.js";
-import { buildTree, firstFile, allFiles, findRoot, dirname } from "./filetree.js";
+import { buildTree, firstFile, allFiles, findRoot, dirname, conflictPath } from "./filetree.js";
 import { minimalEdit } from "./mindiff.js";
 import { deepestSectionAt } from "./caretsection.js";
 
@@ -30,10 +30,12 @@ const notesEl = document.getElementById("notes");
 const bibliographyEl = document.getElementById("bibliography");
 const filenameEl = document.getElementById("filename");
 const wordcountEl = document.getElementById("wordcount");
+const noticeEl = document.getElementById("notice");
 const recentEl = document.getElementById("recent");
 const filesEl = document.getElementById("files");
 
 let currentPath = null; // path of the open file, or null if unsaved
+let diskText = null; // currentPath's text as last read or written (#135), or null
 let projectRoot = null; // the project root folder, or null (single-file mode)
 let projectTree = []; // nested .ink tree under the root (dirs + files, name order)
 const collapsedDirs = new Set(); // dir paths the user has collapsed (survives rescans)
@@ -702,6 +704,7 @@ async function newFile() {
   if (!(await confirmDiscard())) return;
   setDoc("");
   currentPath = null;
+  diskText = null;
   markDirty(false);
   refresh();
 }
@@ -718,6 +721,7 @@ async function loadPath(path) {
   }
   setDoc(text);
   currentPath = path;
+  diskText = text;
   markDirty(false);
   pushRecent(path);
   refresh();
@@ -825,8 +829,72 @@ async function switchFile(path) {
 async function saveFile() {
   if (!currentPath) return saveFileAs();
   await normalizeBuffer(); // explicit save canonicalizes to house style (#105)
-  await fs.writeTextFile(currentPath, editor.state.doc.toString());
-  markDirty(false);
+  await writeCurrent();
+}
+
+// Every write to the open file goes through here, so an edit made outside the
+// app (another editor, a sync client, git) is never silently overwritten (#135).
+// Still dirty afterwards if the user typed during the write, so the pending
+// autosave picks those keystrokes up.
+function writeCurrent() {
+  return serialDisk(async () => {
+    const path = currentPath;
+    // Reloaded (nothing of ours to write), or switched files mid-check (B unchecked).
+    if (!path || (await reconcileDisk()) || path !== currentPath) return;
+    const text = editor.state.doc.toString();
+    await fs.writeTextFile(path, text);
+    if (path !== currentPath) return; // switched files mid-write
+    diskText = text;
+    markDirty(editor.state.doc.toString() !== text);
+  });
+}
+
+// One disk check/write at a time: overlapping ones would read our own in-flight
+// write as an outside edit.
+let diskQueue = Promise.resolve();
+function serialDisk(fn) {
+  const run = diskQueue.then(fn);
+  diskQueue = run.catch(() => {});
+  return run;
+}
+
+// Reconcile the buffer with currentPath on disk. If the file changed since we
+// last read/wrote it: a clean buffer reloads it (returns true); a dirty one keeps
+// both — the disk version goes to a sibling conflicted copy, and the caller's
+// write puts ours at the path. A missing/unreadable file is left for the write to
+// recreate. Call only inside serialDisk.
+// ponytail: keep-both writes a whole copy; once the word-level 3-way merge lands
+// (#119), merge base (diskText) / ours / theirs instead and keep a copy only for
+// real conflicts — or render them as attributed CriticMarkup for review (#118).
+async function reconcileDisk() {
+  if (!currentPath || diskText === null) return false;
+  const path = currentPath;
+  let disk;
+  try {
+    disk = await fs.readTextFile(path);
+  } catch {
+    return false;
+  }
+  if (path !== currentPath || disk === diskText) return false;
+  if (!dirty) {
+    applyMinimal(editor.state.doc.toString(), disk, false); // not undoable: Ctrl+Z mustn't revert it
+    diskText = disk;
+    return true;
+  }
+  const copy = conflictPath(path, new Date());
+  await fs.writeTextFile(copy, disk);
+  if (path === currentPath) diskText = disk; // unless the user switched files meanwhile
+  notify(`Changed outside inkpot — their version saved as ${copy.split("/").pop()}`);
+  scanProject(); // the copy shows up in the tree
+  return false;
+}
+
+// A transient status-bar message.
+let noticeTimer;
+function notify(msg) {
+  noticeEl.textContent = msg;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => (noticeEl.textContent = ""), 15000);
 }
 
 // Autosave: write the buffer to its file once edits settle. Only fires when the
@@ -843,8 +911,7 @@ async function saveFile() {
 async function autosaveNow(normalizeFirst = false) {
   if (!currentPath || !dirty) return;
   if (normalizeFirst) await normalizeBuffer();
-  await fs.writeTextFile(currentPath, editor.state.doc.toString());
-  markDirty(false);
+  await writeCurrent();
 }
 
 // Canonicalize the buffer to house style in place (#105). Idempotent and a no-op
@@ -858,7 +925,7 @@ async function normalizeBuffer() {
     // to `src`, so only apply if the buffer is still that snapshot. Otherwise skip
     // — the next leave/save normalizes.
     if (normalized !== src && editor.state.doc.toString() === src) {
-      applyNormalized(src, normalized);
+      applyMinimal(src, normalized);
     }
   } catch {
     // normalize failed — leave the raw buffer as-is
@@ -867,11 +934,14 @@ async function normalizeBuffer() {
 
 // Replace the buffer with `next` as a minimal single-span edit (see mindiff.js),
 // so CodeMirror maps the caret across it — a localized borrowed→house conversion
-// keeps the cursor where it belongs. Guarded by `loading` so it doesn't
-// re-trigger dirty/autosave.
-function applyNormalized(cur, next) {
+// or an outside edit keeps the cursor where it belongs. Guarded by `loading` so it
+// doesn't re-trigger dirty/autosave. `undoable: false` keeps it out of history.
+function applyMinimal(cur, next, undoable = true) {
   loading = true;
-  editor.dispatch({ changes: minimalEdit(cur, next) });
+  editor.dispatch({
+    changes: minimalEdit(cur, next),
+    annotations: undoable ? [] : Transaction.addToHistory.of(false),
+  });
   loading = false;
 }
 const autosave = debounce(() => autosaveNow(false), 1000); // typing: raw, no reflow
@@ -897,17 +967,20 @@ async function saveFileAs() {
   });
   if (!path) return; // cancelled
   await normalizeBuffer(); // explicit save canonicalizes to house style (#105)
-  await fs.writeTextFile(path, editor.state.doc.toString());
+  const text = editor.state.doc.toString();
+  await fs.writeTextFile(path, text);
   currentPath = path;
+  diskText = text;
   markDirty(false);
   pushRecent(path);
   await syncProject(); // the new file (or new folder) shows up in the tree
 }
 
-// A file may have been added/removed in the folder outside the app; re-scan when
-// the window regains focus so the tree stays current.
+// A file may have been added/removed in the folder, or the open file edited,
+// outside the app; on regaining focus re-scan the tree and pick up the edit.
 window.addEventListener("focus", () => {
   scanProject();
+  serialDisk(reconcileDisk).catch(() => {}); // unreadable now: the next write retries
 });
 
 const outlineBtn = document.getElementById("toggleOutline");

@@ -86,6 +86,13 @@ body {
   text-overflow: ellipsis; /* a long name truncates instead of growing the bar */
   white-space: nowrap;
 }
+.statusbar .notice {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--scene); /* a warning tone, so the notice catches the eye */
+}
 .statusbar .wordcount { margin-left: auto; white-space: nowrap; }
 
 .panes {

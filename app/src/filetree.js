@@ -6,6 +6,21 @@
 // the walk-up loop in findRoot.
 export const dirname = (p) => p.slice(0, p.lastIndexOf("/"));
 
+// Is this one of conflictPath's copies? They show in the tree (so they're found)
+// but stay out of the project bundle — no duplicate chapters, ids, or entities.
+export const isConflictCopy = (p) => /\.conflict-\d{4}-\d\d-\d\d-\d{6}(\.[^./]*)?$/.test(p);
+
+// A sibling path for a conflicted copy (#135): `dir/name.conflict-<stamp>.ink`,
+// local time to the second. Keeps the extension so the copy shows in the tree.
+export function conflictPath(path, d) {
+  const p = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  const dot = path.lastIndexOf(".");
+  return dot > path.lastIndexOf("/") + 1
+    ? `${path.slice(0, dot)}.conflict-${stamp}${path.slice(dot)}`
+    : `${path}.conflict-${stamp}`;
+}
+
 // Walk up from a file to the nearest directory where `hasMarker(dir)` resolves
 // truthy (main.js checks for the `Inkpot` file) — the project root. null if there
 // is none up to the filesystem root.
@@ -46,10 +61,10 @@ export async function buildTree(dir, readDir, depth = 0) {
   return [...dirs.sort(byName), ...files.sort(byName)];
 }
 
-// The first `.ink` file in a tree (depth-first), or null.
+// The first `.ink` file in a tree (depth-first), or null. Skips conflicted copies.
 export function firstFile(nodes) {
   for (const n of nodes) {
-    const f = n.children ? firstFile(n.children) : n.path;
+    const f = n.children ? firstFile(n.children) : isConflictCopy(n.path) ? null : n.path;
     if (f) return f;
   }
   return null;
@@ -57,11 +72,12 @@ export function firstFile(nodes) {
 
 // Every `.ink` file path in a tree, in manuscript order: depth-first, following
 // the tree's dirs-before-files-by-name ordering (#74 concatenated export).
+// Conflicted copies are left out.
 export function allFiles(nodes) {
   const out = [];
   for (const n of nodes) {
     if (n.children) out.push(...allFiles(n.children));
-    else out.push(n.path);
+    else if (!isConflictCopy(n.path)) out.push(n.path);
   }
   return out;
 }
