@@ -1,5 +1,5 @@
 import { EditorView, minimalSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Transaction } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap, acceptCompletion } from "@codemirror/autocomplete";
@@ -834,23 +834,38 @@ async function saveFile() {
 
 // Every write to the open file goes through here, so an edit made outside the
 // app (another editor, a sync client, git) is never silently overwritten (#135).
-async function writeCurrent() {
-  if (await syncFromDisk()) return; // reloaded the outside edit: nothing of ours to write
-  const text = editor.state.doc.toString();
-  await fs.writeTextFile(currentPath, text);
-  diskText = text;
-  markDirty(false);
+// Still dirty afterwards if the user typed during the write, so the pending
+// autosave picks those keystrokes up.
+function writeCurrent() {
+  return serialDisk(async () => {
+    if (!currentPath || (await reconcileDisk())) return; // reloaded: nothing of ours to write
+    const path = currentPath;
+    const text = editor.state.doc.toString();
+    await fs.writeTextFile(path, text);
+    if (path !== currentPath) return; // switched files mid-write
+    diskText = text;
+    markDirty(editor.state.doc.toString() !== text);
+  });
+}
+
+// One disk check/write at a time: overlapping ones would read our own in-flight
+// write as an outside edit.
+let diskQueue = Promise.resolve();
+function serialDisk(fn) {
+  const run = diskQueue.then(fn);
+  diskQueue = run.catch(() => {});
+  return run;
 }
 
 // Reconcile the buffer with currentPath on disk. If the file changed since we
 // last read/wrote it: a clean buffer reloads it (returns true); a dirty one keeps
 // both — the disk version goes to a sibling conflicted copy, and the caller's
 // write puts ours at the path. A missing/unreadable file is left for the write to
-// recreate.
+// recreate. Call only inside serialDisk.
 // ponytail: keep-both writes a whole copy; once the word-level 3-way merge lands
 // (#119), merge base (diskText) / ours / theirs instead and keep a copy only for
 // real conflicts — or render them as attributed CriticMarkup for review (#118).
-async function syncFromDisk() {
+async function reconcileDisk() {
   if (!currentPath || diskText === null) return false;
   const path = currentPath;
   let disk;
@@ -861,13 +876,13 @@ async function syncFromDisk() {
   }
   if (path !== currentPath || disk === diskText) return false;
   if (!dirty) {
-    applyMinimal(editor.state.doc.toString(), disk);
+    applyMinimal(editor.state.doc.toString(), disk, false); // not undoable: Ctrl+Z mustn't revert it
     diskText = disk;
     return true;
   }
   const copy = conflictPath(path, new Date());
   await fs.writeTextFile(copy, disk);
-  diskText = disk;
+  if (path === currentPath) diskText = disk; // unless the user switched files meanwhile
   notify(`Changed outside inkpot — their version saved as ${copy.split("/").pop()}`);
   scanProject(); // the copy shows up in the tree
   return false;
@@ -919,10 +934,13 @@ async function normalizeBuffer() {
 // Replace the buffer with `next` as a minimal single-span edit (see mindiff.js),
 // so CodeMirror maps the caret across it — a localized borrowed→house conversion
 // or an outside edit keeps the cursor where it belongs. Guarded by `loading` so it
-// doesn't re-trigger dirty/autosave.
-function applyMinimal(cur, next) {
+// doesn't re-trigger dirty/autosave. `undoable: false` keeps it out of history.
+function applyMinimal(cur, next, undoable = true) {
   loading = true;
-  editor.dispatch({ changes: minimalEdit(cur, next) });
+  editor.dispatch({
+    changes: minimalEdit(cur, next),
+    annotations: undoable ? [] : Transaction.addToHistory.of(false),
+  });
   loading = false;
 }
 const autosave = debounce(() => autosaveNow(false), 1000); // typing: raw, no reflow
@@ -961,7 +979,7 @@ async function saveFileAs() {
 // outside the app; on regaining focus re-scan the tree and pick up the edit.
 window.addEventListener("focus", () => {
   scanProject();
-  syncFromDisk();
+  serialDisk(reconcileDisk).catch(() => {}); // unreadable now: the next write retries
 });
 
 const outlineBtn = document.getElementById("toggleOutline");

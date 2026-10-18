@@ -78,8 +78,10 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   first checks the disk against `diskText` (what we last read/wrote) so an outside
   edit (Neovim, a sync client) is never overwritten (#135): a clean buffer
   reloads it (also on window focus); a dirty one keeps both, writing the disk
-  version to a sibling `name.conflict-<stamp>.ink`. The 3-way merge (#119)
-  replaces keep-both later. Note `onCloseRequested`'s default action is a JS `window.destroy()`,
+  version to a sibling `name.conflict-<stamp>.ink` (shown in the tree, kept out
+  of the project bundle). Writes and checks are serialized. The 3-way merge (#119)
+  replaces keep-both later. Note `onCloseRequested`'s default action is a JS
+  `window.destroy()`,
   not a native close — so the capability must grant `core:window:allow-destroy`
   (in `capabilities/default.json`), or the app silently won't quit. Crash
   recovery of untitled drafts (app-data snapshots) is #13. **Leaving a document**
