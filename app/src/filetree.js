@@ -6,6 +6,17 @@
 // the walk-up loop in findRoot.
 export const dirname = (p) => p.slice(0, p.lastIndexOf("/"));
 
+// A sibling path for a conflicted copy (#135): `dir/name.conflict-<stamp>.ink`,
+// local time to the second. Keeps the extension so the copy shows in the tree.
+export function conflictPath(path, d) {
+  const p = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  const dot = path.lastIndexOf(".");
+  return dot > path.lastIndexOf("/") + 1
+    ? `${path.slice(0, dot)}.conflict-${stamp}${path.slice(dot)}`
+    : `${path}.conflict-${stamp}`;
+}
+
 // Walk up from a file to the nearest directory where `hasMarker(dir)` resolves
 // truthy (main.js checks for the `Inkpot` file) — the project root. null if there
 // is none up to the filesystem root.

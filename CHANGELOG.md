@@ -7,6 +7,15 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Fixed
+
+- **Edits made outside inkpot are no longer overwritten.** Editing the open file
+  in another editor (Neovim, VS Code), or having a sync client or `git` change it,
+  could be silently lost the next time inkpot autosaved. inkpot now reloads the
+  file when you come back to it. If you also had unsaved changes in inkpot, it
+  keeps both: yours stay in the file, and the other version is saved beside it
+  as `name.conflict-<date-time>.ink`, with a note in the status bar (#135).
+
 ## [0.16.0] - 2026-10-17
 
 ### Added
