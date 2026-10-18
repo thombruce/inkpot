@@ -694,8 +694,11 @@ function setDoc(text) {
   loading = false;
 }
 
-// Returns false if there are unsaved changes and the user declined to discard.
+// Clear the way to replace the buffer. A file with a path autosaves, so flush it
+// rather than ask (#143); only an untitled buffer (nowhere to save) or a failed
+// write still prompts. Returns false if the user declined to discard.
 async function confirmDiscard() {
+  await autosaveNow(true).catch(() => {}); // a failed write leaves it dirty: ask
   if (!dirty) return true;
   return dialog.confirm("Discard unsaved changes?", { title: "inkpot" });
 }
@@ -956,8 +959,7 @@ window.addEventListener("beforeunload", () => autosaveNow(true));
 // before discarding. Tauri intercepts the OS close, so a browser beforeunload
 // prompt won't fire here; this is the real gate.
 window.__TAURI__.window?.getCurrentWindow().onCloseRequested(async (event) => {
-  await autosaveNow(true);
-  if (!(await confirmDiscard())) event.preventDefault();
+  if (!(await confirmDiscard())) event.preventDefault(); // flushes the autosave first
 });
 
 async function saveFileAs() {
