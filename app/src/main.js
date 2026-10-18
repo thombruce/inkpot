@@ -838,8 +838,9 @@ async function saveFile() {
 // autosave picks those keystrokes up.
 function writeCurrent() {
   return serialDisk(async () => {
-    if (!currentPath || (await reconcileDisk())) return; // reloaded: nothing of ours to write
     const path = currentPath;
+    // Reloaded (nothing of ours to write), or switched files mid-check (B unchecked).
+    if (!path || (await reconcileDisk()) || path !== currentPath) return;
     const text = editor.state.doc.toString();
     await fs.writeTextFile(path, text);
     if (path !== currentPath) return; // switched files mid-write
