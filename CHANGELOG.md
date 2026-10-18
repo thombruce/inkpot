@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-18
+
 ### Fixed
 
 - **Edits made outside inkpot are no longer overwritten.** Editing the open file
@@ -16,9 +18,10 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
   keeps both: yours stay in the file, and the other version is saved beside it
   as `name.conflict-<date-time>.ink`, with a note in the status bar (#135).
 - **No more "Discard unsaved changes?" for files that autosave.** Opening another
-  file (from the tree, Recent, Open, Open Folder or New) now saves the current
-  one first instead of asking, so answering the prompt can no longer throw away
-  your last second of typing. Only an untitled document still asks (#143).
+  file (from the tree, Recent, Open, Open Folder, New, or a codex link) now saves
+  the current one first instead of asking, so answering the prompt can no longer
+  throw away your last second of typing. Only an untitled document still asks —
+  as does a file that couldn't be saved, and then the prompt says why (#143).
 
 ## [0.16.0] - 2026-10-17
 
