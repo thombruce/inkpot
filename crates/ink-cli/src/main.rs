@@ -9,8 +9,35 @@ use std::process::ExitCode;
 
 mod lsp;
 
+const USAGE: &str = "\
+usage:
+  ink render [--view=manuscript|outline|edit|codex] <file.ink>
+  ink fmt [--write] <file.ink>       normalize to canonical house style
+  ink export --out=<file.pdf> [--trim=WxH] <file.ink>   Shunn manuscript PDF
+  ink lsp                            language server over stdio
+  ink --version | --help";
+
+/// The release version: the release workflow sets `INK_VERSION` from the tag,
+/// so `ink` reports the inkpot release it shipped in; a local build falls back
+/// to the crate version.
+const VERSION: &str = match option_env!("INK_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(|s| s.as_str()) {
+        Some("--version" | "-V") => {
+            println!("ink {VERSION}");
+            return ExitCode::SUCCESS;
+        }
+        Some("--help" | "-h") => {
+            println!("ink {VERSION} — the inkpot CLI\n\n{USAGE}");
+            return ExitCode::SUCCESS;
+        }
+        _ => {}
+    }
     if args.first().map(|s| s.as_str()) == Some("export") {
         return export(&args[1..]);
     }
@@ -50,7 +77,7 @@ fn main() -> ExitCode {
     }
 
     let Some(path) = path else {
-        return err("usage: ink render --view=manuscript|outline|edit|codex <file.ink>".into());
+        return err(USAGE.into());
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,

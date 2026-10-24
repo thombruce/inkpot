@@ -1,6 +1,7 @@
 name: Homebrew
 
-# Bump the Homebrew cask when a release is published. This runs on release
+# Bump the Homebrew cask (the app) and formula (the `ink` CLI) when a release is
+# published. This runs on release
 # *publish*, not tag push: the Release workflow creates a draft prerelease, and
 # only once it is published are the asset download URLs live. Needs the
 # HOMEBREW_TAP_TOKEN secret — a PAT with write access to thombruce/homebrew-tap.
@@ -9,10 +10,13 @@ on:
     types: [published]
 
 jobs:
-  cask:
+  # One job for both, so the two updates land as one commit — two jobs pushing to
+  # the tap at once would race.
+  tap:
     runs-on: ubuntu-latest
     steps:
       - name: Compute version + sha256 from the published dmg
+        shell: bash # explicit bash runs with pipefail: a failed curl fails the step, not a bogus sha
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -21,6 +25,12 @@ jobs:
           SHA=$(curl -fsSL "$URL" | sha256sum | cut -d' ' -f1)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "SHA=$SHA" >> "$GITHUB_ENV"
+          # The CLI archives, one per formula platform.
+          BASE="https://github.com/thombruce/inkpot/releases/download/${TAG}"
+          for t in aarch64-apple-darwin x86_64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu; do
+            S=$(curl -fsSL "${BASE}/ink-v${VERSION}-${t}.tar.gz" | sha256sum | cut -d' ' -f1)
+            echo "SHA_$(echo "$t" | tr 'a-z-' 'A-Z_')=$S" >> "$GITHUB_ENV"
+          done
 
       - name: Bump the cask
         run: |
@@ -31,7 +41,46 @@ jobs:
           sed -i -E "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" Casks/inkpot.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/inkpot.rb
+          # The formula is generated whole (four urls + sha256s), like tonic's.
+          cat > Formula/inkpot-cli.rb << EOF
+          class InkpotCli < Formula
+            desc "The inkpot CLI and language server: render, format, and export .ink documents"
+            homepage "https://github.com/thombruce/inkpot"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_AARCH64_APPLE_DARWIN}"
+              end
+              on_intel do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_X86_64_APPLE_DARWIN}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_AARCH64_UNKNOWN_LINUX_GNU}"
+              end
+              on_intel do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_X86_64_UNKNOWN_LINUX_GNU}"
+              end
+            end
+
+            def install
+              bin.install "ink"
+            end
+
+            test do
+              system "#{bin}/ink", "--version"
+            end
+          end
+          EOF
+          git add Casks/inkpot.rb Formula/inkpot-cli.rb
           # No-op if the release re-fires for a version already bumped.
-          git diff --cached --quiet || git commit -m "inkpot ${VERSION}"
+          git diff --cached --quiet || git commit -m "inkpot ${VERSION} (app + CLI)"
           git push

@@ -1,8 +1,9 @@
 name: Release
 
-# Build installers for all three desktop OSes and publish them to a GitHub
-# Release. Triggered by pushing a version tag (e.g. v0.1.0). The release is
-# created as a draft prerelease — review the notes and assets, then publish.
+# Build installers for all three desktop OSes, plus the `ink` CLI (and its
+# language server, `ink lsp`) per target, and publish them to a GitHub Release.
+# Triggered by pushing a version tag (e.g. v0.1.0). The release is created as a
+# draft prerelease — review the notes and assets, then publish.
 #
 # One `create-release` job creates the draft *once* and outputs its id; the
 # build matrix uploads to that release via `releaseId`. This avoids the
@@ -86,3 +87,61 @@ jobs:
           projectPath: app
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  # The `ink` CLI, one archive per target (`ink-v<version>-<target>.tar.gz`, a
+  # .zip on Windows) — the names the Homebrew formula (homebrew.yml) expects.
+  # INK_VERSION makes `ink --version` report this release, not the crate version.
+  cli:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04 # older glibc than ubuntu-latest: runs on more distros
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build
+        shell: bash
+        run: |
+          export INK_VERSION="${GITHUB_REF_NAME#v}"
+          export CROSS_BUILD_ENV_PASSTHROUGH=INK_VERSION # cross builds in a container
+          ${{ matrix.cross && 'cross' || 'cargo' }} build --release -p ink-cli --target ${{ matrix.target }}
+
+      - name: Package and upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIR="target/${{ matrix.target }}/release"
+          NAME="ink-v${VERSION}-${{ matrix.target }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ARCHIVE="$NAME.zip"
+            (cd "$DIR" && 7z a "$OLDPWD/$ARCHIVE" ink.exe) # bare ink.exe, no path
+          else
+            ARCHIVE="$NAME.tar.gz"
+            tar -czf "$ARCHIVE" -C "$DIR" ink
+          fi
+          gh release upload "$GITHUB_REF_NAME" "$ARCHIVE" --clobber

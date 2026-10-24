@@ -3,7 +3,7 @@ name = "ink-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "CLI for rendering inkpot documents to manuscript, outline, or edit views."
+description = "The inkpot CLI and language server: render, format, and export .ink documents."
 
 [[bin]]
 name = "ink"

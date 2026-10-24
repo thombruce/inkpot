@@ -277,7 +277,8 @@ cargo run -p ink-cli -- render --view=codex      examples/codex.ink
 cargo run -p ink-cli -- fmt --write              examples/sample.ink  # normalize to house style
 ```
 
-Install `ink` on your `PATH` with `cargo install --path crates/ink-cli`.
+Install `ink` (see [Installing a release](#installing-a-release)), or build it
+from a checkout with `cargo install --path crates/ink-cli`.
 
 ### Your own editor (language server)
 
@@ -339,11 +340,22 @@ macOS via Homebrew:
 brew install --cask thombruce/tap/inkpot
 ```
 
+**The `ink` CLI** (which includes the language server, `ink lsp`) ships with each
+release too: one archive per platform (`ink-v<version>-<target>.tar.gz`, or a
+`.zip` on Windows) holding the single `ink` binary. Put it on your `PATH`, or on
+macOS and Linux use Homebrew:
+
+```sh
+brew install thombruce/tap/inkpot-cli
+```
+
 Early builds are **unsigned**, so the OS warns on first launch:
 
 - **macOS** — right-click the app → **Open** (once), instead of double-clicking.
 - **Windows** — on the SmartScreen prompt, **More info → Run anyway**.
 - **Linux** — no warning; mark `.AppImage` executable, or install the `.deb`/`.rpm`.
+- **The `ink` CLI on macOS, downloaded by hand** — clear the quarantine flag once
+  with `xattr -d com.apple.quarantine ink` (not needed via Homebrew).
 
 ## Development
 

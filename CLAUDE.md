@@ -228,19 +228,27 @@ universal `.dmg`, `.msi`/NSIS) to **GitHub Releases** as a **draft prerelease**
 `create-release` job makes the draft **once** and outputs its id; the build
 matrix uploads to it via `releaseId`, so no OS job creates its own release — the
 old race that left **duplicate drafts** with assets split across them is gone
-(#76). All 7 assets should land on one draft. Builds are
-**unsigned** (signing #10, updater #11 tracked separately). macOS is also a
-Homebrew cask in `thombruce/homebrew-tap` (`Casks/inkpot.rb`); publishing a
-release fires `.github/workflows/homebrew.yml`, which recomputes the dmg
-`sha256` and bumps the cask's `version` + `sha256` automatically (needs the
-`HOMEBREW_TAP_TOKEN` secret — a PAT with write access to the tap). No manual
-bump. First release: v0.1.0.
+(#76). A `cli` matrix job builds the `ink` CLI for five targets (macOS
+arm64/x64, Linux x64/arm64 via `cross`, Windows x64) and uploads
+`ink-v<version>-<target>.tar.gz` (`.zip` on Windows) to the same draft with `gh
+release upload`. **12 assets** should land on one draft: the 7 app installers
+plus the 5 CLI archives. Builds are **unsigned** (signing #10, updater #11
+tracked separately). Homebrew lives in `thombruce/homebrew-tap`: the app is a
+cask (`Casks/inkpot.rb`), the CLI a formula (`Formula/inkpot-cli.rb`, installs
+`ink`). Publishing a release fires `.github/workflows/homebrew.yml`, which
+recomputes the dmg and CLI `sha256`s, bumps the cask's `version` + `sha256` and
+**regenerates the formula whole** (like tonic's), in one job, one commit (needs
+the `HOMEBREW_TAP_TOKEN` secret — a PAT with write access to the tap). No manual
+bump. It runs on publish, not tag push, because draft asset URLs aren't public.
+First release: v0.1.0.
 
 The release **version is single-sourced in `app/src-tauri/Cargo.toml`**
 (`tauri.conf.json` omits `version` and inherits it). Bump it there per
 release and tag `vX.Y.Z`. SemVer, mapped to the format: stay in `0.x` until
 the `.ink` format stabilises; `1.0`+ MAJOR = a format-breaking change.
-`ink-core`/`ink-cli` versions are separate from the app's release version.
+`ink-core`/`ink-cli` crate versions are separate from the app's release version;
+the **CLI ships under the app's tag** and reports it — the workflow sets
+`INK_VERSION` from the tag, which `ink --version` prefers over the crate version.
 **Commit `app/src-tauri/Cargo.lock` with the bump** — it pins `inkpot-app`'s
 version, so a build regenerates it and leaves the tree dirty if it wasn't staged
 (`git add app/src-tauri/{Cargo.toml,Cargo.lock} CHANGELOG.md`). Harmless to the
