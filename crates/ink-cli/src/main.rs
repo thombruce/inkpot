@@ -11,7 +11,7 @@ const USAGE: &str = "\
 usage:
   ink render [--view=manuscript|outline|edit|codex] <file.ink>
   ink fmt [--write] <file.ink>       normalize to canonical house style
-  ink export --out=<file.pdf> [--trim=WxH] <file.ink>   Shunn manuscript PDF
+  ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>   Shunn manuscript PDF
   ink lsp                            language server over stdio
   ink --version | --help";
 
@@ -118,7 +118,7 @@ fn fmt(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `ink export --out=<file.pdf> [--trim=WxH] <file.ink>` — render a single
+/// `ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>` — render a single
 /// document to a Shunn manuscript PDF. `--trim` gives a custom page size in mm
 /// (e.g. `152.4x228.6` for KDP 6×9); default is US Letter.
 fn export(args: &[String]) -> ExitCode {

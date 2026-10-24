@@ -21,6 +21,16 @@ jobs:
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
     steps:
+      - uses: actions/checkout@v4
+
+      # The CLI takes its version from the tag, the app from Cargo.toml: fail
+      # before building anything if a bump was missed, or they'd disagree (and
+      # the cask would look for a dmg that doesn't exist).
+      - name: Check the tag matches the app version
+        run: |
+          WANT=$(grep -m1 '^version' app/src-tauri/Cargo.toml | cut -d'"' -f2)
+          [ "${GITHUB_REF_NAME#v}" = "$WANT" ] || { echo "::error::tag $GITHUB_REF_NAME but app/src-tauri/Cargo.toml is $WANT"; exit 1; }
+
       - name: Create the draft release
         id: create
         uses: actions/github-script@v7
@@ -100,7 +110,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04 # older glibc than ubuntu-latest: runs on more distros
+            os: ubuntu-22.04 # needs glibc 2.35+ (not Debian 11 / RHEL 8); musl if that bites
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm # native arm64 runner: no cross-compiling
           - target: x86_64-apple-darwin
@@ -128,6 +138,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          COPYFILE_DISABLE: 1 # no macOS ._ resource-fork entries in the tarball
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           DIR="target/${{ matrix.target }}/release"

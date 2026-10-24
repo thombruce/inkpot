@@ -22,6 +22,7 @@ jobs:
         shell: bash # explicit bash runs with pipefail: a failed curl fails the step, not a bogus sha
     steps:
       - name: Clone the tap
+        id: clone
         run: |
           git clone "https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/thombruce/homebrew-tap.git"
           git -C homebrew-tap config user.name "github-actions[bot]"
@@ -42,7 +43,8 @@ jobs:
           git push
 
       - name: Regenerate the CLI formula
-        if: ${{ !cancelled() }} # independent of the cask: a missing dmg mustn't block it
+        # Independent of the cask (a missing dmg mustn't block it), but not of the clone.
+        if: ${{ !cancelled() && steps.clone.outcome == 'success' }}
         working-directory: homebrew-tap
         run: |
           sha() { curl -fsSL "${BASE}/ink-v${VERSION}-$1.tar.gz" | sha256sum | cut -d' ' -f1; }

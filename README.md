@@ -342,7 +342,7 @@ brew install --cask thombruce/tap/inkpot
 
 **The `ink` CLI** (which includes the language server, `ink lsp`) ships with each
 release too: one archive per platform (`ink-v<version>-<target>.tar.gz`, or a
-`.zip` on Windows) holding the single `ink` binary. Put it on your `PATH`, or on
+`.zip` on Windows) holding the `ink` binary and its `LICENSE`. Put it on your `PATH`, or on
 macOS and Linux use Homebrew:
 
 ```sh
