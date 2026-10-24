@@ -312,6 +312,7 @@ dependencies = [
  "ink-core",
  "lsp-server",
  "lsp-types",
+ "serde",
  "serde_json",
 ]
 

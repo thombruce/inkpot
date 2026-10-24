@@ -52,6 +52,11 @@ fn serve(conn: &Connection) -> Result<()> {
                 let resp = respond(&docs, req);
                 conn.sender.send(resp.into())?;
             }
+            // `exit` before `shutdown` (handle_shutdown consumes the proper one):
+            // the spec says exit with code 1.
+            Message::Notification(n) if n.method == "exit" => {
+                return Err("exit without shutdown".into())
+            }
             Message::Notification(n) => on_notification(&mut docs, n),
             Message::Response(_) => {} // we send no requests
         }
@@ -59,49 +64,56 @@ fn serve(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+// Buffers are stored with `\n` endings: `ink-core` offsets assume them, so
+// positions, the canonical-form check and format edits all line up. A CRLF
+// buffer keeps the same line/column positions, and the client keeps its own
+// line endings.
 fn on_notification(docs: &mut HashMap<String, String>, n: Notification) {
-    match n.method.as_str() {
-        DidOpenTextDocument::METHOD => {
-            if let Ok(p) = n.extract::<DidOpenTextDocumentParams>(DidOpenTextDocument::METHOD) {
-                docs.insert(p.text_document.uri.to_string(), p.text_document.text);
-            }
-        }
+    let method = n.method.clone();
+    let res = match method.as_str() {
+        DidOpenTextDocument::METHOD => n.extract::<DidOpenTextDocumentParams>(&method).map(|p| {
+            docs.insert(
+                p.text_document.uri.to_string(),
+                p.text_document.text.replace("\r\n", "\n"),
+            );
+        }),
         DidChangeTextDocument::METHOD => {
-            // Full sync: the last change carries the whole document.
-            if let Ok(mut p) =
-                n.extract::<DidChangeTextDocumentParams>(DidChangeTextDocument::METHOD)
-            {
+            n.extract::<DidChangeTextDocumentParams>(&method).map(|mut p| {
+                // Full sync: the last change carries the whole document.
                 if let Some(c) = p.content_changes.pop() {
-                    docs.insert(p.text_document.uri.to_string(), c.text);
+                    docs.insert(p.text_document.uri.to_string(), c.text.replace("\r\n", "\n"));
                 }
-            }
+            })
         }
-        DidCloseTextDocument::METHOD => {
-            if let Ok(p) = n.extract::<DidCloseTextDocumentParams>(DidCloseTextDocument::METHOD) {
-                docs.remove(p.text_document.uri.as_str());
-            }
-        }
-        _ => {}
+        DidCloseTextDocument::METHOD => n.extract::<DidCloseTextDocumentParams>(&method).map(|p| {
+            docs.remove(p.text_document.uri.as_str());
+        }),
+        _ => Ok(()),
+    };
+    // A dropped change leaves stale text behind; at least say so (stderr is the
+    // client's LSP log).
+    if let Err(e) = res {
+        eprintln!("ink lsp: ignored malformed {method}: {e:?}");
     }
 }
 
 fn respond(docs: &HashMap<String, String>, req: Request) -> Response {
     let id = req.id.clone();
-    let text = |uri: &lsp_types::Uri| docs.get(uri.as_str()).map(String::as_str).unwrap_or("");
+    // An unknown document is an error, not an empty one: an empty outline or a
+    // no-op format would hide that the server never saw the buffer.
+    let text = |uri: &lsp_types::Uri| {
+        docs.get(uri.as_str())
+            .map(String::as_str)
+            .ok_or_else(|| format!("unknown document {uri:?}"))
+    };
     let result = match req.method.as_str() {
-        DocumentSymbolRequest::METHOD => {
-            req.extract::<DocumentSymbolParams>(DocumentSymbolRequest::METHOD).map(|(_, p)| {
-                serde_json::to_value(DocumentSymbolResponse::Nested(symbols(text(
-                    &p.text_document.uri,
-                ))))
-            })
-        }
-        FoldingRangeRequest::METHOD => req
-            .extract::<FoldingRangeParams>(FoldingRangeRequest::METHOD)
-            .map(|(_, p)| serde_json::to_value(folds(text(&p.text_document.uri)))),
-        Formatting::METHOD => req
-            .extract::<DocumentFormattingParams>(Formatting::METHOD)
-            .map(|(_, p)| serde_json::to_value(format(text(&p.text_document.uri)))),
+        DocumentSymbolRequest::METHOD => params::<DocumentSymbolParams>(req).and_then(|p| {
+            text(&p.text_document.uri).map(|t| json(DocumentSymbolResponse::Nested(symbols(t))))
+        }),
+        FoldingRangeRequest::METHOD => params::<FoldingRangeParams>(req)
+            .and_then(|p| text(&p.text_document.uri).map(|t| json(folds(t)))),
+        Formatting::METHOD => params::<DocumentFormattingParams>(req)
+            .and_then(|p| text(&p.text_document.uri).map(|t| json(format(t)))),
         _ => {
             return Response::new_err(
                 id,
@@ -111,11 +123,18 @@ fn respond(docs: &HashMap<String, String>, req: Request) -> Response {
         }
     };
     match result {
-        Ok(Ok(v)) => Response::new_ok(id, v),
-        _ => {
-            Response::new_err(id, lsp_server::ErrorCode::InvalidParams as i32, "bad params".into())
-        }
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(id, lsp_server::ErrorCode::InvalidParams as i32, e),
     }
+}
+
+fn params<P: serde::de::DeserializeOwned>(req: Request) -> std::result::Result<P, String> {
+    let method = req.method.clone();
+    req.extract(&method).map(|(_, p)| p).map_err(|e| format!("{e:?}"))
+}
+
+fn json(v: impl serde::Serialize) -> serde_json::Value {
+    serde_json::to_value(v).expect("lsp-types serialize")
 }
 
 /// Maps `ink-core`'s char offsets to LSP positions (line + UTF-16 column, the
@@ -220,16 +239,21 @@ fn fold_walk(node: &Node, lines: &Lines, out: &mut Vec<FoldingRange>) {
     }
 }
 
-/// `ink fmt`: one whole-document edit to the house style, or none if it's
-/// already canonical.
+/// `ink fmt` to the house style, as one edit over just the changed span (common
+/// prefix/suffix trimmed, like the app's `mindiff.js`), so the editor keeps the
+/// cursor, marks and folds outside it. None if already canonical.
 fn format(text: &str) -> Vec<TextEdit> {
     let out = render(&parse(text), View::Edit);
     if out == text {
         return vec![];
     }
+    let (a, b): (Vec<char>, Vec<char>) = (text.chars().collect(), out.chars().collect());
+    let pre = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+    let room = a.len().min(b.len()) - pre;
+    let suf = a.iter().rev().zip(b.iter().rev()).take(room).take_while(|(x, y)| x == y).count();
     let lines = Lines::new(text);
-    let end = lines.pos(text.chars().count());
-    vec![TextEdit::new(Range::new(Position::new(0, 0), end), out)]
+    let span = Range::new(lines.pos(pre), lines.pos(a.len() - suf));
+    vec![TextEdit::new(span, b[pre..b.len() - suf].iter().collect())]
 }
 
 #[cfg(test)]
@@ -309,11 +333,65 @@ mod tests {
             "textDocument/formatting",
             json!({ "textDocument": { "uri": uri }, "options": { "tabSize": 2, "insertSpaces": true } }),
         );
-        assert_eq!(fmt[0]["newText"], "# A\n\nSee {&bob}.\n\n");
-        assert_eq!(fmt[0]["range"]["end"], json!({ "line": 3, "character": 0 }));
+        // Only the changed span: `[[bob]].` becomes `{&bob}.` plus the house
+        // trailing blank line; `# A\n\nSee ` and the final `\n` are kept.
+        assert_eq!(fmt[0]["newText"], "{&bob}.\n");
+        assert_eq!(fmt[0]["range"]["start"], json!({ "line": 2, "character": 4 }));
+        assert_eq!(fmt[0]["range"]["end"], json!({ "line": 2, "character": 12 }));
+
+        // CRLF buffers are stored as LF, so a canonical CRLF doc formats clean.
+        let canon = "# A\r\n\r\nSee {&bob}.\r\n\r\n";
+        send(
+            Notification::new(
+                "textDocument/didChange".into(),
+                json!({ "textDocument": { "uri": uri, "version": 3 }, "contentChanges": [{ "text": canon }] }),
+            )
+            .into(),
+        );
+        let fmt = call(
+            "textDocument/formatting",
+            json!({ "textDocument": { "uri": uri }, "options": { "tabSize": 2, "insertSpaces": true } }),
+        );
+        assert_eq!(fmt, json!([]));
+
+        // A document the server never saw is an error, not an empty outline.
+        send(
+            Request::new(
+                RequestId::from(999),
+                "textDocument/documentSymbol".into(),
+                json!({ "textDocument": { "uri": "file:///nope.ink" } }),
+            )
+            .into(),
+        );
+        match client.receiver.recv().unwrap() {
+            Message::Response(r) => assert!(r.response_result.is_err()),
+            m => panic!("expected response, got {m:?}"),
+        }
 
         call("shutdown", Value::Null);
         send(Notification::new("exit".into(), Value::Null).into());
         t.join().unwrap();
+    }
+
+    /// `exit` without `shutdown` is an error, so `ink lsp` exits with code 1.
+    #[test]
+    fn exit_without_shutdown_fails() {
+        let (server, client) = Connection::memory();
+        let t = std::thread::spawn(move || serve(&server).is_err());
+        client
+            .sender
+            .send(
+                Request::new(
+                    RequestId::from(1),
+                    "initialize".into(),
+                    json!({ "capabilities": {} }),
+                )
+                .into(),
+            )
+            .unwrap();
+        client.receiver.recv().unwrap();
+        client.sender.send(Notification::new("initialized".into(), json!({})).into()).unwrap();
+        client.sender.send(Notification::new("exit".into(), Value::Null).into()).unwrap();
+        assert!(t.join().unwrap());
     }
 }
