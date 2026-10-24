@@ -7,6 +7,13 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **A language server for your own editor.** `ink lsp` speaks the Language
+  Server Protocol, so Neovim (and other LSP editors) get inkpot's outline as
+  document symbols, folding by heading, and formatting to house style. See the
+  README for the Neovim setup (#141).
+
 ### Fixed
 
 - **Formatting no longer turns prose into metadata.** Normalizing a document
