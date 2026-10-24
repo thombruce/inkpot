@@ -228,9 +228,9 @@ universal `.dmg`, `.msi`/NSIS) to **GitHub Releases** as a **draft prerelease**
 `create-release` job makes the draft **once** and outputs its id; the build
 matrix uploads to it via `releaseId`, so no OS job creates its own release — the
 old race that left **duplicate drafts** with assets split across them is gone
-(#76). A `cli` matrix job builds the `ink` CLI (`--locked`) natively for five
-targets (macOS arm64/x64, Linux x64 and arm64 — the `ubuntu-22.04-arm` runner, no
-`cross` — and Windows x64) and uploads `ink-v<version>-<target>.tar.gz` (`.zip`
+(#76). A `cli` matrix job builds the `ink` CLI (`--locked`) for five targets
+(macOS arm64/x64 — both on the arm64 runner, so only arm64 is smoke-tested —
+Linux x64 and arm64 natively on `ubuntu-22.04-arm`, no `cross`, and Windows x64) and uploads `ink-v<version>-<target>.tar.gz` (`.zip`
 on Windows) to the same draft **by release id**, never by tag. **12 assets** should land on one draft: the 7 app installers
 plus the 5 CLI archives. Builds are **unsigned** (signing #10, updater #11
 tracked separately). Homebrew lives in `thombruce/homebrew-tap`: the app is a
