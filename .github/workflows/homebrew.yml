@@ -47,6 +47,9 @@ jobs:
         if: ${{ !cancelled() && steps.clone.outcome == 'success' }}
         working-directory: homebrew-tap
         run: |
+          # Back to what's on the tap: drops a cask commit whose push failed, so it
+          # can't ride along with this push. A no-op if the cask step pushed.
+          git reset --hard @{u}
           sha() { curl -fsSL "${BASE}/ink-v${VERSION}-$1.tar.gz" | sha256sum | cut -d' ' -f1; }
           ARM_MAC=$(sha aarch64-apple-darwin)
           X86_MAC=$(sha x86_64-apple-darwin)

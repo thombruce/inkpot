@@ -303,6 +303,7 @@ mod tests {
         let init = call("initialize", json!({ "capabilities": {} }));
         assert_eq!(init["capabilities"]["documentFormattingProvider"], true);
         assert_eq!(init["serverInfo"]["name"], "ink");
+        assert_eq!(init["serverInfo"]["version"], crate::VERSION);
         send(Notification::new("initialized".into(), json!({})).into());
 
         let uri = "file:///p/ch1.ink";

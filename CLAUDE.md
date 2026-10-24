@@ -249,7 +249,7 @@ release and tag `vX.Y.Z`. SemVer, mapped to the format: stay in `0.x` until
 the `.ink` format stabilises; `1.0`+ MAJOR = a format-breaking change.
 `ink-core`/`ink-cli` crate versions are separate from the app's release version;
 the **CLI ships under the app's tag** and reports it — the workflow sets
-`INK_VERSION` from the tag, which `ink --version` prefers over the crate version.
+`INK_VERSION` from the tag for `ink --version` (a local build says `dev`).
 **Commit `app/src-tauri/Cargo.lock` with the bump** — it pins `inkpot-app`'s
 version, so a build regenerates it and leaves the tree dirty if it wasn't staged
 (`git add app/src-tauri/{Cargo.toml,Cargo.lock} CHANGELOG.md`). Harmless to the

@@ -16,11 +16,11 @@ usage:
   ink --version | --help";
 
 /// The release version: the release workflow sets `INK_VERSION` from the tag,
-/// so `ink` reports the inkpot release it shipped in; a local build falls back
-/// to the crate version.
+/// so `ink` reports the inkpot release it shipped in. A local build says `dev`:
+/// the crate version matches no release, so it would only mislead bug reports.
 pub(crate) const VERSION: &str = match option_env!("INK_VERSION") {
     Some(v) => v,
-    None => env!("CARGO_PKG_VERSION"),
+    None => "dev",
 };
 
 fn main() -> ExitCode {
@@ -73,7 +73,7 @@ fn main() -> ExitCode {
     }
 
     let Some(path) = path else {
-        return usage("needs a file");
+        return usage("render needs a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
