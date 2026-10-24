@@ -228,16 +228,17 @@ universal `.dmg`, `.msi`/NSIS) to **GitHub Releases** as a **draft prerelease**
 `create-release` job makes the draft **once** and outputs its id; the build
 matrix uploads to it via `releaseId`, so no OS job creates its own release — the
 old race that left **duplicate drafts** with assets split across them is gone
-(#76). A `cli` matrix job builds the `ink` CLI for five targets (macOS
-arm64/x64, Linux x64/arm64 via `cross`, Windows x64) and uploads
-`ink-v<version>-<target>.tar.gz` (`.zip` on Windows) to the same draft with `gh
-release upload`. **12 assets** should land on one draft: the 7 app installers
+(#76). A `cli` matrix job builds the `ink` CLI (`--locked`) natively for five
+targets (macOS arm64/x64, Linux x64 and arm64 — the `ubuntu-22.04-arm` runner, no
+`cross` — and Windows x64) and uploads `ink-v<version>-<target>.tar.gz` (`.zip`
+on Windows) to the same draft **by release id**, never by tag. **12 assets** should land on one draft: the 7 app installers
 plus the 5 CLI archives. Builds are **unsigned** (signing #10, updater #11
 tracked separately). Homebrew lives in `thombruce/homebrew-tap`: the app is a
 cask (`Casks/inkpot.rb`), the CLI a formula (`Formula/inkpot-cli.rb`, installs
 `ink`). Publishing a release fires `.github/workflows/homebrew.yml`, which
 recomputes the dmg and CLI `sha256`s, bumps the cask's `version` + `sha256` and
-**regenerates the formula whole** (like tonic's), in one job, one commit (needs
+**regenerates the formula whole** (like tonic's): sequential steps in one job
+(no push race), cask first, so a missing CLI archive only fails the formula (needs
 the `HOMEBREW_TAP_TOKEN` secret — a PAT with write access to the tap). No manual
 bump. It runs on publish, not tag push, because draft asset URLs aren't public.
 First release: v0.1.0.

@@ -27,16 +27,14 @@ const VERSION: &str = match option_env!("INK_VERSION") {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match args.first().map(|s| s.as_str()) {
-        Some("--version" | "-V") => {
-            println!("ink {VERSION}");
-            return ExitCode::SUCCESS;
-        }
-        Some("--help" | "-h") => {
-            println!("ink {VERSION} — the inkpot CLI\n\n{USAGE}");
-            return ExitCode::SUCCESS;
-        }
-        _ => {}
+    // Help anywhere (`ink fmt --help`); --version only as the command itself.
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("ink {VERSION} — the inkpot CLI\n\n{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    if let Some("--version" | "-V") = args.first().map(|s| s.as_str()) {
+        println!("ink {VERSION}");
+        return ExitCode::SUCCESS;
     }
     if args.first().map(|s| s.as_str()) == Some("export") {
         return export(&args[1..]);
@@ -105,7 +103,7 @@ fn fmt(args: &[String]) -> ExitCode {
         }
     }
     let Some(path) = path else {
-        return err("usage: ink fmt [--write] <file.ink>".into());
+        return err(USAGE.into());
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -147,7 +145,7 @@ fn export(args: &[String]) -> ExitCode {
         }
     }
     let (Some(path), Some(out)) = (path, out) else {
-        return err("usage: ink export --out=<file.pdf> [--trim=WxH] <file.ink>".into());
+        return err(USAGE.into());
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,

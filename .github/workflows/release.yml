@@ -35,7 +35,7 @@ jobs:
               body: [
                 'Unsigned builds — macOS and Windows will warn on first open (this is expected for an unsigned app); see the README for how to open them.',
                 '',
-                'Download the installer for your OS below.',
+                'Download the installer for your OS below. The `ink` CLI (with its language server, `ink lsp`) is the `ink-v…-<target>` archive for your platform — or `brew install thombruce/tap/inkpot-cli`.',
               ].join('\n'),
               draft: true,
               prerelease: true,
@@ -102,8 +102,7 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04 # older glibc than ubuntu-latest: runs on more distros
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04
-            cross: true
+            os: ubuntu-22.04-arm # native arm64 runner: no cross-compiling
           - target: x86_64-apple-darwin
             os: macos-latest
           - target: aarch64-apple-darwin
@@ -118,21 +117,17 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross
-        if: matrix.cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
       - name: Build
         shell: bash
         run: |
           export INK_VERSION="${GITHUB_REF_NAME#v}"
-          export CROSS_BUILD_ENV_PASSTHROUGH=INK_VERSION # cross builds in a container
-          ${{ matrix.cross && 'cross' || 'cargo' }} build --release -p ink-cli --target ${{ matrix.target }}
+          cargo build --release --locked -p ink-cli --target ${{ matrix.target }} # the tested lockfile
 
       - name: Package and upload
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           DIR="target/${{ matrix.target }}/release"
@@ -144,4 +139,8 @@ jobs:
             ARCHIVE="$NAME.tar.gz"
             tar -czf "$ARCHIVE" -C "$DIR" ink
           fi
-          gh release upload "$GITHUB_REF_NAME" "$ARCHIVE" --clobber
+          # By release id, like tauri-action's releaseId — not by tag, which could
+          # pick another draft for the same tag and split the assets again (#76).
+          curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" --data-binary "@$ARCHIVE" \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${ARCHIVE}" >/dev/null
