@@ -269,16 +269,22 @@ every file whichever one is active; `notes.ink`'s `{&wikilink}`s and its
 
 ### CLI
 
+Install `ink` with `brew install thombruce/tap/inkpot-cli` (macOS and Linux), or
+download it from a release — see [Installing a release](#installing-a-release).
+
 ```sh
-cargo run -p ink-cli -- render --view=manuscript examples/sample.ink
-cargo run -p ink-cli -- render --view=outline    examples/sample.ink
-cargo run -p ink-cli -- render --view=edit       examples/sample.ink
-cargo run -p ink-cli -- render --view=codex      examples/codex.ink
-cargo run -p ink-cli -- fmt --write              examples/sample.ink  # normalize to house style
+ink render --view=manuscript examples/sample.ink
+ink render --view=outline    examples/sample.ink
+ink render --view=edit       examples/sample.ink
+ink render --view=codex      examples/codex.ink
+ink fmt --write              examples/sample.ink   # normalize to house style
+ink export --out=sample.pdf  examples/sample.ink   # Shunn manuscript PDF
+ink lsp                                            # language server (below)
+ink --help
 ```
 
-Install `ink` (see [Installing a release](#installing-a-release)), or build it
-from a checkout with `cargo install --path crates/ink-cli`.
+From a checkout, build it with `cargo install --path crates/ink-cli`, or run it
+without installing as `cargo run -p ink-cli -- <args>`.
 
 ### Your own editor (language server)
 
@@ -372,14 +378,11 @@ root stays fast and webkit-free.
 
 ## Status
 
-**v0.4.0 released** — grab an installer from
-[Releases](https://github.com/thombruce/inkpot/releases), or macOS via Homebrew
-(above). The full loop works: write, highlight, outline, rearrange, fold,
-preview, autosave, exclude sections, plus a **codex** knowledge base — a derived
-index of your `%` sections (characters, locations, timeline) with
-metadata/`{&wikilink}` cross-references and per-entity backlinks
-(single-document; cross-file is #28). Builds are unsigned for now. Ongoing work
-is tracked as [issues](https://github.com/thombruce/inkpot/issues).
+Early but usable: the `.ink` format is still `0.x`, so it may change between
+releases (each change is noted). Grab the latest from
+[Releases](https://github.com/thombruce/inkpot/releases) or Homebrew (above);
+what changed is in the [CHANGELOG](CHANGELOG.md). Builds are unsigned for now.
+Ongoing work is tracked as [issues](https://github.com/thombruce/inkpot/issues).
 
 ## License
 
