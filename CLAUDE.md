@@ -221,6 +221,10 @@ the release notes (the workflow's `releaseBody` is static boilerplate).
 
 ## Known rough edges
 
+The `edit` view (`fmt`/`normalize`) must always leave a blank line after a
+heading, even with no metadata: glued on, a body line like `Note: hi` reparses
+as metadata and drops out of the manuscript (`fmt_keeps_colon_prose_out_of_meta`).
+
 Open work is tracked in GitHub issues. One parser gotcha to keep in mind: the
 `.ink` parser silently drops a mis-classified metadata line — the
 blank-line-after-heading convention (documented in the README) avoids it.

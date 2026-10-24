@@ -1898,7 +1898,10 @@ fn edit(node: &Node, out: &mut String) {
             writeln!(out, "{k}: {v}").ok();
         }
     }
-    if !node.meta.is_empty() {
+    // A blank line closes the meta zone. Always write one after a heading, even
+    // with no meta: glued on, a body line like `Note: hi` would reparse as
+    // metadata and drop out of the manuscript.
+    if !node.meta.is_empty() || node.level > 0 {
         out.push('\n');
     }
     for block in &node.body {
