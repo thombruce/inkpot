@@ -354,8 +354,9 @@ Early builds are **unsigned**, so the OS warns on first launch:
 - **macOS** — right-click the app → **Open** (once), instead of double-clicking.
 - **Windows** — on the SmartScreen prompt, **More info → Run anyway**.
 - **Linux** — no warning; mark `.AppImage` executable, or install the `.deb`/`.rpm`.
-- **The `ink` CLI on macOS, downloaded by hand** — clear the quarantine flag once
-  with `xattr -d com.apple.quarantine ink` (not needed via Homebrew).
+- **The `ink` CLI, downloaded in a browser** — if macOS blocks it, clear the
+  quarantine flag once with `xattr -d com.apple.quarantine ink`; on Windows, run
+  `Unblock-File ink.exe` in PowerShell. Not needed via Homebrew or `curl`.
 
 ## Development
 

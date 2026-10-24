@@ -133,6 +133,17 @@ jobs:
           export INK_VERSION="${GITHUB_REF_NAME#v}"
           cargo build --release --locked -p ink-cli --target ${{ matrix.target }} # the tested lockfile
 
+      # Run what we ship: catches a broken build here, not in Homebrew's test on a
+      # user's machine, and checks it reports the tag. x64 macOS is built on an
+      # arm64 runner, so it can't run here; it's the same code as arm64.
+      - name: Smoke-test the binary
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          OUT=$("target/${{ matrix.target }}/release/ink" --version)
+          echo "$OUT"
+          [ "$OUT" = "ink ${GITHUB_REF_NAME#v}" ]
+
       - name: Package and upload
         shell: bash
         env:

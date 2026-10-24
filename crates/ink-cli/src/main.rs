@@ -67,6 +67,8 @@ fn main() -> ExitCode {
             };
         } else if arg.starts_with('-') {
             return err(format!("unknown flag '{arg}'"));
+        } else if path.is_some() {
+            return usage("render takes one file");
         } else {
             path = Some(arg.clone());
         }
@@ -96,6 +98,8 @@ fn fmt(args: &[String]) -> ExitCode {
             write = true;
         } else if arg.starts_with('-') {
             return err(format!("unknown flag '{arg}'"));
+        } else if path.is_some() {
+            return usage("fmt takes one file");
         } else {
             path = Some(arg.clone());
         }
@@ -138,6 +142,8 @@ fn export(args: &[String]) -> ExitCode {
             }
         } else if arg.starts_with('-') {
             return err(format!("unknown flag '{arg}'"));
+        } else if path.is_some() {
+            return usage("export takes one file");
         } else {
             path = Some(arg.clone());
         }
@@ -164,7 +170,9 @@ fn export(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// A usage error: what's missing, then the full usage.
+/// A usage error: what's wrong, then the full usage. Each command takes one
+/// file, so `ink fmt --write *.ink` fails loudly instead of formatting only the
+/// last one (a project-wide `ink fmt` is #138).
 fn usage(what: &str) -> ExitCode {
     err(format!("{what}\n\n{USAGE}"))
 }
