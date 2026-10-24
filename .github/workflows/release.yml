@@ -1,8 +1,9 @@
 name: Release
 
-# Build installers for all three desktop OSes and publish them to a GitHub
-# Release. Triggered by pushing a version tag (e.g. v0.1.0). The release is
-# created as a draft prerelease — review the notes and assets, then publish.
+# Build installers for all three desktop OSes, plus the `ink` CLI (and its
+# language server, `ink lsp`) per target, and publish them to a GitHub Release.
+# Triggered by pushing a version tag (e.g. v0.1.0). The release is created as a
+# draft prerelease — review the notes and assets, then publish.
 #
 # One `create-release` job creates the draft *once* and outputs its id; the
 # build matrix uploads to that release via `releaseId`. This avoids the
@@ -20,6 +21,16 @@ jobs:
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
     steps:
+      - uses: actions/checkout@v4
+
+      # The CLI takes its version from the tag, the app from Cargo.toml: fail
+      # before building anything if a bump was missed, or they'd disagree (and
+      # the cask would look for a dmg that doesn't exist).
+      - name: Check the tag matches the app version
+        run: |
+          WANT=$(grep -m1 '^version' app/src-tauri/Cargo.toml | cut -d'"' -f2)
+          [ "${GITHUB_REF_NAME#v}" = "$WANT" ] || { echo "::error::tag $GITHUB_REF_NAME but app/src-tauri/Cargo.toml is $WANT"; exit 1; }
+
       - name: Create the draft release
         id: create
         uses: actions/github-script@v7
@@ -34,7 +45,7 @@ jobs:
               body: [
                 'Unsigned builds — macOS and Windows will warn on first open (this is expected for an unsigned app); see the README for how to open them.',
                 '',
-                'Download the installer for your OS below.',
+                'Download the installer for your OS below. The `ink` CLI (with its language server, `ink lsp`) is the `ink-v…-<target>` archive for your platform — or `brew install thombruce/tap/inkpot-cli`.',
               ].join('\n'),
               draft: true,
               prerelease: true,
@@ -86,3 +97,73 @@ jobs:
           projectPath: app
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  # The `ink` CLI, one archive per target (`ink-v<version>-<target>.tar.gz`, a
+  # .zip on Windows) — the names the Homebrew formula (homebrew.yml) expects.
+  # INK_VERSION makes `ink --version` report this release, not the crate version.
+  cli:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04 # needs glibc 2.35+ (not Debian 11 / RHEL 8); musl if that bites
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm # native arm64 runner: no cross-compiling
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        shell: bash
+        run: |
+          export INK_VERSION="${GITHUB_REF_NAME#v}"
+          cargo build --release --locked -p ink-cli --target ${{ matrix.target }} # the tested lockfile
+
+      # Run what we ship: catches a broken build here, not in Homebrew's test on a
+      # user's machine, and checks it reports the tag. x64 macOS is built on an
+      # arm64 runner, so it can't run here; it's the same code as arm64.
+      - name: Smoke-test the binary
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          OUT=$("target/${{ matrix.target }}/release/ink" --version)
+          echo "$OUT"
+          [ "$OUT" = "ink ${GITHUB_REF_NAME#v}" ]
+
+      - name: Package and upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          COPYFILE_DISABLE: 1 # no macOS ._ resource-fork entries in the tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIR="target/${{ matrix.target }}/release"
+          NAME="ink-v${VERSION}-${{ matrix.target }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ARCHIVE="$NAME.zip"
+            (cd "$DIR" && 7z a "$OLDPWD/$ARCHIVE" ink.exe) # bare ink.exe, no path
+            7z a "$ARCHIVE" LICENSE
+          else
+            ARCHIVE="$NAME.tar.gz"
+            tar -czf "$ARCHIVE" -C "$DIR" ink -C "$GITHUB_WORKSPACE" LICENSE # MIT: the text travels with the binary
+          fi
+          # By release id, like tauri-action's releaseId — not by tag, which could
+          # pick another draft for the same tag and split the assets again (#76).
+          curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" --data-binary "@$ARCHIVE" \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${ARCHIVE}" >/dev/null

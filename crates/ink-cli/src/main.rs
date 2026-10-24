@@ -1,7 +1,5 @@
-//! `ink render --view=manuscript|outline|edit|codex <file.ink>`
-//! `ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>` (Shunn PDF)
-//! `ink fmt [--write] <file.ink>` — normalize to canonical house style
-//! `ink lsp` — a language server over stdio (#141)
+//! The `ink` CLI: `render`, `fmt`, `export`, and `lsp` (the language server,
+//! #141). The commands and flags are listed once, in [`USAGE`].
 
 use ink_core::shunn::{render_shunn_pdf, render_shunn_pdf_sized};
 use ink_core::{build_shunn, parse, render, View};
@@ -9,8 +7,33 @@ use std::process::ExitCode;
 
 mod lsp;
 
+const USAGE: &str = "\
+usage:
+  ink render [--view=manuscript|outline|edit|codex] <file.ink>
+  ink fmt [--write] <file.ink>       normalize to canonical house style
+  ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>   Shunn manuscript PDF
+  ink lsp                            language server over stdio
+  ink --version | --help";
+
+/// The release version: the release workflow sets `INK_VERSION` from the tag,
+/// so `ink` reports the inkpot release it shipped in. A local build says `dev`:
+/// the crate version matches no release, so it would only mislead bug reports.
+pub(crate) const VERSION: &str = match option_env!("INK_VERSION") {
+    Some(v) => v,
+    None => "dev",
+};
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Help and version work anywhere in the arguments (`ink fmt --help`).
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("ink {VERSION} — the inkpot CLI\n\n{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("ink {VERSION}");
+        return ExitCode::SUCCESS;
+    }
     if args.first().map(|s| s.as_str()) == Some("export") {
         return export(&args[1..]);
     }
@@ -44,13 +67,15 @@ fn main() -> ExitCode {
             };
         } else if arg.starts_with('-') {
             return err(format!("unknown flag '{arg}'"));
+        } else if path.is_some() {
+            return usage("render takes one file");
         } else {
             path = Some(arg.clone());
         }
     }
 
     let Some(path) = path else {
-        return err("usage: ink render --view=manuscript|outline|edit|codex <file.ink>".into());
+        return usage("render needs a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -73,12 +98,14 @@ fn fmt(args: &[String]) -> ExitCode {
             write = true;
         } else if arg.starts_with('-') {
             return err(format!("unknown flag '{arg}'"));
+        } else if path.is_some() {
+            return usage("fmt takes one file");
         } else {
             path = Some(arg.clone());
         }
     }
     let Some(path) = path else {
-        return err("usage: ink fmt [--write] <file.ink>".into());
+        return usage("fmt needs a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -95,7 +122,7 @@ fn fmt(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `ink export --out=<file.pdf> [--trim=WxH] <file.ink>` — render a single
+/// `ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>` — render a single
 /// document to a Shunn manuscript PDF. `--trim` gives a custom page size in mm
 /// (e.g. `152.4x228.6` for KDP 6×9); default is US Letter.
 fn export(args: &[String]) -> ExitCode {
@@ -115,12 +142,14 @@ fn export(args: &[String]) -> ExitCode {
             }
         } else if arg.starts_with('-') {
             return err(format!("unknown flag '{arg}'"));
+        } else if path.is_some() {
+            return usage("export takes one file");
         } else {
             path = Some(arg.clone());
         }
     }
     let (Some(path), Some(out)) = (path, out) else {
-        return err("usage: ink export --out=<file.pdf> [--trim=WxH] <file.ink>".into());
+        return usage("export needs --out=<file.pdf> and a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -139,6 +168,13 @@ fn export(args: &[String]) -> ExitCode {
         return err(format!("{out}: {e}"));
     }
     ExitCode::SUCCESS
+}
+
+/// A usage error: what's wrong, then the full usage. Each command takes one
+/// file, so `ink fmt --write *.ink` fails loudly instead of formatting only the
+/// last one (a project-wide `ink fmt` is #138).
+fn usage(what: &str) -> ExitCode {
+    err(format!("{what}\n\n{USAGE}"))
 }
 
 fn err(msg: String) -> ExitCode {

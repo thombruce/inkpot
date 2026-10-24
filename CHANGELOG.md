@@ -9,10 +9,15 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ### Added
 
+- **The `ink` CLI ships with every release.** Download the archive for your
+  platform (macOS, Linux and Windows) from the release, or on macOS and Linux
+  `brew install thombruce/tap/inkpot-cli`. It includes the language server, and
+  `ink --version` / `ink --help` are new (#137).
 - **A language server for your own editor.** `ink lsp` speaks the Language
   Server Protocol, so Neovim (and other LSP editors) get inkpot's outline as
-  document symbols, folding by heading, and formatting to house style. See the
-  README for the Neovim setup (#141).
+  document symbols, folding by heading, and formatting to house style, and
+  reports its name and release version to the editor. See the README for the
+  Neovim setup (#141).
 
 ### Fixed
 

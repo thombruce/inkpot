@@ -1,37 +1,99 @@
 name: Homebrew
 
-# Bump the Homebrew cask when a release is published. This runs on release
-# *publish*, not tag push: the Release workflow creates a draft prerelease, and
-# only once it is published are the asset download URLs live. Needs the
-# HOMEBREW_TAP_TOKEN secret — a PAT with write access to thombruce/homebrew-tap.
+# Bump the Homebrew cask (the app) and formula (the `ink` CLI) when a release is
+# published. This runs on release *publish*, not tag push: the Release workflow
+# creates a draft prerelease, and only once it is published are the asset
+# download URLs live. Needs the HOMEBREW_TAP_TOKEN secret — a PAT with write
+# access to thombruce/homebrew-tap.
 on:
   release:
     types: [published]
 
 jobs:
-  cask:
+  # One job, sequential steps, so the two tap pushes can't race. Each step commits
+  # and pushes on its own: the cask goes first, so a missing CLI archive fails only
+  # the formula step and the app still updates.
+  tap:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+    defaults:
+      run:
+        shell: bash # explicit bash runs with pipefail: a failed curl fails the step, not a bogus sha
     steps:
-      - name: Compute version + sha256 from the published dmg
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          VERSION="${TAG#v}"
-          URL="https://github.com/thombruce/inkpot/releases/download/${TAG}/inkpot_${VERSION}_universal.dmg"
-          SHA=$(curl -fsSL "$URL" | sha256sum | cut -d' ' -f1)
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "SHA=$SHA" >> "$GITHUB_ENV"
-
-      - name: Bump the cask
+      - name: Clone the tap
+        id: clone
         run: |
           git clone "https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/thombruce/homebrew-tap.git"
-          cd homebrew-tap
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          echo "BASE=https://github.com/thombruce/inkpot/releases/download/${TAG}" >> "$GITHUB_ENV"
+
+      - name: Bump the cask
+        working-directory: homebrew-tap
+        run: |
+          SHA=$(curl -fsSL "${BASE}/inkpot_${VERSION}_universal.dmg" | sha256sum | cut -d' ' -f1)
           # The cask interpolates #{version} into the url, so only these two lines change.
           sed -i -E "s|^  version \".*\"|  version \"${VERSION}\"|" Casks/inkpot.rb
           sed -i -E "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" Casks/inkpot.rb
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/inkpot.rb
           # No-op if the release re-fires for a version already bumped.
           git diff --cached --quiet || git commit -m "inkpot ${VERSION}"
+          git push
+
+      - name: Regenerate the CLI formula
+        # Independent of the cask (a missing dmg mustn't block it), but not of the clone.
+        if: ${{ !cancelled() && steps.clone.outcome == 'success' }}
+        working-directory: homebrew-tap
+        run: |
+          # Back to what's on the tap now: drops a cask commit whose push failed (so
+          # it can't ride along), and picks up the tap if it moved meanwhile.
+          git fetch -q && git reset --hard @{u}
+          sha() { curl -fsSL "${BASE}/ink-v${VERSION}-$1.tar.gz" | sha256sum | cut -d' ' -f1; }
+          ARM_MAC=$(sha aarch64-apple-darwin)
+          X86_MAC=$(sha x86_64-apple-darwin)
+          ARM_LINUX=$(sha aarch64-unknown-linux-gnu)
+          X86_LINUX=$(sha x86_64-unknown-linux-gnu)
+          # Generated whole (four urls + sha256s), like tonic's.
+          cat > Formula/inkpot-cli.rb << RUBY
+          class InkpotCli < Formula
+            desc "The inkpot CLI and language server: render, format, and export .ink documents"
+            homepage "https://github.com/thombruce/inkpot"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-aarch64-apple-darwin.tar.gz"
+                sha256 "${ARM_MAC}"
+              end
+              on_intel do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-x86_64-apple-darwin.tar.gz"
+                sha256 "${X86_MAC}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${ARM_LINUX}"
+              end
+              on_intel do
+                url "https://github.com/thombruce/inkpot/releases/download/v#{version}/ink-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${X86_LINUX}"
+              end
+            end
+
+            def install
+              bin.install "ink"
+            end
+
+            test do
+              system "#{bin}/ink", "--version"
+            end
+          end
+          RUBY
+          git add Formula/inkpot-cli.rb
+          git diff --cached --quiet || git commit -m "inkpot-cli ${VERSION}"
           git push
