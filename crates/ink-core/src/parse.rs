@@ -163,7 +163,7 @@ fn is_indented(line: &str) -> bool {
 
 /// `key: value` where key is a single token. None otherwise. The single-token
 /// key rule keeps prose like "She said: hello" out of the meta zone.
-fn meta_line(line: &str) -> Option<(String, String)> {
+pub(crate) fn meta_line(line: &str) -> Option<(String, String)> {
     let (k, v) = line.split_once(':')?;
     let k = k.trim();
     if k.is_empty() || !k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {

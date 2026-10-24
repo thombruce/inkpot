@@ -1526,3 +1526,27 @@ fn notes_panel_collects_comments_and_tks() {
         "<ol class=\"notes-list\"></ol>"
     );
 }
+
+#[test]
+fn fmt_keeps_colon_prose_out_of_meta() {
+    // A heading with no meta must still be followed by a blank line in the edit
+    // view, or a body line like `Note: hi` reparses as metadata and drops out of
+    // the manuscript.
+    let src = "# A\n\nNote: hello there.\n\n## B\n\nk: v\n";
+    let edit = render(&parse(src), View::Edit);
+    let again = parse(&edit);
+    assert!(again.children[0].meta.is_empty(), "prose stayed prose: {edit:?}");
+    assert!(render(&again, View::Manuscript).contains("Note: hello there."));
+    assert!(again.children[0].children[0].meta.is_empty(), "`k: v` after a blank is body");
+    assert_eq!(render(&again, View::Edit), edit, "fmt is idempotent");
+
+    // Same at the top of the file, where the meta zone is front matter: the
+    // leading blank line that made `Note: hi` body must survive.
+    let edit = render(&parse("\nNote: hi\n"), View::Edit);
+    let again = parse(&edit);
+    assert!(again.meta.is_empty(), "prose stayed prose: {edit:?}");
+    assert!(render(&again, View::Manuscript).contains("Note: hi"));
+    assert_eq!(render(&again, View::Edit), edit, "fmt is idempotent");
+    // …but ordinary prose-first files gain no leading blank line.
+    assert_eq!(render(&parse("Once upon a time.\n"), View::Edit), "Once upon a time.\n\n");
+}

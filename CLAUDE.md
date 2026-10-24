@@ -223,7 +223,9 @@ the release notes (the workflow's `releaseBody` is static boilerplate).
 
 Open work is tracked in GitHub issues. One parser gotcha to keep in mind: the
 `.ink` parser silently drops a mis-classified metadata line — the
-blank-line-after-heading convention (documented in the README) avoids it.
+blank-line-after-heading convention (documented in the README) avoids it, and
+the `edit` view (`fmt`/`normalize`) must preserve that blank line, at the top of
+the file too (`fmt_keeps_colon_prose_out_of_meta`).
 
 The meta zone also opens at the **top of the file**: a leading `key: value`
 block is document front matter, parsed onto the root node (`title`, `author`,
