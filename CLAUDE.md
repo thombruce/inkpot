@@ -5,8 +5,11 @@ Guidance for working in this repo. Read the README for the `.ink` format and
 
 ## What this is
 
-inkpot is a plain-text prose format (`.ink`) plus a Tauri desktop editor. A
-document parses into a `Node` tree with a **shared hierarchy of visible (`#`),
+inkpot is a plain-text prose format (`.ink`) with **three front ends over one
+core**: a Tauri desktop editor, the `ink` CLI, and `ink lsp`, a language server
+that brings inkpot to any LSP editor (Neovim first). All three are maintained
+products, not the app plus extras — see "Three front ends" below. A document
+parses into a `Node` tree with a **shared hierarchy of visible (`#`),
 scene (`~`), and excluded (`%`) headings** (a three-state `Visibility`), inline
 metadata, comments, and CriticMarkup. Three views render from the tree:
 manuscript, outline, edit. Excluded (`%`) subtrees drop from the manuscript but
@@ -16,7 +19,10 @@ stay in outline/edit.
 
 - `crates/ink-core/` — the real work. Parser + tree + renderers, zero UI deps.
   Everything downstream depends on this; keep it UI-agnostic and pure.
-- `crates/ink-cli/` — thin CLI wrapper.
+- `crates/ink-cli/` — the `ink` binary: the CLI subcommands (`render`, `fmt`,
+  `export`) in `main.rs`, and the language server (`ink lsp`) in `lsp.rs`. The
+  LSP deps (`lsp-server`, `lsp-types`, `serde_json`) live here only, never in
+  `ink-core`.
 - `app/src-tauri/` — Tauri v2 shell. Its own workspace (root `Cargo.toml`
   `exclude`s `app`), so `cargo test` stays fast and needs no webkit.
 - `app/src/` — bundler-built frontend (Vite). No JS framework. Layout is a
@@ -56,6 +62,8 @@ node app/src/mapproviders.test.mjs             # map-world folding + providers s
 node app/src/filetree.test.mjs                 # project .ink tree build/prune/sort self-check
 node app/src/caretsection.test.mjs             # caret -> outline-section pick self-check
 node app/src/attribution.test.mjs              # CriticMarkup attribution-suffix mirror self-check
+cargo test -p ink-cli                          # ink lsp: UTF-16 positions + an in-memory end-to-end session
+cargo install --path crates/ink-cli            # put `ink` (and `ink lsp`) on PATH for your editor
 cd app && npm run tauri dev                   # run the app (needs a display)
 cd app && npm run build                       # frontend only -> app/dist
 ```
@@ -66,6 +74,29 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
 
 ## Architecture decisions (don't relitigate)
 
+- **Three front ends, one core.** The desktop app, the CLI, and the language
+  server are peers over `ink-core`; none is the "real" product. A feature lands
+  as a pure function in `ink-core`, then each front end exposes it where it fits:
+  a Tauri command + panel, a CLI subcommand, an LSP capability. When you add or
+  change a feature, **ask which front ends it belongs in** and keep them in step
+  — e.g. a new projection the app shows may want an `ink` subcommand (epic #136)
+  and an LSP surface; a behaviour change in `fmt`/`normalize` reaches all three
+  (app on blur, `ink fmt`, LSP formatting). Docs follow: README (app usage, CLI,
+  and the editor setup snippets), `docs/ipc.md` (Tauri only). The terminal
+  roadmap is epic #136 (distribution #137, project-aware CLI #138, view parity
+  #139, `ink check` #140, LSP #141).
+- **The language server is Rust on the real parser — no mirror.** `ink lsp`
+  (`crates/ink-cli/src/lsp.rs`, `lsp-server` + `lsp-types`) holds only the open
+  buffers' text (full-document sync) and re-parses per request: stateless in
+  spirit, like the Tauri commands. It is where editor intelligence for *other*
+  editors lives, so it never needs a JS-style mirror; prefer an LSP capability
+  over a tree-sitter grammar (which would be a fifth mirror, #38). Positions are
+  LSP line + **UTF-16** column, converted from `ink-core`'s char offsets by
+  `Lines` — exact even for astral chars, unlike the app. The project root comes
+  from the client (`root_markers = { "Inkpot" }` in Neovim). Test new capabilities
+  in the in-memory end-to-end test (`Connection::memory()`); for a real-editor
+  check, headless Neovim works (`nvim --headless --clean -u <init.lua>` with the
+  README snippet, then `vim.lsp.buf_request_sync`).
 - **Text is canonical.** The editor buffer is the source of truth; Rust is
   stateless (parse in, render out). No document state crosses IPC. A scene move
   is a text splice, not a tree mutation — hence there is deliberately **no

@@ -1,10 +1,13 @@
 //! `ink render --view=manuscript|outline|edit|codex <file.ink>`
 //! `ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>` (Shunn PDF)
 //! `ink fmt [--write] <file.ink>` — normalize to canonical house style
+//! `ink lsp` — a language server over stdio (#141)
 
 use ink_core::shunn::{render_shunn_pdf, render_shunn_pdf_sized};
 use ink_core::{build_shunn, parse, render, View};
 use std::process::ExitCode;
+
+mod lsp;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -13,6 +16,12 @@ fn main() -> ExitCode {
     }
     if args.first().map(|s| s.as_str()) == Some("fmt") {
         return fmt(&args[1..]);
+    }
+    if args.first().map(|s| s.as_str()) == Some("lsp") {
+        return match lsp::run() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => err(e.to_string()),
+        };
     }
 
     let mut view = View::Manuscript;

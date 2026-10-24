@@ -12,3 +12,6 @@ path = "src/main.rs"
 [dependencies]
 # The CLI enables Shunn PDF export (#23); the core crate keeps it default-off.
 ink-core = { path = "../ink-core", features = ["pdf"] }
+lsp-server = "0.10.0"
+lsp-types = "0.97.0"
+serde_json = "1.0.154"

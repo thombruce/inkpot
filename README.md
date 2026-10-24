@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/thombruce/inkpot/actions/workflows/ci.yml/badge.svg)](https://github.com/thombruce/inkpot/actions/workflows/ci.yml)
 
-A writing format and desktop app for prose (and poetry) that keeps a whole
+A writing format — with a desktop app, a CLI, and a language server for your own
+editor — for prose (and poetry) that keeps a whole
 work — novel, short story, article — in one continuous document, while letting
 you rearrange its parts, annotate invisibly, and edit non-destructively.
 
@@ -234,7 +235,7 @@ kept as separate files. (Opening a single file still works as before.)
 ```
 crates/
   ink-core/     Parser, tree, and the view renderers. Zero UI deps.
-  ink-cli/      `ink render --view=… <file.ink>` — wraps ink-core.
+  ink-cli/      The `ink` CLI (render, fmt, export) and `ink lsp`, the language server.
 app/
   src/          Frontend: CodeMirror editor, outline, preview, codex, timeline, characters, map (Vite, no framework).
   src-tauri/    Tauri v2 desktop shell. Stateless commands over ink-core (parse, render views).
@@ -275,6 +276,32 @@ cargo run -p ink-cli -- render --view=edit       examples/sample.ink
 cargo run -p ink-cli -- render --view=codex      examples/codex.ink
 cargo run -p ink-cli -- fmt --write              examples/sample.ink  # normalize to house style
 ```
+
+Install `ink` on your `PATH` with `cargo install --path crates/ink-cli`.
+
+### Your own editor (language server)
+
+`ink lsp` is a [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
+server, so any LSP editor gets inkpot features from the same parser the app
+uses. So far: the **outline** as document symbols, **folding** by heading, and
+**formatting** to house style (what `ink fmt` does). More is planned (#141):
+link and citation completion, go-to-definition, hover, highlighting.
+
+**Neovim** (0.11+), after installing `ink` as above:
+
+```lua
+vim.filetype.add({ extension = { ink = "ink" } })
+vim.lsp.config("inkpot", {
+  cmd = { "ink", "lsp" },
+  filetypes = { "ink" },
+  root_markers = { "Inkpot", ".git" },
+})
+vim.lsp.enable("inkpot")
+```
+
+Then `gO` lists the outline, `vim.lsp.buf.format()` formats, and
+`vim.wo.foldmethod = "expr"` with `vim.wo.foldexpr = "v:lua.vim.lsp.foldexpr()"`
+folds by heading.
 
 ### Desktop app
 
@@ -321,7 +348,7 @@ Early builds are **unsigned**, so the OS warns on first launch:
 ## Development
 
 ```sh
-cargo test                      # ink-core parser/render tests (app excluded)
+cargo test                      # ink-core parser/render + ink lsp tests (app excluded)
 node app/src/reorder.test.mjs   # drag-reorder splice self-check
 node app/src/fold.test.mjs       # edit-view fold depth/section self-check
 node app/src/metacomplete.test.mjs # metadata-completion zone self-check
