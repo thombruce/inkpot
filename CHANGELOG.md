@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-24
+
 ### Added
 
 - **The `ink` CLI ships with every release.** Download the archive for your
@@ -23,8 +25,9 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 - **Formatting no longer turns prose into metadata.** Normalizing a document
   (`ink fmt`, or the app when you leave a document) dropped the blank line after
-  a heading with no metadata, so a first line like `Note: call Sam` was read back
-  as metadata and vanished from the manuscript. The blank line is now kept.
+  a heading with no metadata (or at the very top of a file), so a first line like
+  `Note: call Sam` was read back as metadata and vanished from the manuscript.
+  The blank line is now kept.
 
 ## [0.16.1] - 2026-10-18
 
