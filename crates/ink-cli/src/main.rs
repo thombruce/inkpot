@@ -1,7 +1,5 @@
-//! `ink render --view=manuscript|outline|edit|codex <file.ink>`
-//! `ink export --out=<file.pdf> [--trim=WxH_mm] <file.ink>` (Shunn PDF)
-//! `ink fmt [--write] <file.ink>` — normalize to canonical house style
-//! `ink lsp` — a language server over stdio (#141)
+//! The `ink` CLI: `render`, `fmt`, `export`, and `lsp` (the language server,
+//! #141). The commands and flags are listed once, in [`USAGE`].
 
 use ink_core::shunn::{render_shunn_pdf, render_shunn_pdf_sized};
 use ink_core::{build_shunn, parse, render, View};
@@ -20,19 +18,19 @@ usage:
 /// The release version: the release workflow sets `INK_VERSION` from the tag,
 /// so `ink` reports the inkpot release it shipped in; a local build falls back
 /// to the crate version.
-const VERSION: &str = match option_env!("INK_VERSION") {
+pub(crate) const VERSION: &str = match option_env!("INK_VERSION") {
     Some(v) => v,
     None => env!("CARGO_PKG_VERSION"),
 };
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    // Help anywhere (`ink fmt --help`); --version only as the command itself.
+    // Help and version work anywhere in the arguments (`ink fmt --help`).
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!("ink {VERSION} — the inkpot CLI\n\n{USAGE}");
         return ExitCode::SUCCESS;
     }
-    if let Some("--version" | "-V") = args.first().map(|s| s.as_str()) {
+    if args.iter().any(|a| a == "--version" || a == "-V") {
         println!("ink {VERSION}");
         return ExitCode::SUCCESS;
     }
@@ -75,7 +73,7 @@ fn main() -> ExitCode {
     }
 
     let Some(path) = path else {
-        return err(USAGE.into());
+        return usage("needs a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -103,7 +101,7 @@ fn fmt(args: &[String]) -> ExitCode {
         }
     }
     let Some(path) = path else {
-        return err(USAGE.into());
+        return usage("fmt needs a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -145,7 +143,7 @@ fn export(args: &[String]) -> ExitCode {
         }
     }
     let (Some(path), Some(out)) = (path, out) else {
-        return err(USAGE.into());
+        return usage("export needs --out=<file.pdf> and a file");
     };
     let src = match std::fs::read_to_string(&path) {
         Ok(s) => s,
@@ -164,6 +162,11 @@ fn export(args: &[String]) -> ExitCode {
         return err(format!("{out}: {e}"));
     }
     ExitCode::SUCCESS
+}
+
+/// A usage error: what's missing, then the full usage.
+fn usage(what: &str) -> ExitCode {
+    err(format!("{what}\n\n{USAGE}"))
 }
 
 fn err(msg: String) -> ExitCode {

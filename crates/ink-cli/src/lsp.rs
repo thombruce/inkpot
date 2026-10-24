@@ -40,7 +40,16 @@ fn serve(conn: &Connection) -> Result<()> {
         document_formatting_provider: Some(OneOf::Left(true)),
         ..Default::default()
     };
-    conn.initialize(serde_json::to_value(caps)?)?;
+    // The two-step initialize, so the response can carry serverInfo: editors show
+    // which `ink` release they're talking to (Neovim's `:checkhealth vim.lsp`).
+    let (id, _params) = conn.initialize_start()?;
+    conn.initialize_finish(
+        id,
+        serde_json::json!({
+            "capabilities": caps,
+            "serverInfo": { "name": "ink", "version": crate::VERSION },
+        }),
+    )?;
 
     let mut docs: HashMap<String, String> = HashMap::new(); // uri -> buffer text
     for msg in &conn.receiver {
@@ -293,6 +302,7 @@ mod tests {
 
         let init = call("initialize", json!({ "capabilities": {} }));
         assert_eq!(init["capabilities"]["documentFormattingProvider"], true);
+        assert_eq!(init["serverInfo"]["name"], "ink");
         send(Notification::new("initialized".into(), json!({})).into());
 
         let uri = "file:///p/ch1.ink";

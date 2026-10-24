@@ -135,9 +135,10 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             ARCHIVE="$NAME.zip"
             (cd "$DIR" && 7z a "$OLDPWD/$ARCHIVE" ink.exe) # bare ink.exe, no path
+            7z a "$ARCHIVE" LICENSE
           else
             ARCHIVE="$NAME.tar.gz"
-            tar -czf "$ARCHIVE" -C "$DIR" ink
+            tar -czf "$ARCHIVE" -C "$DIR" ink -C "$GITHUB_WORKSPACE" LICENSE # MIT: the text travels with the binary
           fi
           # By release id, like tauri-action's releaseId — not by tag, which could
           # pick another draft for the same tag and split the assets again (#76).

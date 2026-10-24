@@ -42,6 +42,7 @@ jobs:
           git push
 
       - name: Regenerate the CLI formula
+        if: ${{ !cancelled() }} # independent of the cask: a missing dmg mustn't block it
         working-directory: homebrew-tap
         run: |
           sha() { curl -fsSL "${BASE}/ink-v${VERSION}-$1.tar.gz" | sha256sum | cut -d' ' -f1; }

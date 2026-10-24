@@ -379,3 +379,7 @@ index of your `%` sections (characters, locations, timeline) with
 metadata/`{&wikilink}` cross-references and per-entity backlinks
 (single-document; cross-file is #28). Builds are unsigned for now. Ongoing work
 is tracked as [issues](https://github.com/thombruce/inkpot/issues).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
