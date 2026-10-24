@@ -1898,10 +1898,18 @@ fn edit(node: &Node, out: &mut String) {
             writeln!(out, "{k}: {v}").ok();
         }
     }
-    // A blank line closes the meta zone. Always write one after a heading, even
-    // with no meta: glued on, a body line like `Note: hi` would reparse as
-    // metadata and drop out of the manuscript.
-    if !node.meta.is_empty() || node.level > 0 {
+    // A blank line closes the meta zone, which every node opens with — the root
+    // too (front matter). Glued on, a body line like `Note: hi` would reparse as
+    // metadata and drop out of the manuscript. House style always writes one
+    // after a heading; at the top of the file only when the first line needs it,
+    // so prose-first files don't gain a leading blank line.
+    let first_line_is_meta = || match node.body.first() {
+        Some(Block::Para(spans)) => {
+            crate::parse::meta_line(source_inlines(spans).lines().next().unwrap_or("")).is_some()
+        }
+        _ => false,
+    };
+    if !node.meta.is_empty() || node.level > 0 || first_line_is_meta() {
         out.push('\n');
     }
     for block in &node.body {
