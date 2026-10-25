@@ -93,9 +93,10 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   over a tree-sitter grammar (which would be a fifth mirror, #38). Positions are
   LSP line + **UTF-16** column, converted from `ink-core`'s char offsets by
   `Lines` — exact even for astral chars, unlike the app. `ink_core::tokens` is
-  the **parser's own token stream**, for highlighting (LSP semantic tokens, #141,
-  not wired yet): `parse.rs` threads an optional sink (`Tk`) through the same
-  `parse`/`scan` that build the tree (off, so free, for a plain `parse`), and
+  the **parser's own token stream**, which `ink lsp` serves as semantic tokens
+  (custom types, legend `TOKEN_TYPES`; split to one line each): `parse.rs`
+  threads an optional sink (`Tk`) through the same `parse`/`scan` that build the
+  tree (off, so free, for a plain `parse`), and
   takes spans from the same helpers the tree does (`heading`, `meta_spans`), so
   tokens can't disagree with the parse. Extend that sink when the grammar grows;
   never write a separate tokenizer. The project

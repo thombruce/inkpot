@@ -3,20 +3,28 @@
 //! parser, with no editor-side mirror. Speaks LSP over stdio.
 //!
 //! Stateless in spirit, like the app: the only state is the open buffers' text
-//! (full-document sync), and every request re-parses. Slice 1: document symbols
-//! (the outline), folding ranges, and formatting (`ink fmt`'s house style).
+//! (full-document sync), and every request re-parses. Document symbols (the
+//! outline), folding ranges, formatting (`ink fmt`'s house style), and semantic
+//! tokens (highlighting, from the parser's own `ink_core::tokens`).
 
-use ink_core::{parse, render, resolve_titles, word_count, Node, Span, View, Visibility};
+use ink_core::{
+    parse, render, resolve_titles, tokens, word_count, Node, Span, TokenKind, View, Visibility,
+};
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
     DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
 };
-use lsp_types::request::{DocumentSymbolRequest, FoldingRangeRequest, Formatting, Request as _};
+use lsp_types::request::{
+    DocumentSymbolRequest, FoldingRangeRequest, Formatting, Request as _, SemanticTokensFullRequest,
+};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
-    FoldingRange, FoldingRangeParams, OneOf, Position, Range, ServerCapabilities, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    FoldingRange, FoldingRangeParams, OneOf, Position, Range, SemanticToken, SemanticTokenModifier,
+    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, SymbolKind, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit,
 };
 use std::collections::HashMap;
 use std::error::Error;
@@ -38,6 +46,19 @@ fn serve(conn: &Connection) -> Result<()> {
         document_symbol_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(true.into()),
         document_formatting_provider: Some(OneOf::Left(true)),
+        semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+            SemanticTokensOptions {
+                legend: SemanticTokensLegend {
+                    token_types: TOKEN_TYPES.iter().map(|&t| SemanticTokenType::new(t)).collect(),
+                    token_modifiers: TOKEN_MODIFIERS
+                        .iter()
+                        .map(|&m| SemanticTokenModifier::new(m))
+                        .collect(),
+                },
+                full: Some(SemanticTokensFullOptions::Bool(true)),
+                ..Default::default()
+            },
+        )),
         ..Default::default()
     };
     // The two-step initialize, so the response can carry serverInfo: editors show
@@ -123,6 +144,12 @@ fn respond(docs: &HashMap<String, String>, req: Request) -> Response {
             .and_then(|p| text(&p.text_document.uri).map(|t| json(folds(t)))),
         Formatting::METHOD => params::<DocumentFormattingParams>(req)
             .and_then(|p| text(&p.text_document.uri).map(|t| json(format(t)))),
+        SemanticTokensFullRequest::METHOD => params::<SemanticTokensParams>(req).and_then(|p| {
+            text(&p.text_document.uri).map(|t| {
+                let data = semantic_tokens(t);
+                json(SemanticTokensResult::Tokens(SemanticTokens { result_id: None, data }))
+            })
+        }),
         _ => {
             return Response::new_err(
                 id,
@@ -248,6 +275,88 @@ fn fold_walk(node: &Node, lines: &Lines, out: &mut Vec<FoldingRange>) {
     }
 }
 
+/// The semantic token legend; a token's type is its index here. Custom names, as
+/// prose has no standard LSP types for a heading or an insertion — the README
+/// links them to Neovim's `@markup`/`@diff` groups — except `comment`, a standard
+/// type every theme colors with no setup.
+const TOKEN_TYPES: &[&str] = &[
+    "heading",
+    "scene",
+    "excluded",
+    "metaKey",
+    "metaValue",
+    "comment",
+    "marker",
+    "text",
+    "insert",
+    "delete",
+    "attribution",
+    "link",
+    "cite",
+    "interp",
+    "escape",
+];
+const TOKEN_MODIFIERS: &[&str] = &["bold", "italic"];
+
+/// A token kind's index in [`TOKEN_TYPES`]. Exhaustive, so a new kind can't be
+/// left out of the legend.
+fn token_type(kind: TokenKind) -> u32 {
+    use TokenKind::*;
+    match kind {
+        Heading(Visibility::Visible) => 0,
+        Heading(Visibility::Scene) => 1,
+        Heading(Visibility::Excluded) => 2,
+        MetaKey => 3,
+        MetaValue => 4,
+        Comment => 5,
+        Marker => 6,
+        Text => 7,
+        Insert => 8,
+        Delete => 9,
+        Attribution => 10,
+        Link => 11,
+        Cite => 12,
+        Interp => 13,
+        Escape => 14,
+    }
+}
+
+/// `ink_core::tokens` as LSP semantic tokens: delta-encoded, UTF-16 columns, one
+/// line each — a token crossing a soft break (an insertion over two lines) is
+/// split at the line end, as clients without multiline-token support expect.
+fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
+    let lines = Lines::new(text);
+    let total = text.chars().count();
+    let (mut out, mut prev) = (Vec::new(), Position::new(0, 0));
+    for t in tokens(text) {
+        let token_modifiers_bitset = t.bold as u32 | (t.italic as u32) << 1;
+        let mut s = t.span.start;
+        while s < t.span.end {
+            let l = lines.line_of(s);
+            let line_end = lines.starts.get(l + 1).map_or(total, |&(c, _)| c - 1); // its `\n`
+            let e = t.span.end.min(line_end);
+            if e > s {
+                let (a, b) = (lines.pos(s), lines.pos(e));
+                let delta_line = a.line - prev.line;
+                out.push(SemanticToken {
+                    delta_line,
+                    delta_start: if delta_line == 0 {
+                        a.character - prev.character
+                    } else {
+                        a.character
+                    },
+                    length: b.character - a.character,
+                    token_type: token_type(t.kind),
+                    token_modifiers_bitset,
+                });
+                prev = a;
+            }
+            s = line_end + 1;
+        }
+    }
+    out
+}
+
 /// `ink fmt` to the house style, as one edit over just the changed span (common
 /// prefix/suffix trimmed, like the app's `mindiff.js`), so the editor keeps the
 /// cursor, marks and folds outside it. None if already canonical.
@@ -270,6 +379,43 @@ mod tests {
     use super::*;
     use lsp_server::RequestId;
     use serde_json::{json, Value};
+
+    /// Decoded (line, column, length, type name, modifiers) of `semantic_tokens`.
+    fn decoded(text: &str) -> Vec<(u32, u32, u32, &'static str, u32)> {
+        let (mut line, mut col) = (0, 0);
+        semantic_tokens(text)
+            .iter()
+            .map(|t| {
+                line += t.delta_line;
+                col = if t.delta_line == 0 { col + t.delta_start } else { t.delta_start };
+                (line, col, t.length, TOKEN_TYPES[t.token_type as usize], t.token_modifiers_bitset)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn semantic_tokens_are_single_line_utf16() {
+        // The insertion crosses a soft break: one token per line. 😀 is two UTF-16
+        // units, so `{+` starts at column 4, not 3.
+        let got = decoded("# Hi\n\nx😀 {+a **b**\nc} y\n");
+        assert_eq!(
+            got,
+            [
+                (0, 0, 1, "heading", 0),
+                (0, 2, 2, "heading", 0),
+                (2, 4, 2, "marker", 0),
+                (2, 6, 2, "insert", 0),
+                (2, 8, 2, "marker", 0),
+                (2, 10, 1, "insert", 1), // bold, still an insertion
+                (2, 11, 2, "marker", 0),
+                (3, 0, 1, "insert", 0), // the insertion's second line
+                (3, 1, 1, "marker", 0),
+            ]
+        );
+        // Every kind maps inside the legend.
+        let src = include_str!("../../../examples/sample.ink");
+        assert!(decoded(src).iter().all(|t| TOKEN_TYPES.contains(&t.3)));
+    }
 
     #[test]
     fn utf16_positions() {
@@ -304,6 +450,8 @@ mod tests {
         assert_eq!(init["capabilities"]["documentFormattingProvider"], true);
         assert_eq!(init["serverInfo"]["name"], "ink");
         assert_eq!(init["serverInfo"]["version"], crate::VERSION);
+        let legend = &init["capabilities"]["semanticTokensProvider"]["legend"];
+        assert_eq!(legend["tokenTypes"].as_array().unwrap().len(), TOKEN_TYPES.len());
         send(Notification::new("initialized".into(), json!({})).into());
 
         let uri = "file:///p/ch1.ink";
