@@ -180,17 +180,20 @@ struct Lines<'a> {
     text: &'a str,
     /// Per line: (char offset, byte offset) of its first char.
     starts: Vec<(usize, usize)>,
+    /// The text's length in chars.
+    len: usize,
 }
 
 impl<'a> Lines<'a> {
     fn new(text: &'a str) -> Self {
-        let mut starts = vec![(0, 0)];
+        let (mut starts, mut len) = (vec![(0, 0)], 0);
         for (ci, (bi, c)) in text.char_indices().enumerate() {
             if c == '\n' {
                 starts.push((ci + 1, bi + 1));
             }
+            len = ci + 1;
         }
-        Lines { text, starts }
+        Lines { text, starts, len }
     }
 
     fn line_of(&self, off: usize) -> usize {
@@ -298,35 +301,43 @@ const TOKEN_TYPES: &[&str] = &[
 ];
 const TOKEN_MODIFIERS: &[&str] = &["bold", "italic"];
 
-/// A token kind's index in [`TOKEN_TYPES`]. Exhaustive, so a new kind can't be
-/// left out of the legend.
-fn token_type(kind: TokenKind) -> u32 {
+/// A token kind's legend name. Exhaustive, so a new kind can't be left out; the
+/// index is looked up by name, so reordering [`TOKEN_TYPES`] can't mislabel one.
+fn token_name(kind: TokenKind) -> &'static str {
     use TokenKind::*;
     match kind {
-        Heading(Visibility::Visible) => 0,
-        Heading(Visibility::Scene) => 1,
-        Heading(Visibility::Excluded) => 2,
-        MetaKey => 3,
-        MetaValue => 4,
-        Comment => 5,
-        Marker => 6,
-        Text => 7,
-        Insert => 8,
-        Delete => 9,
-        Attribution => 10,
-        Link => 11,
-        Cite => 12,
-        Interp => 13,
-        Escape => 14,
+        Heading(Visibility::Visible) => "heading",
+        Heading(Visibility::Scene) => "scene",
+        Heading(Visibility::Excluded) => "excluded",
+        MetaKey => "metaKey",
+        MetaValue => "metaValue",
+        Comment => "comment",
+        Marker => "marker",
+        Text => "text",
+        Insert => "insert",
+        Delete => "delete",
+        Attribution => "attribution",
+        Link => "link",
+        Cite => "cite",
+        Interp => "interp",
+        Escape => "escape",
     }
+}
+
+fn token_type(kind: TokenKind) -> u32 {
+    let name = token_name(kind);
+    TOKEN_TYPES.iter().position(|&t| t == name).expect("token name missing from TOKEN_TYPES") as u32
 }
 
 /// `ink_core::tokens` as LSP semantic tokens: delta-encoded, UTF-16 columns, one
 /// line each — a token crossing a soft break (an insertion over two lines) is
 /// split at the line end, as clients without multiline-token support expect.
+/// ponytail: `Lines::pos` rescans from the line start per token — tokens × line
+/// length, worst for one-paragraph-per-line prose. Carry a forward-only cursor
+/// across tokens if that ever lags.
 fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     let lines = Lines::new(text);
-    let total = text.chars().count();
+    let total = lines.len;
     let (mut out, mut prev) = (Vec::new(), Position::new(0, 0));
     for t in tokens(text) {
         let token_modifiers_bitset = t.bold as u32 | (t.italic as u32) << 1;
@@ -335,8 +346,12 @@ fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
             let l = lines.line_of(s);
             let line_end = lines.starts.get(l + 1).map_or(total, |&(c, _)| c - 1); // its `\n`
             let e = t.span.end.min(line_end);
-            if e > s {
-                let (a, b) = (lines.pos(s), lines.pos(e));
+            let (a, b) = (lines.pos(s), lines.pos(e));
+            // Tokens arrive in order (ink-core asserts it in debug); if one ever
+            // didn't, skip it rather than wrap the u32 deltas and garble the rest.
+            let backwards =
+                a.line < prev.line || (a.line == prev.line && a.character < prev.character);
+            if e > s && !backwards {
                 let delta_line = a.line - prev.line;
                 out.push(SemanticToken {
                     delta_line,
@@ -412,9 +427,6 @@ mod tests {
                 (3, 1, 1, "marker", 0),
             ]
         );
-        // Every kind maps inside the legend.
-        let src = include_str!("../../../examples/sample.ink");
-        assert!(decoded(src).iter().all(|t| TOKEN_TYPES.contains(&t.3)));
     }
 
     #[test]
@@ -464,6 +476,27 @@ mod tests {
             .into(),
         );
         let doc = json!({ "textDocument": { "uri": uri } });
+
+        // Highlighting through the real request, decoded with the advertised legend.
+        let toks = call("textDocument/semanticTokens/full", doc.clone());
+        let names = legend["tokenTypes"].as_array().unwrap().clone();
+        let (mut line, mut col) = (0, 0);
+        let got: Vec<(u64, u64, u64, String)> = toks["data"]
+            .as_array()
+            .unwrap()
+            .chunks(5)
+            .map(|t| {
+                let n = |i: usize| t[i].as_u64().unwrap();
+                line += n(0);
+                col = if n(0) == 0 { col + n(1) } else { n(1) };
+                (line, col, n(2), names[n(3) as usize].as_str().unwrap().to_string())
+            })
+            .collect();
+        let want =
+            [(0, 0, 1, "heading"), (0, 2, 3, "heading"), (4, 0, 2, "scene"), (4, 3, 5, "scene")];
+        let want: Vec<_> = want.iter().map(|&(l, c, n, k)| (l, c, n, k.to_string())).collect();
+        assert_eq!(got[..4], want[..]);
+        assert_eq!(got.last().unwrap().3, "heading"); // `# Two`
 
         let syms = call("textDocument/documentSymbol", doc.clone());
         assert_eq!(syms[0]["name"], "One");
