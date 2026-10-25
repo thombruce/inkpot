@@ -817,16 +817,17 @@ impl<'a> CodexIndex<'a> {
     /// sends them file-name ordered, per #8). Entities are numbered project-wide;
     /// an `id:` handle is project-global (first declaration in project order wins).
     fn build_project(docs: &'a [(String, &'a Node)]) -> Self {
-        let mut idx = Self::build_index(docs);
+        let roots: Vec<&Node> = docs.iter().map(|(_, r)| *r).collect();
+        let mut idx = Self::build_index(&roots);
         idx.backlinks = idx.compute_backlinks(docs);
         idx
     }
 
     /// [`Self::build_project`] without the backlinks, for resolving alone.
-    fn build_index(docs: &'a [(String, &'a Node)]) -> Self {
+    fn build_index(roots: &[&'a Node]) -> Self {
         let mut entities = Vec::new();
         let mut entity_doc = Vec::new();
-        for (d, (_, root)) in docs.iter().enumerate() {
+        for (d, root) in roots.iter().enumerate() {
             let mut es = Vec::new();
             collect_entities(root, &mut es);
             for e in es {
@@ -847,13 +848,20 @@ impl<'a> CodexIndex<'a> {
         }
         let mut scopes = HashMap::new();
         // base_ctx: scope building only substitutes titles, never resolves links.
-        for (d, (_, root)) in docs.iter().enumerate() {
+        for (d, root) in roots.iter().enumerate() {
             let mut s = HashMap::new();
             collect_scopes(root, &base_ctx(root), &[], &mut s);
             scopes.extend(s.into_iter().map(|(off, sc)| ((d, off), sc)));
         }
-        let backlinks = (0..entities.len()).map(|_| Vec::new()).collect();
-        CodexIndex { entities, entity_doc, by_name, by_id, by_offset, scopes, backlinks }
+        CodexIndex {
+            entities,
+            entity_doc,
+            by_name,
+            by_id,
+            by_offset,
+            scopes,
+            backlinks: Vec::new(),
+        }
     }
 
     /// The folded visible-heading scope a reference *inside* `node` (in file
@@ -968,30 +976,34 @@ impl<'a> CodexIndex<'a> {
 /// `[[link]]`/`{&link}`, one item of a `[@cite]` group (its key or locator), or
 /// one comma part of a heading's metadata value (as the codex reads them: never
 /// front matter, nor an `id:`, which names its own node). The cursor may sit on
-/// the reference, its brackets, or just past it. Found from the
-/// parser's own [`crate::tokens`] and resolved by the codex's
-/// `CodexIndex::resolve_idx`, so it follows the same scope, `id:` and cross-file
-/// rules as backlinks. `None` off a reference or when nothing matches.
+/// the reference, its brackets, or just past it. Found from the parser's own
+/// [`crate::tokens`] and resolved by the codex's `CodexIndex::resolve_idx`, so it
+/// follows the same scope, `id:` and cross-file rules as backlinks — though it
+/// reaches further than they record: a link in a heading title or before the
+/// first heading resolves too (from the root's empty scope), backlinks skip
+/// both. `None` off a reference or when nothing matches.
 pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize, crate::Span)> {
     use crate::TokenKind::{Cite, Heading, Link, Marker, MetaKey, MetaValue};
     let src = files.get(active)?;
     let toks = crate::tokens(src);
     let text =
         |s: crate::Span| -> String { src.chars().skip(s.start).take(s.end - s.start).collect() };
-    // The token under the cursor (a token's end counts, for a caret just past
-    // it); a bracket marker defers to the reference beside it.
-    let i =
-        toks.iter().position(|t| t.span.start <= offset && offset < t.span.end).or_else(|| {
-            toks.iter().position(|t| {
-                t.span.end == offset && matches!(t.kind, Link | Cite | MetaValue | Marker)
-            })
-        })?;
-    let i = match toks[i].kind {
+    // A token as a reference: itself, or for a bracket marker the reference
+    // beside it.
+    let as_ref = |i: usize| match toks[i].kind {
+        Link | Cite | MetaValue => Some(i),
         Marker => [i + 1, i.wrapping_sub(1)]
             .into_iter()
-            .find(|&j| toks.get(j).is_some_and(|t| matches!(t.kind, Link | Cite)))?,
-        _ => i,
+            .find(|&j| toks.get(j).is_some_and(|t| matches!(t.kind, Link | Cite))),
+        _ => None,
     };
+    // The reference under the cursor, else one ending at it (a caret just past
+    // it, even where styled text starts right there).
+    let i = toks
+        .iter()
+        .position(|t| t.span.start <= offset && offset < t.span.end)
+        .and_then(as_ref)
+        .or_else(|| toks.iter().position(|t| t.span.end == offset).and_then(as_ref))?;
     let tok = toks[i];
     // The `sep`-separated part of `full` holding char index `at`.
     let part = |full: &str, at: usize, sep: char| {
@@ -1008,7 +1020,7 @@ pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize
     let name = match tok.kind {
         Link => text(tok.span),
         Cite => {
-            let item = part(&text(tok.span), offset - tok.span.start, ';');
+            let item = part(&text(tok.span), offset.saturating_sub(tok.span.start), ';');
             crate::parse::parse_cite_items(&item).into_iter().next()?.key
         }
         MetaValue => {
@@ -1036,8 +1048,7 @@ pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize
     };
 
     let roots: Vec<Node> = files.iter().map(|s| crate::parse(s)).collect();
-    let docs: Vec<(String, &Node)> = roots.iter().map(|r| (String::new(), r)).collect();
-    let idx = CodexIndex::build_index(&docs);
+    let idx = CodexIndex::build_index(&roots.iter().collect::<Vec<_>>());
     // The referrer is the deepest node holding the cursor (the later sibling at a
     // boundary; the last at end of file); the root (text before any heading) sits
     // in no scope.

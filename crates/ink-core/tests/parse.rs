@@ -1656,6 +1656,7 @@ fn definition_resolves_like_the_codex() {
     assert_eq!(def(at(a, "[[Bob", 0)), head(0, "% Bob"), "the bracket counts");
     assert_eq!(def(at(a, "]] and", 0)), head(0, "% Bob"), "a caret just past it counts");
     assert_eq!(def(at(a, "smith", 2)), head(1, "% Smith"), "same-file entity wins");
+    assert_eq!(def(at(a, "[@smith", 0)), head(1, "% Smith"), "a cite's bracket counts");
     assert_eq!(def(at(a, "p. 3", 1)), head(1, "% Smith"), "a locator is its item's");
     assert_eq!(def(at(a, "ferber]", 3)), head(0, "% Ferber"), "second cite key, by id");
     assert_eq!(def(at(a, "Bob, Alice\n", 7)), head(1, "% Alice"), "metadata value part");
@@ -1668,6 +1669,12 @@ fn definition_resolves_like_the_codex() {
     assert_eq!(def(at(a, "Alice\n\n# Ône", 1)), None, "front matter links nothing");
     assert_eq!(def(at(a, "al\n", 1)), None, "an id names its own node");
     assert_eq!(def(at(a, "Nobody", 2)), None, "unresolved");
+    // Just past `]]` with styled text starting right there, and in a title.
+    let c = "# See [[Bob]]\n\n**[[Bob]] x**\n";
+    let past =
+        |pat: &str| ink_core::definition(&[b, c], 1, at(c, pat, 0)).map(|(f, s)| (f, s.start));
+    assert_eq!(past(" x**"), head(0, "% Bob"), "caret past ]], bold text after");
+    assert_eq!(past("\n\n**"), head(0, "% Bob"), "a link in a heading title");
     assert_eq!(def(at(a, "Met", 1)), None, "plain prose");
     // A caret past the last char still sits in the last node's scope, so it
     // reaches the `%% Note` under `# Two`, not the top-level one.
