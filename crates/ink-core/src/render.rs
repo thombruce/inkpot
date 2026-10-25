@@ -981,7 +981,8 @@ impl<'a> CodexIndex<'a> {
 /// follows the same scope, `id:` and cross-file rules as backlinks — though it
 /// reaches further than they record: a link in a heading title (from that
 /// heading's own scope, as its body would) or before the first heading (from the
-/// root's empty scope) resolves too, where backlinks skip both. `None` off a reference or when nothing matches.
+/// root's empty scope) resolves too, where backlinks skip both. `None` off a
+/// reference or when nothing matches.
 pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize, crate::Span)> {
     use crate::TokenKind::{Cite, Heading, Link, Marker, MetaKey, MetaValue};
     let src = files.get(active)?;
@@ -1049,11 +1050,12 @@ pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize
         _ => return None,
     };
 
+    // ponytail: parses and indexes the whole project per call (stateless, like the
+    // Tauri commands); cache the index per buffer version if large projects lag.
     let roots: Vec<Node> = files.iter().map(|s| crate::parse(s)).collect();
     let idx = CodexIndex::build_index(&roots.iter().collect::<Vec<_>>());
     // The referrer is the deepest node holding the cursor (the later sibling at a
-    // boundary; the last at end of file); the root (text before any heading) sits
-    // in no scope.
+    // boundary; the last at end of file). The root's own scope is empty.
     let mut node = &roots[active];
     while let Some(c) = node
         .children
@@ -1063,11 +1065,7 @@ pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize
     {
         node = c;
     }
-    let scope = if node.level == 0 {
-        Vec::new()
-    } else {
-        idx.ref_scope(active, node, &resolve_titles(&roots[active]))
-    };
+    let scope = idx.ref_scope(active, node, &resolve_titles(&roots[active]));
     let e = idx.resolve_idx(&name, active, &scope)?;
     Some((idx.entity_doc[e], idx.entities[e].heading_span))
 }
