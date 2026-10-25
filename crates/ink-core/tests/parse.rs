@@ -1657,6 +1657,7 @@ fn definition_resolves_like_the_codex() {
     assert_eq!(def(at(a, "]] and", 0)), head(0, "% Bob"), "a caret just past it counts");
     assert_eq!(def(at(a, "smith", 2)), head(1, "% Smith"), "same-file entity wins");
     assert_eq!(def(at(a, "[@smith", 0)), head(1, "% Smith"), "a cite's bracket counts");
+    assert_eq!(def(at(a, "].\n", 1)), head(0, "% Ferber"), "just past a cite's ]");
     assert_eq!(def(at(a, "p. 3", 1)), head(1, "% Smith"), "a locator is its item's");
     assert_eq!(def(at(a, "ferber]", 3)), head(0, "% Ferber"), "second cite key, by id");
     assert_eq!(def(at(a, "Bob, Alice\n", 7)), head(1, "% Alice"), "metadata value part");

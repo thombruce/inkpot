@@ -979,9 +979,9 @@ impl<'a> CodexIndex<'a> {
 /// the reference, its brackets, or just past it. Found from the parser's own
 /// [`crate::tokens`] and resolved by the codex's `CodexIndex::resolve_idx`, so it
 /// follows the same scope, `id:` and cross-file rules as backlinks — though it
-/// reaches further than they record: a link in a heading title or before the
-/// first heading resolves too (from the root's empty scope), backlinks skip
-/// both. `None` off a reference or when nothing matches.
+/// reaches further than they record: a link in a heading title (from that
+/// heading's own scope, as its body would) or before the first heading (from the
+/// root's empty scope) resolves too, where backlinks skip both. `None` off a reference or when nothing matches.
 pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize, crate::Span)> {
     use crate::TokenKind::{Cite, Heading, Link, Marker, MetaKey, MetaValue};
     let src = files.get(active)?;
@@ -1020,7 +1020,9 @@ pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize
     let name = match tok.kind {
         Link => text(tok.span),
         Cite => {
-            let item = part(&text(tok.span), offset.saturating_sub(tok.span.start), ';');
+            // Clamped both ways: a caret on either bracket is the nearest item's.
+            let at = offset.saturating_sub(tok.span.start).min(tok.span.end - tok.span.start);
+            let item = part(&text(tok.span), at, ';');
             crate::parse::parse_cite_items(&item).into_iter().next()?.key
         }
         MetaValue => {
