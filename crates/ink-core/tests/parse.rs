@@ -1640,7 +1640,10 @@ fn tokens_come_from_the_parse() {
 
 #[test]
 fn definition_resolves_like_the_codex() {
-    let a = "# Ône\n\nMet [[Bob]] and [[Nobody]], see [@smith, p. 3; @ferber].\n\n% Alice\nid: al\npov: Bob, Alice\n\n% Smith\n";
+    let a =
+        "author: Alice\n\n# Ône\n\nMet [[Bob]] and [[Nobody]], see [@smith, p. 3; @ferber].\n\n\
+             % Alice\nid: al\npov: Bob, Alice\nsummary:\n  Bob\n  Alice\ncast:\n  Smith,\n  Bob\n\n\
+             % Smith\n\n% Note\n\n# Two\n\n%% Note\n\nSee [[Note]]";
     let b = "% Bob\n\n% Smith\n\n% Ferber Book\nid: ferber\n";
     // `a` is the active file but second, so a same-file win isn't just project order.
     let files = [b, a];
@@ -1653,10 +1656,20 @@ fn definition_resolves_like_the_codex() {
     assert_eq!(def(at(a, "[[Bob", 0)), head(0, "% Bob"), "the bracket counts");
     assert_eq!(def(at(a, "]] and", 0)), head(0, "% Bob"), "a caret just past it counts");
     assert_eq!(def(at(a, "smith", 2)), head(1, "% Smith"), "same-file entity wins");
+    assert_eq!(def(at(a, "p. 3", 1)), head(1, "% Smith"), "a locator is its item's");
     assert_eq!(def(at(a, "ferber]", 3)), head(0, "% Ferber"), "second cite key, by id");
-    assert_eq!(def(at(a, "Alice\n\n", 2)), head(1, "% Alice"), "metadata value part");
+    assert_eq!(def(at(a, "Bob, Alice\n", 7)), head(1, "% Alice"), "metadata value part");
     assert_eq!(def(at(a, "Bob, Alice", 1)), head(0, "% Bob"));
+    // A multiline value is read whole, as the codex does: newline-joined lines
+    // name nothing, comma-split ones each name their entity.
+    assert_eq!(def(at(a, "  Bob\n  Alice", 3)), None, "multiline value, no commas");
+    assert_eq!(def(at(a, "  Smith,", 3)), head(1, "% Smith"), "multiline value, comma part");
+    assert_eq!(def(at(a, "  Bob\n\n", 3)), head(0, "% Bob"));
+    assert_eq!(def(at(a, "Alice\n\n# Ône", 1)), None, "front matter links nothing");
     assert_eq!(def(at(a, "al\n", 1)), None, "an id names its own node");
     assert_eq!(def(at(a, "Nobody", 2)), None, "unresolved");
     assert_eq!(def(at(a, "Met", 1)), None, "plain prose");
+    // A caret past the last char still sits in the last node's scope, so it
+    // reaches the `%% Note` under `# Two`, not the top-level one.
+    assert_eq!(def(a.chars().count()), head(1, "%% Note"), "end of file keeps its scope");
 }
