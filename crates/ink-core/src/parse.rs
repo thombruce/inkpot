@@ -17,7 +17,9 @@ pub fn parse(src: &str) -> Node {
 pub fn tokens(src: &str) -> Vec<Token> {
     let mut out = Vec::new();
     parse_impl(src, Some(&mut out));
-    out.sort_by_key(|t| t.span.start);
+    // Pushed in source order: a node's meta as it's read, its body (buffered)
+    // before the next heading's line.
+    debug_assert!(out.windows(2).all(|w| w[0].span.end <= w[1].span.start), "tokens out of order");
     out
 }
 
@@ -54,17 +56,15 @@ fn parse_impl(src: &str, mut toks: Option<&mut Vec<Token>>) -> Node {
         let line_end = offset + raw.chars().count();
         offset = line_end + 1; // +1 for the '\n' str::lines() stripped
 
-        if let Some((level, visibility, title)) = heading(raw) {
+        if let Some((level, visibility, marks, title)) = heading(raw) {
             flush_body(stack.last_mut().unwrap(), &mut body_lines, toks.as_deref_mut());
             if let Some(t) = toks.as_deref_mut() {
-                // Markers are ASCII, so the run's chars are its bytes.
-                let marks = raw.bytes().take_while(|&b| b == raw.as_bytes()[0]).count();
                 let kind = TokenKind::Heading(visibility);
-                t.push(line_tok(raw, line_start, 0, marks, kind));
-                let after = &raw[marks + 1..];
-                let off = marks + 1 + (after.len() - after.trim_start().len());
-                scan_tokens(&title, kind, t, line_start + raw[..off].chars().count());
+                t.push(line_tok(raw, line_start, 0..marks, kind));
+                let base = line_start + raw[..title.start].chars().count();
+                scan_tokens(&raw[title.clone()], kind, t, base);
             }
+            let title = raw[title].to_string();
             // Clamp illegal downward jumps to parent+1 (Model A: count is depth),
             // but only against a real heading parent — never the implicit root, or
             // a document that opens deep (e.g. all `##`) would see its first
@@ -102,21 +102,15 @@ fn parse_impl(src: &str, mut toks: Option<&mut Vec<Token>>) -> Node {
             // extend it (trimmed, newline-joined). Any non-indented line closes it.
             if let Some(i) = multiline_idx {
                 if is_indented(raw) {
+                    let part = trimmed(raw, 0..raw.len());
                     if let Some(t) = toks.as_deref_mut() {
-                        let vs = raw.len() - raw.trim_start().len();
-                        t.push(line_tok(
-                            raw,
-                            line_start,
-                            vs,
-                            raw.trim_end().len(),
-                            TokenKind::MetaValue,
-                        ));
+                        t.push(line_tok(raw, line_start, part.clone(), TokenKind::MetaValue));
                     }
                     let value = &mut stack.last_mut().unwrap().meta[i].1;
                     if !value.is_empty() {
                         value.push('\n');
                     }
-                    value.push_str(raw.trim());
+                    value.push_str(&raw[part]);
                     continue;
                 }
                 multiline_idx = None; // dedent ends the block; re-classify this line
@@ -125,21 +119,16 @@ fn parse_impl(src: &str, mut toks: Option<&mut Vec<Token>>) -> Node {
                 in_meta = false;
                 continue; // swallow the blank separator
             }
-            if let Some((k, v)) = meta_line(raw) {
+            if let Some((key, colon, value)) = meta_spans(raw) {
                 if let Some(t) = toks.as_deref_mut() {
-                    let colon = raw.find(':').unwrap_or(0); // meta_line found one
-                    let ks = raw.len() - raw.trim_start().len();
-                    t.push(line_tok(raw, line_start, ks, colon + 1, TokenKind::MetaKey));
-                    let after = &raw[colon + 1..];
-                    let (vs, ve) = (
-                        colon + 1 + (after.len() - after.trim_start().len()),
-                        raw.trim_end().len(),
-                    );
-                    if vs < ve {
-                        // (none for a `key:` that opens a multiline value)
-                        t.push(line_tok(raw, line_start, vs, ve, TokenKind::MetaValue));
+                    t.push(line_tok(raw, line_start, key.clone(), TokenKind::MetaKey));
+                    t.push(line_tok(raw, line_start, colon..colon + 1, TokenKind::Marker));
+                    // (no value token for a `key:` that opens a multiline value)
+                    if !value.is_empty() {
+                        t.push(line_tok(raw, line_start, value.clone(), TokenKind::MetaValue));
                     }
                 }
+                let (k, v) = (raw[key].to_string(), raw[value].to_string());
                 let node = stack.last_mut().unwrap();
                 let empty = v.is_empty();
                 node.meta.push((k, v));
@@ -175,9 +164,10 @@ fn close_spans(node: &mut Node, end: usize) {
     }
 }
 
-/// `# Title` / `~~ Scene` / `%% Cut` -> (level, visibility, title). None if not
-/// a heading.
-fn heading(line: &str) -> Option<(u8, Visibility, String)> {
+/// `# Title` / `~~ Scene` / `%% Cut` -> (level, visibility, marker run length,
+/// title's byte range). None if not a heading. The ranges are what both the tree
+/// and the tokens use, so the two can't disagree on where a title starts.
+fn heading(line: &str) -> Option<(u8, Visibility, usize, std::ops::Range<usize>)> {
     let mut chars = line.chars();
     let first = chars.next()?;
     let visibility = match first {
@@ -198,9 +188,16 @@ fn heading(line: &str) -> Option<(u8, Visibility, String)> {
         }
     }
     // Must be followed by a space, else it's body text (e.g. "#hashtag").
-    let after = &line[idx..];
-    let title = after.strip_prefix(' ')?.trim().to_string();
-    Some((count, visibility, title))
+    line[idx..].strip_prefix(' ')?;
+    Some((count, visibility, idx, trimmed(line, idx + 1..line.len())))
+}
+
+/// `range` of `line` with surrounding whitespace dropped (an empty range at its
+/// end if it's all whitespace).
+fn trimmed(line: &str, range: std::ops::Range<usize>) -> std::ops::Range<usize> {
+    let s = &line[range.clone()];
+    let start = range.start + (s.len() - s.trim_start().len());
+    start..(range.start + s.trim_end().len()).max(start)
 }
 
 /// A non-blank line that begins with whitespace — a continuation of a multiline
@@ -212,12 +209,20 @@ fn is_indented(line: &str) -> bool {
 /// `key: value` where key is a single token. None otherwise. The single-token
 /// key rule keeps prose like "She said: hello" out of the meta zone.
 pub(crate) fn meta_line(line: &str) -> Option<(String, String)> {
-    let (k, v) = line.split_once(':')?;
-    let k = k.trim();
+    let (key, _, value) = meta_spans(line)?;
+    Some((line[key].to_string(), line[value].to_string()))
+}
+
+/// [`meta_line`] as byte ranges: (key, the colon's index, value), trimmed — so
+/// the tree and the tokens read a meta line identically (`time : 1` keys `time`).
+fn meta_spans(line: &str) -> Option<(std::ops::Range<usize>, usize, std::ops::Range<usize>)> {
+    let colon = line.find(':')?;
+    let key = trimmed(line, 0..colon);
+    let k = &line[key.clone()];
     if k.is_empty() || !k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
         return None;
     }
-    Some((k.to_string(), v.trim().to_string()))
+    Some((key, colon, trimmed(line, colon + 1..line.len())))
 }
 
 /// Drain buffered body lines into the node: `/` lines become comments,
@@ -229,7 +234,7 @@ fn flush_body(node: &mut Node, lines: &mut Vec<(usize, &str)>, mut toks: Option<
         if let Some(comment) = line.strip_prefix('/') {
             push_para(node, &mut para, para_start, toks.as_deref_mut());
             if let Some(t) = toks.as_deref_mut() {
-                t.push(line_tok(line, start, 0, line.len(), TokenKind::Comment));
+                t.push(line_tok(line, start, 0..line.len(), TokenKind::Comment));
             }
             node.body.push(Block::LineComment(comment.trim().to_string()));
             node.body_starts.push(start);
@@ -262,10 +267,10 @@ fn push_para(node: &mut Node, para: &mut Vec<&str>, start: usize, toks: Option<&
     para.clear();
 }
 
-/// A token over bytes `b0..b1` of a source line starting at char `line_start`.
-fn line_tok(line: &str, line_start: usize, b0: usize, b1: usize, kind: TokenKind) -> Token {
-    let start = line_start + line[..b0].chars().count();
-    let end = start + line[b0..b1.max(b0)].chars().count();
+/// A token over a byte range of a source line starting at char `line_start`.
+fn line_tok(line: &str, line_start: usize, b: std::ops::Range<usize>, kind: TokenKind) -> Token {
+    let start = line_start + line[..b.start].chars().count();
+    let end = start + line[b].chars().count();
     Token { span: Span { start, end }, kind, bold: false, italic: false }
 }
 
@@ -275,38 +280,31 @@ fn line_tok(line: &str, line_start: usize, b0: usize, b1: usize, kind: TokenKind
 fn scan_tokens(text: &str, kind: TokenKind, out: &mut Vec<Token>, char_base: usize) -> Vec<Inline> {
     let mut tk = Tk { out: Some(Vec::new()), base: 0, kind, bold: false, italic: false };
     let inlines = scan(text, true, &mut tk);
-    let mut raw = tk.out.unwrap_or_default();
-    raw.sort_by_key(|r| r.start); // a span's markers are emitted after its body
-                                  // Byte -> char offsets, walking forward once (tokens don't overlap).
+    let mut toks = tk.out.unwrap_or_default();
+    // A CriticMarkup span's markers are emitted after its body, so sort first.
+    toks.sort_by_key(|t| t.span.start);
+    // Byte -> char offsets, walking forward once (tokens don't overlap).
     let (mut byte, mut ch) = (0, char_base);
     let mut at = |b: usize| {
         ch += text[byte..b].chars().count();
         byte = b;
         ch
     };
-    for r in raw {
-        let start = at(r.start);
-        let end = at(r.end);
-        out.push(Token { span: Span { start, end }, kind: r.kind, bold: r.bold, italic: r.italic });
+    for t in &mut toks {
+        t.span = Span { start: at(t.span.start), end: at(t.span.end) };
     }
+    out.extend(toks);
     inlines
 }
 
 /// The inline scanner's token sink. `out` is None for a plain parse, making every
-/// `emit` a no-op. Offsets are bytes into the top-level text; `base` is where the
-/// text being scanned (a markup body, in a recursive scan) starts within it.
+/// `emit` a no-op. Its tokens' spans are *byte* offsets into the top-level text
+/// until [`scan_tokens`] converts them; `base` is where the text being scanned (a
+/// markup body, in a recursive scan) starts within it.
 struct Tk {
-    out: Option<Vec<RawTok>>,
+    out: Option<Vec<Token>>,
     base: usize,
     /// What plain text is here: `Text`, or the enclosing insert/delete/heading.
-    kind: TokenKind,
-    bold: bool,
-    italic: bool,
-}
-
-struct RawTok {
-    start: usize,
-    end: usize,
     kind: TokenKind,
     bold: bool,
     italic: bool,
@@ -320,14 +318,8 @@ impl Tk {
     fn emit(&mut self, start: usize, end: usize, kind: TokenKind) {
         if let Some(out) = &mut self.out {
             if start < end {
-                let (bold, italic) = (self.bold, self.italic);
-                out.push(RawTok {
-                    start: self.base + start,
-                    end: self.base + end,
-                    kind,
-                    bold,
-                    italic,
-                });
+                let span = Span { start: self.base + start, end: self.base + end };
+                out.push(Token { span, kind, bold: self.bold, italic: self.italic });
             }
         }
     }
@@ -433,7 +425,10 @@ fn scan(text: &str, top: bool, tk: &mut Tk) -> Vec<Inline> {
             let ch = &text[next..next + len];
             if is_escapable(ch) {
                 flush_plain!(i);
-                tk.emit(i, next + len, TokenKind::Escape);
+                // A hard break's `\n` is invisible: the token is the `\` alone, so
+                // it stays on its line (LSP tokens are single-line).
+                let end = if ch == "\n" { i + 1 } else { next + len };
+                tk.emit(i, end, TokenKind::Escape);
                 out.push(Inline::Escaped(ch.to_string()));
                 i = next + len;
                 plain_start = i;

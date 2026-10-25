@@ -1554,18 +1554,20 @@ fn fmt_keeps_colon_prose_out_of_meta() {
 #[test]
 fn tokens_come_from_the_parse() {
     use ink_core::{tokens, TokenKind as K, Visibility::*};
-    let src = "title: Book\nnotes:\n  line one\n\n# The **Big** {&alice}\ntime: 1\n\n\
+    let src = "title: Book\nnotes:\n  line one\n\n# The **Big** {&alice}\ntime: 1\npov : Ada\n\n\
                See {+new **bold**|@Ada} and {~teh~the} {-gone}, {@smith2020, p. 4}.\n\
-               / note\n*it* \\* {=number} {/hm} [[Bob]]\\\n~~ Scene\n";
+               / note\n*it* \\* {=number} {/hm} [[Bob]]\\\n~~ Scene\n\nRoses,\\\nred.\n";
     let chars: Vec<char> = src.chars().collect();
     let got: Vec<(String, K, bool, bool)> = tokens(src)
         .iter()
         .map(|t| (chars[t.span.start..t.span.end].iter().collect(), t.kind, t.bold, t.italic))
         .collect();
     let want = [
-        ("title:", K::MetaKey, false, false),
+        ("title", K::MetaKey, false, false),
+        (":", K::Marker, false, false),
         ("Book", K::MetaValue, false, false),
-        ("notes:", K::MetaKey, false, false),
+        ("notes", K::MetaKey, false, false),
+        (":", K::Marker, false, false),
         ("line one", K::MetaValue, false, false), // a multiline value's line
         ("#", K::Heading(Visible), false, false),
         ("The ", K::Heading(Visible), false, false),
@@ -1576,8 +1578,12 @@ fn tokens_come_from_the_parse() {
         ("{&", K::Marker, false, false),
         ("alice", K::Link, false, false),
         ("}", K::Marker, false, false),
-        ("time:", K::MetaKey, false, false),
+        ("time", K::MetaKey, false, false),
+        (":", K::Marker, false, false),
         ("1", K::MetaValue, false, false),
+        ("pov", K::MetaKey, false, false), // the parsed key, not `pov `
+        (":", K::Marker, false, false),
+        ("Ada", K::MetaValue, false, false),
         ("{+", K::Marker, false, false),
         ("new ", K::Insert, false, false),
         ("**", K::Marker, false, false),
@@ -1606,9 +1612,10 @@ fn tokens_come_from_the_parse() {
         ("[[", K::Marker, false, false),
         ("Bob", K::Link, false, false),
         ("]]", K::Marker, false, false),
-        ("\\", K::Escape, false, false), // a line-ending hard break
+        ("\\", K::Escape, false, false), // a paragraph-final `\` (a no-op)
         ("~~", K::Heading(Scene), false, false),
         ("Scene", K::Heading(Scene), false, false),
+        ("\\", K::Escape, false, false), // a hard break: the `\` only, not its `\n`
     ];
     let want: Vec<_> = want.iter().map(|&(s, k, b, i)| (s.to_string(), k, b, i)).collect();
     assert_eq!(got, want);

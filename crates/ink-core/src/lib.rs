@@ -156,7 +156,7 @@ pub struct Token {
 pub enum TokenKind {
     /// A heading line's marker run and title text, by its visibility.
     Heading(Visibility),
-    /// A metadata key, colon included (`time:`).
+    /// A metadata key (`time` in `time: 1`; the colon is a `Marker`).
     MetaKey,
     /// A metadata value (each line of a multiline value).
     MetaValue,
