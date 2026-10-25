@@ -7,6 +7,15 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+### Added
+
+- **Highlighting in your own editor.** `ink lsp` now highlights `.ink` files
+  (semantic tokens): headings and scenes, metadata, comments, insertions and
+  deletions with their attribution, links, citations, interpolation, and bold
+  and italic, all from the same parser the app uses. Comments are colored out
+  of the box; the README has a short Neovim snippet linking the rest to your
+  theme (#141).
+
 ## [0.17.0] - 2026-10-24
 
 ### Added

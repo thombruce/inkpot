@@ -290,9 +290,10 @@ without installing as `cargo run -p ink-cli -- <args>`.
 
 `ink lsp` is a [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
 server, so any LSP editor gets inkpot features from the same parser the app
-uses. So far: the **outline** as document symbols, **folding** by heading, and
-**formatting** to house style (what `ink fmt` does). More is planned (#141):
-link and citation completion, go-to-definition, hover, highlighting.
+uses. So far: **highlighting** (semantic tokens), the **outline** as document
+symbols, **folding** by heading, and **formatting** to house style (what `ink
+fmt` does). More is planned (#141): link and citation completion,
+go-to-definition, hover.
 
 **Neovim** (0.11+), after installing `ink` as above:
 
@@ -309,6 +310,30 @@ vim.lsp.enable("inkpot")
 Then `gO` lists the outline, `vim.lsp.buf.format()` formats, and
 `vim.wo.foldmethod = "expr"` with `vim.wo.foldexpr = "v:lua.vim.lsp.foldexpr()"`
 folds by heading.
+
+**Highlighting** works out of the box for comments. The other token types are
+inkpot's own (there are no standard LSP types for a heading or an insertion), so
+link them to your theme's groups once — this re-applies after a colorscheme
+change, and `default = true` lets a theme that styles them win:
+
+```lua
+local ink_links = {
+  heading = "@markup.heading", scene = "@label", excluded = "@comment",
+  metaKey = "@property", metaValue = "@string", marker = "@punctuation.delimiter",
+  insert = "@diff.plus", delete = "@diff.minus", attribution = "@comment",
+  link = "@markup.link", cite = "@markup.link.label",
+  interp = "@string.special", escape = "@string.escape",
+}
+local function ink_highlights()
+  for type, group in pairs(ink_links) do
+    vim.api.nvim_set_hl(0, "@lsp.type." .. type .. ".ink", { link = group, default = true })
+  end
+  vim.api.nvim_set_hl(0, "@lsp.mod.bold.ink", { link = "@markup.strong", default = true })
+  vim.api.nvim_set_hl(0, "@lsp.mod.italic.ink", { link = "@markup.italic", default = true })
+end
+ink_highlights()
+vim.api.nvim_create_autocmd("ColorScheme", { callback = ink_highlights })
+```
 
 ### Desktop app
 
