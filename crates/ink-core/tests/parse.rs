@@ -1637,3 +1637,26 @@ fn tokens_come_from_the_parse() {
         }
     }
 }
+
+#[test]
+fn definition_resolves_like_the_codex() {
+    let a = "# Ône\n\nMet [[Bob]] and [[Nobody]], see [@smith, p. 3; @ferber].\n\n% Alice\nid: al\npov: Bob, Alice\n\n% Smith\n";
+    let b = "% Bob\n\n% Smith\n\n% Ferber Book\nid: ferber\n";
+    // `a` is the active file but second, so a same-file win isn't just project order.
+    let files = [b, a];
+    // Char offset of `pat` in `src` (plus `k`), and the heading span at `pat`.
+    let at = |src: &str, pat: &str, k: usize| src[..src.find(pat).unwrap()].chars().count() + k;
+    let def = |off| ink_core::definition(&files, 1, off).map(|(f, s)| (f, s.start));
+    let head = |f: usize, pat: &str| Some((f, at(files[f], pat, 0)));
+
+    assert_eq!(def(at(a, "Bob]]", 1)), head(0, "% Bob"), "link resolves across files");
+    assert_eq!(def(at(a, "[[Bob", 0)), head(0, "% Bob"), "the bracket counts");
+    assert_eq!(def(at(a, "]] and", 0)), head(0, "% Bob"), "a caret just past it counts");
+    assert_eq!(def(at(a, "smith", 2)), head(1, "% Smith"), "same-file entity wins");
+    assert_eq!(def(at(a, "ferber]", 3)), head(0, "% Ferber"), "second cite key, by id");
+    assert_eq!(def(at(a, "Alice\n\n", 2)), head(1, "% Alice"), "metadata value part");
+    assert_eq!(def(at(a, "Bob, Alice", 1)), head(0, "% Bob"));
+    assert_eq!(def(at(a, "al\n", 1)), None, "an id names its own node");
+    assert_eq!(def(at(a, "Nobody", 2)), None, "unresolved");
+    assert_eq!(def(at(a, "Met", 1)), None, "plain prose");
+}

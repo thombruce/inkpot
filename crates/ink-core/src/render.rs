@@ -959,6 +959,80 @@ impl<'a> CodexIndex<'a> {
     }
 }
 
+/// Go-to-definition (#141, #86): the entity that the reference at char `offset`
+/// in `files[active]` names, as `(file index, heading span)`. A reference is a
+/// `[[link]]`/`{&link}`, one key of a `[@cite]` group, or one comma part of a
+/// metadata value (as the codex reads them; never an `id:`, which names its own
+/// node). The cursor may sit on the reference or its brackets. Found from the
+/// parser's own [`crate::tokens`] and resolved by the codex's
+/// `CodexIndex::resolve_idx`, so it follows the same scope, `id:` and cross-file
+/// rules as backlinks. `None` off a reference or when nothing matches.
+pub fn definition(files: &[&str], active: usize, offset: usize) -> Option<(usize, crate::Span)> {
+    use crate::TokenKind::{Cite, Link, Marker, MetaKey, MetaValue};
+    let src = files.get(active)?;
+    let toks = crate::tokens(src);
+    let text =
+        |s: crate::Span| -> String { src.chars().skip(s.start).take(s.end - s.start).collect() };
+    // The token under the cursor (a reference's end counts, for a caret just past
+    // it); a bracket marker defers to the reference beside it.
+    let i =
+        toks.iter().position(|t| t.span.start <= offset && offset < t.span.end).or_else(|| {
+            toks.iter()
+                .position(|t| t.span.end == offset && matches!(t.kind, Link | Cite | MetaValue))
+        })?;
+    let i = match toks[i].kind {
+        Marker => [i + 1, i.wrapping_sub(1)]
+            .into_iter()
+            .find(|&j| toks.get(j).is_some_and(|t| matches!(t.kind, Link | Cite)))?,
+        _ => i,
+    };
+    let tok = toks[i];
+    // The part of a `;`/`,`-separated token the cursor is in.
+    let part = |sep: char| {
+        let (mut start, full) = (tok.span.start, text(tok.span));
+        full.split(sep)
+            .find(|p| {
+                let end = start + p.chars().count();
+                let hit = offset <= end;
+                start = end + 1;
+                hit
+            })
+            .unwrap_or_default()
+            .to_string()
+    };
+    let name = match tok.kind {
+        Link => text(tok.span),
+        Cite => crate::parse::parse_cite_items(&part(';')).into_iter().next()?.key,
+        MetaValue => {
+            let key = toks[..i].iter().rev().find(|t| t.kind == MetaKey)?;
+            if is_self_naming(&text(key.span)) {
+                return None;
+            }
+            part(',')
+        }
+        _ => return None,
+    };
+
+    let roots: Vec<Node> = files.iter().map(|s| crate::parse(s)).collect();
+    let docs: Vec<(String, &Node)> = roots.iter().map(|r| (String::new(), r)).collect();
+    let idx = CodexIndex::build_project(&docs);
+    // The referrer is the deepest node holding the cursor; the root (front matter,
+    // text before any heading) sits in no scope.
+    let mut node = &roots[active];
+    while let Some(c) =
+        node.children.iter().find(|c| c.node_span.start <= offset && offset < c.node_span.end)
+    {
+        node = c;
+    }
+    let scope = if node.level == 0 {
+        Vec::new()
+    } else {
+        idx.ref_scope(active, node, &resolve_titles(&roots[active]))
+    };
+    let e = idx.resolve_idx(&name, active, &scope)?;
+    Some((idx.entity_doc[e], idx.entities[e].heading_span))
+}
+
 /// Every excluded (`%`) heading with a title, in document order.
 fn collect_entities<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
     for child in &node.children {
