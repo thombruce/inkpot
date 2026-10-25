@@ -7,6 +7,8 @@ the `.ink` format (see `CLAUDE.md`): `0.x` until the format stabilises, then
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-25
+
 ### Added
 
 - **Highlighting in your own editor.** `ink lsp` now highlights `.ink` files
