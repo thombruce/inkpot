@@ -1,13 +1,28 @@
 //! Line-oriented block scanner + inline scanner. Hand-written on purpose: the
 //! grammar is small and diverges from Markdown enough that a crate is a fight.
 
-use crate::{Attribution, Block, CiteItem, Inline, Node, Span, Visibility};
+use crate::{Attribution, Block, CiteItem, Inline, Node, Span, Token, TokenKind, Visibility};
 
 /// Parse a `.ink` document into a root [`Node`] (level 0).
 ///
 /// Spans are **char** offsets. Line offsets assume `\n` endings; a stray `\r`
 /// (CRLF) would shift them by one per line — normalize on load if it matters.
 pub fn parse(src: &str) -> Node {
+    parse_impl(src, None)
+}
+
+/// Highlighting tokens for `src` (#141), sorted by position. Same parse as
+/// [`parse`] — the scan that builds the tree also reports each part's span — so
+/// tokens can never disagree with what the document means.
+pub fn tokens(src: &str) -> Vec<Token> {
+    let mut out = Vec::new();
+    parse_impl(src, Some(&mut out));
+    out.sort_by_key(|t| t.span.start);
+    out
+}
+
+/// The parse, with an optional token sink (off for [`parse`], so it costs nothing).
+fn parse_impl(src: &str, mut toks: Option<&mut Vec<Token>>) -> Node {
     let doc_len = src.chars().count();
     let root = Node {
         level: 0,
@@ -40,7 +55,16 @@ pub fn parse(src: &str) -> Node {
         offset = line_end + 1; // +1 for the '\n' str::lines() stripped
 
         if let Some((level, visibility, title)) = heading(raw) {
-            flush_body(stack.last_mut().unwrap(), &mut body_lines);
+            flush_body(stack.last_mut().unwrap(), &mut body_lines, toks.as_deref_mut());
+            if let Some(t) = toks.as_deref_mut() {
+                // Markers are ASCII, so the run's chars are its bytes.
+                let marks = raw.bytes().take_while(|&b| b == raw.as_bytes()[0]).count();
+                let kind = TokenKind::Heading(visibility);
+                t.push(line_tok(raw, line_start, 0, marks, kind));
+                let after = &raw[marks + 1..];
+                let off = marks + 1 + (after.len() - after.trim_start().len());
+                scan_tokens(&title, kind, t, line_start + raw[..off].chars().count());
+            }
             // Clamp illegal downward jumps to parent+1 (Model A: count is depth),
             // but only against a real heading parent — never the implicit root, or
             // a document that opens deep (e.g. all `##`) would see its first
@@ -78,6 +102,16 @@ pub fn parse(src: &str) -> Node {
             // extend it (trimmed, newline-joined). Any non-indented line closes it.
             if let Some(i) = multiline_idx {
                 if is_indented(raw) {
+                    if let Some(t) = toks.as_deref_mut() {
+                        let vs = raw.len() - raw.trim_start().len();
+                        t.push(line_tok(
+                            raw,
+                            line_start,
+                            vs,
+                            raw.trim_end().len(),
+                            TokenKind::MetaValue,
+                        ));
+                    }
                     let value = &mut stack.last_mut().unwrap().meta[i].1;
                     if !value.is_empty() {
                         value.push('\n');
@@ -92,6 +126,20 @@ pub fn parse(src: &str) -> Node {
                 continue; // swallow the blank separator
             }
             if let Some((k, v)) = meta_line(raw) {
+                if let Some(t) = toks.as_deref_mut() {
+                    let colon = raw.find(':').unwrap_or(0); // meta_line found one
+                    let ks = raw.len() - raw.trim_start().len();
+                    t.push(line_tok(raw, line_start, ks, colon + 1, TokenKind::MetaKey));
+                    let after = &raw[colon + 1..];
+                    let (vs, ve) = (
+                        colon + 1 + (after.len() - after.trim_start().len()),
+                        raw.trim_end().len(),
+                    );
+                    if vs < ve {
+                        // (none for a `key:` that opens a multiline value)
+                        t.push(line_tok(raw, line_start, vs, ve, TokenKind::MetaValue));
+                    }
+                }
                 let node = stack.last_mut().unwrap();
                 let empty = v.is_empty();
                 node.meta.push((k, v));
@@ -106,7 +154,7 @@ pub fn parse(src: &str) -> Node {
         body_lines.push((line_start, raw));
     }
 
-    flush_body(stack.last_mut().unwrap(), &mut body_lines);
+    flush_body(stack.last_mut().unwrap(), &mut body_lines, toks);
     // Fold the remaining stack back into the root.
     while stack.len() > 1 {
         let done = stack.pop().unwrap();
@@ -174,23 +222,19 @@ pub(crate) fn meta_line(line: &str) -> Option<(String, String)> {
 
 /// Drain buffered body lines into the node: `/` lines become comments,
 /// blank-separated runs become paragraphs.
-fn flush_body(node: &mut Node, lines: &mut Vec<(usize, &str)>) {
+fn flush_body(node: &mut Node, lines: &mut Vec<(usize, &str)>, mut toks: Option<&mut Vec<Token>>) {
     let mut para: Vec<&str> = Vec::new();
     let mut para_start = 0;
-    let push_para = |node: &mut Node, para: &mut Vec<&str>, start: usize| {
-        if !para.is_empty() {
-            node.body.push(Block::Para(scan_inline(&para.join("\n"))));
-            node.body_starts.push(start);
-            para.clear();
-        }
-    };
     for &(start, line) in lines.iter() {
         if let Some(comment) = line.strip_prefix('/') {
-            push_para(node, &mut para, para_start);
+            push_para(node, &mut para, para_start, toks.as_deref_mut());
+            if let Some(t) = toks.as_deref_mut() {
+                t.push(line_tok(line, start, 0, line.len(), TokenKind::Comment));
+            }
             node.body.push(Block::LineComment(comment.trim().to_string()));
             node.body_starts.push(start);
         } else if line.trim().is_empty() {
-            push_para(node, &mut para, para_start);
+            push_para(node, &mut para, para_start, toks.as_deref_mut());
         } else {
             if para.is_empty() {
                 para_start = start;
@@ -198,8 +242,122 @@ fn flush_body(node: &mut Node, lines: &mut Vec<(usize, &str)>) {
             para.push(line);
         }
     }
-    push_para(node, &mut para, para_start);
+    push_para(node, &mut para, para_start, toks);
     lines.clear();
+}
+
+/// Scan a buffered paragraph into the node. Its lines are consecutive source
+/// lines, so the joined text is the source slice from `start` (LF endings).
+fn push_para(node: &mut Node, para: &mut Vec<&str>, start: usize, toks: Option<&mut Vec<Token>>) {
+    if para.is_empty() {
+        return;
+    }
+    let text = para.join("\n");
+    let inlines = match toks {
+        Some(t) => scan_tokens(&text, TokenKind::Text, t, start),
+        None => scan_inline(&text),
+    };
+    node.body.push(Block::Para(inlines));
+    node.body_starts.push(start);
+    para.clear();
+}
+
+/// A token over bytes `b0..b1` of a source line starting at char `line_start`.
+fn line_tok(line: &str, line_start: usize, b0: usize, b1: usize, kind: TokenKind) -> Token {
+    let start = line_start + line[..b0].chars().count();
+    let end = start + line[b0..b1.max(b0)].chars().count();
+    Token { span: Span { start, end }, kind, bold: false, italic: false }
+}
+
+/// Scan `text` (which starts at char `char_base` in the source) with the token
+/// sink on: the same scan as [`scan_inline`], plus its parts' spans appended to
+/// `out` as char offsets. `kind` is what plain runs are (a heading's title text).
+fn scan_tokens(text: &str, kind: TokenKind, out: &mut Vec<Token>, char_base: usize) -> Vec<Inline> {
+    let mut tk = Tk { out: Some(Vec::new()), base: 0, kind, bold: false, italic: false };
+    let inlines = scan(text, true, &mut tk);
+    let mut raw = tk.out.unwrap_or_default();
+    raw.sort_by_key(|r| r.start); // a span's markers are emitted after its body
+                                  // Byte -> char offsets, walking forward once (tokens don't overlap).
+    let (mut byte, mut ch) = (0, char_base);
+    let mut at = |b: usize| {
+        ch += text[byte..b].chars().count();
+        byte = b;
+        ch
+    };
+    for r in raw {
+        let start = at(r.start);
+        let end = at(r.end);
+        out.push(Token { span: Span { start, end }, kind: r.kind, bold: r.bold, italic: r.italic });
+    }
+    inlines
+}
+
+/// The inline scanner's token sink. `out` is None for a plain parse, making every
+/// `emit` a no-op. Offsets are bytes into the top-level text; `base` is where the
+/// text being scanned (a markup body, in a recursive scan) starts within it.
+struct Tk {
+    out: Option<Vec<RawTok>>,
+    base: usize,
+    /// What plain text is here: `Text`, or the enclosing insert/delete/heading.
+    kind: TokenKind,
+    bold: bool,
+    italic: bool,
+}
+
+struct RawTok {
+    start: usize,
+    end: usize,
+    kind: TokenKind,
+    bold: bool,
+    italic: bool,
+}
+
+impl Tk {
+    fn off() -> Self {
+        Tk { out: None, base: 0, kind: TokenKind::Text, bold: false, italic: false }
+    }
+
+    fn emit(&mut self, start: usize, end: usize, kind: TokenKind) {
+        if let Some(out) = &mut self.out {
+            if start < end {
+                let (bold, italic) = (self.bold, self.italic);
+                out.push(RawTok {
+                    start: self.base + start,
+                    end: self.base + end,
+                    kind,
+                    bold,
+                    italic,
+                });
+            }
+        }
+    }
+
+    /// A plain run: a token only if it's styled (not bare body text).
+    fn text(&mut self, start: usize, end: usize) {
+        if self.kind != TokenKind::Text || self.bold || self.italic {
+            self.emit(start, end, self.kind);
+        }
+    }
+
+    /// Scan a markup body that starts at byte `offset` of the current text, with
+    /// plain text there as `kind` (if given) and emphasis added.
+    fn within<R>(
+        &mut self,
+        offset: usize,
+        kind: Option<TokenKind>,
+        bold: bool,
+        italic: bool,
+        f: impl FnOnce(&mut Tk) -> R,
+    ) -> R {
+        let saved = (self.base, self.kind, self.bold, self.italic);
+        self.base += offset;
+        self.kind = kind.unwrap_or(self.kind);
+        self.bold |= bold;
+        self.italic |= italic;
+        let r = f(self);
+        (self.base, self.kind, self.bold, self.italic) = saved;
+        r
+    }
 }
 
 /// Parse the inside of a citation (`[@…]` or `{@…}`) into items. Split on `;`;
@@ -226,16 +384,19 @@ fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
 
 /// Scan a paragraph's text into inline spans.
 pub(crate) fn scan_inline(text: &str) -> Vec<Inline> {
-    scan(text, true)
+    scan(text, true, &mut Tk::off())
 }
 
 /// `top` is false for a recursive scan of a markup body (emphasis/CriticMarkup),
 /// whose end is the span's closer, not the paragraph's.
-fn scan(text: &str, top: bool) -> Vec<Inline> {
+fn scan(text: &str, top: bool, tk: &mut Tk) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let bytes = text.as_bytes();
     let mut i = 0;
     let mut plain_start = 0;
+    // Where the current plain run starts for tokens: like `plain_start`, except an
+    // interpolation ends the token run but stays inside the `Text` inline.
+    let mut tok_start = 0;
 
     // Push any pending plain text before a markup token.
     macro_rules! flush_plain {
@@ -243,6 +404,7 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
             if $end > plain_start {
                 out.push(Inline::Text(text[plain_start..$end].to_string()));
             }
+            tk.text(tok_start, $end);
         };
     }
 
@@ -258,9 +420,11 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
         // the top: a CriticMarkup body ending in `\` (`{+C:\}`) keeps it literal.
         if top && bytes[i] == b'\\' && i + 1 == bytes.len() {
             flush_plain!(i);
+            tk.emit(i, i + 1, TokenKind::Escape);
             out.push(Inline::Escaped(String::new()));
             i += 1;
             plain_start = i;
+            tok_start = i;
             continue;
         }
         if bytes[i] == b'\\' && i + 1 < bytes.len() {
@@ -269,9 +433,11 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
             let ch = &text[next..next + len];
             if is_escapable(ch) {
                 flush_plain!(i);
+                tk.emit(i, next + len, TokenKind::Escape);
                 out.push(Inline::Escaped(ch.to_string()));
                 i = next + len;
                 plain_start = i;
+                tok_start = i;
                 continue;
             }
         }
@@ -282,18 +448,22 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
         for (open, close) in [("{{", "}}"), ("{=", "}")] {
             if text[i..].starts_with(open) {
                 if let Some(end) = find(text, i + open.len(), close) {
+                    tk.text(tok_start, i);
+                    tk.emit(i, end + close.len(), TokenKind::Interp);
                     i = end + close.len();
+                    tok_start = i;
                     continue 'scan;
                 }
             }
         }
         // CriticMarkup: {+ {- {~ {/
         if bytes[i] == b'{' && i + 1 < bytes.len() {
-            if let Some((inline, end)) = critic(text, i) {
+            if let Some((inline, end)) = critic(text, i, tk) {
                 flush_plain!(i);
                 out.push(inline);
                 i = end;
                 plain_start = i;
+                tok_start = i;
                 continue;
             }
         }
@@ -305,9 +475,13 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
                     let items = parse_cite_items(&text[i + 2..end]);
                     if !items.is_empty() {
                         flush_plain!(i);
+                        tk.emit(i, i + 2, TokenKind::Marker);
+                        tk.emit(i + 2, end, TokenKind::Cite);
+                        tk.emit(end, end + 1, TokenKind::Marker);
                         out.push(Inline::Cite(items));
                         i = end + 1;
                         plain_start = i;
+                        tok_start = i;
                         continue 'scan;
                     }
                 }
@@ -321,9 +495,13 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
                     let target = text[i + 2..end].trim();
                     if !target.is_empty() {
                         flush_plain!(i);
+                        tk.emit(i, i + 2, TokenKind::Marker);
+                        tk.emit(i + 2, end, TokenKind::Link);
+                        tk.emit(end, end + skip, TokenKind::Marker);
                         out.push(Inline::Link(target.to_string()));
                         i = end + skip;
                         plain_start = i;
+                        tok_start = i;
                         continue 'scan;
                     }
                 }
@@ -334,9 +512,14 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
         if text[i..].starts_with("**") && opens(text, i + 2) {
             if let Some(end) = find_closing(text, i + 2, "**") {
                 flush_plain!(i);
-                out.push(Inline::Bold(scan(&text[i + 2..end], false)));
+                tk.emit(i, i + 2, TokenKind::Marker);
+                let body =
+                    tk.within(i + 2, None, true, false, |tk| scan(&text[i + 2..end], false, tk));
+                tk.emit(end, end + 2, TokenKind::Marker);
+                out.push(Inline::Bold(body));
                 i = end + 2;
                 plain_start = i;
+                tok_start = i;
                 continue;
             }
         }
@@ -344,9 +527,14 @@ fn scan(text: &str, top: bool) -> Vec<Inline> {
         if bytes[i] == b'*' && opens(text, i + 1) {
             if let Some(end) = find_closing(text, i + 1, "*") {
                 flush_plain!(i);
-                out.push(Inline::Italic(scan(&text[i + 1..end], false)));
+                tk.emit(i, i + 1, TokenKind::Marker);
+                let body =
+                    tk.within(i + 1, None, false, true, |tk| scan(&text[i + 1..end], false, tk));
+                tk.emit(end, end + 1, TokenKind::Marker);
+                out.push(Inline::Italic(body));
                 i = end + 1;
                 plain_start = i;
+                tok_start = i;
                 continue;
             }
         }
@@ -386,23 +574,39 @@ fn find_closing(text: &str, from: usize, delim: &str) -> Option<usize> {
 }
 
 /// Parse one CriticMarkup span starting at `{`. Returns (inline, end-after-`}`).
-fn critic(text: &str, start: usize) -> Option<(Inline, usize)> {
-    let kind = text.as_bytes().get(start + 1)?;
+/// Reports tokens only once the span is known to be well formed.
+fn critic(text: &str, start: usize, tk: &mut Tk) -> Option<(Inline, usize)> {
+    use TokenKind::{Delete, Insert, Marker};
+    let kind = *text.as_bytes().get(start + 1)?;
     let content_start = start + 2;
     let close = find(text, content_start, "}")?;
     // Peel the attribution suffix first: it covers the whole span, so for a
     // substitution it must not end up inside `new`.
     let (content, attr) = split_attribution(&text[content_start..close]);
+    let body = |tk: &mut Tk, at: usize, part: &str, k| {
+        tk.within(at, Some(k), false, false, |tk| scan(part, false, tk))
+    };
     let inline = match kind {
-        b'+' => Inline::Insert(scan(content, false)),
-        b'-' => Inline::Delete(scan(content, false)),
-        b'/' => Inline::Comment(content.to_string()),
+        b'+' => Inline::Insert(body(tk, content_start, content, Insert)),
+        b'-' => Inline::Delete(body(tk, content_start, content, Delete)),
+        b'/' => {
+            tk.emit(start, close + 1, TokenKind::Comment); // a comment is muted whole
+            Inline::Comment(content.to_string())
+        }
         b'~' => {
             let (old, new) = content.split_once('~')?;
-            Inline::Sub { old: scan(old, false), new: scan(new, false) }
+            let tilde = content_start + old.len();
+            let old = body(tk, content_start, old, Delete);
+            tk.emit(tilde, tilde + 1, Marker);
+            Inline::Sub { old, new: body(tk, tilde + 1, new, Insert) }
         }
         _ => return None,
     };
+    if kind != b'/' {
+        tk.emit(start, content_start, Marker);
+        tk.emit(content_start + content.len(), close, TokenKind::Attribution); // empty if none
+        tk.emit(close, close + 1, Marker);
+    }
     let inline = match attr {
         Some(a) => Inline::Attributed(Box::new(inline), a),
         None => inline,

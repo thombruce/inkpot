@@ -92,11 +92,15 @@ There is **no `cargo-tauri`-free way to `cargo run` the app in debug**:
   editors lives, so it never needs a JS-style mirror; prefer an LSP capability
   over a tree-sitter grammar (which would be a fifth mirror, #38). Positions are
   LSP line + **UTF-16** column, converted from `ink-core`'s char offsets by
-  `Lines` — exact even for astral chars, unlike the app. The project root comes
-  from the client (`root_markers = { "Inkpot" }` in Neovim). Test new capabilities
-  in the in-memory end-to-end test (`Connection::memory()`); for a real-editor
-  check, headless Neovim works (`nvim --headless --clean -u <init.lua>` with the
-  README snippet, then `vim.lsp.buf_request_sync`).
+  `Lines` — exact even for astral chars, unlike the app. Highlighting comes from
+  `ink_core::tokens`, the **parser's own token stream**: `parse.rs` threads an
+  optional sink (`Tk`) through the same `parse`/`scan` that build the tree (off,
+  so free, for a plain `parse`), so tokens can't disagree with the parse. Extend
+  that sink when the grammar grows; never write a separate tokenizer. The project
+  root comes from the client (`root_markers = { "Inkpot" }` in Neovim). Test new
+  capabilities in the in-memory end-to-end test (`Connection::memory()`); for a
+  real-editor check, headless Neovim works (`nvim --headless --clean -u
+  <init.lua>` with the README snippet, then `vim.lsp.buf_request_sync`).
 - **Text is canonical.** The editor buffer is the source of truth; Rust is
   stateless (parse in, render out). No document state crosses IPC. A scene move
   is a text splice, not a tree mutation — hence there is deliberately **no

@@ -8,7 +8,7 @@ mod parse;
 mod render;
 pub mod shunn;
 
-pub use parse::parse;
+pub use parse::{parse, tokens};
 pub use render::{
     build_shunn, build_shunn_book, build_shunn_project, map_markers, render,
     render_bibliography_html, render_bibliography_project, render_characters_html,
@@ -135,4 +135,49 @@ pub struct Attribution {
 pub struct CiteItem {
     pub key: String,
     pub locator: String,
+}
+
+/// A highlighting token (#141): a char-offset span and what it is. Produced by
+/// the parser itself ([`tokens`]), from the same scan that builds the tree, so an
+/// editor (the language server's semantic tokens) never re-implements the
+/// grammar. Sorted and non-overlapping: nested markup yields the innermost part,
+/// with `bold`/`italic` carried as modifiers. A token may span lines (e.g. a
+/// CriticMarkup body across a soft break); plain body text gets no token.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Token {
+    pub span: Span,
+    pub kind: TokenKind,
+    pub bold: bool,
+    pub italic: bool,
+}
+
+/// What a [`Token`] covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenKind {
+    /// A heading line's marker run and title text, by its visibility.
+    Heading(Visibility),
+    /// A metadata key, colon included (`time:`).
+    MetaKey,
+    /// A metadata value (each line of a multiline value).
+    MetaValue,
+    /// A `/` line comment or a `{/inline comment}`, delimiters included.
+    Comment,
+    /// Syntax punctuation that doesn't print: `**`, `{+`, `~`, `}`, `[[`, ….
+    Marker,
+    /// Plain text, emitted only when emphasized (see `bold`/`italic`).
+    Text,
+    /// Inserted text (`{+…}`, a substitution's new side).
+    Insert,
+    /// Deleted text (`{-…}`, a substitution's old side).
+    Delete,
+    /// A CriticMarkup attribution suffix (`|@Ada|2026-10-04`).
+    Attribution,
+    /// A wikilink target (`Alice` in `{&Alice}`).
+    Link,
+    /// Citation items (`smith2020, p. 4` in `{@smith2020, p. 4}`).
+    Cite,
+    /// An interpolation, delimiters included (`{=number}`).
+    Interp,
+    /// A backslash escape (`\*`), or a line-ending `\`.
+    Escape,
 }
