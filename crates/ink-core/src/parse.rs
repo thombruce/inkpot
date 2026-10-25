@@ -358,7 +358,7 @@ impl Tk {
 /// comma into key + locator. Empty-key items are dropped.
 /// ponytail: a locator containing `;` (e.g. `pp. 1; 3`) mis-splits — `;` is the
 /// item separator; rare, unsupported.
-fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
+pub(crate) fn parse_cite_items(inside: &str) -> Vec<CiteItem> {
     inside
         .split(';')
         .filter_map(|item| {

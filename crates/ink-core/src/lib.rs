@@ -10,7 +10,7 @@ pub mod shunn;
 
 pub use parse::{parse, tokens};
 pub use render::{
-    build_shunn, build_shunn_book, build_shunn_project, map_markers, render,
+    build_shunn, build_shunn_book, build_shunn_project, definition, map_markers, render,
     render_bibliography_html, render_bibliography_project, render_characters_html,
     render_codex_html, render_codex_project_html, render_html, render_html_project,
     render_manuscript_project, render_notes_html, render_timeline_html, resolve_titles,

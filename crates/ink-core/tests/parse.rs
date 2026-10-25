@@ -1637,3 +1637,47 @@ fn tokens_come_from_the_parse() {
         }
     }
 }
+
+#[test]
+fn definition_resolves_like_the_codex() {
+    let a =
+        "author: Alice\n\n# Ône\n\nMet [[Bob]] and [[Nobody]], see [@smith, p. 3; @ferber].\n\n\
+             % Alice\nid: al\npov: Bob, Alice\nsummary:\n  Bob\n  Alice\ncast:\n  Smith,\n  Bob\n\n\
+             % Smith\n\n% Note\n\n# Two\n\n%% Note\n\nSee [[Note]]";
+    let b = "% Bob\n\n% Smith\n\n% Ferber Book\nid: ferber\n";
+    // `a` is the active file but second, so a same-file win isn't just project order.
+    let files = [b, a];
+    // Char offset of `pat` in `src` (plus `k`), and the heading span at `pat`.
+    let at = |src: &str, pat: &str, k: usize| src[..src.find(pat).unwrap()].chars().count() + k;
+    let def = |off| ink_core::definition(&files, 1, off).map(|(f, s)| (f, s.start));
+    let head = |f: usize, pat: &str| Some((f, at(files[f], pat, 0)));
+
+    assert_eq!(def(at(a, "Bob]]", 1)), head(0, "% Bob"), "link resolves across files");
+    assert_eq!(def(at(a, "[[Bob", 0)), head(0, "% Bob"), "the bracket counts");
+    assert_eq!(def(at(a, "]] and", 0)), head(0, "% Bob"), "a caret just past it counts");
+    assert_eq!(def(at(a, "smith", 2)), head(1, "% Smith"), "same-file entity wins");
+    assert_eq!(def(at(a, "[@smith", 0)), head(1, "% Smith"), "a cite's bracket counts");
+    assert_eq!(def(at(a, "].\n", 1)), head(0, "% Ferber"), "just past a cite's ]");
+    assert_eq!(def(at(a, "p. 3", 1)), head(1, "% Smith"), "a locator is its item's");
+    assert_eq!(def(at(a, "ferber]", 3)), head(0, "% Ferber"), "second cite key, by id");
+    assert_eq!(def(at(a, "Bob, Alice\n", 7)), head(1, "% Alice"), "metadata value part");
+    assert_eq!(def(at(a, "Bob, Alice", 1)), head(0, "% Bob"));
+    // A multiline value is read whole, as the codex does: newline-joined lines
+    // name nothing, comma-split ones each name their entity.
+    assert_eq!(def(at(a, "  Bob\n  Alice", 3)), None, "multiline value, no commas");
+    assert_eq!(def(at(a, "  Smith,", 3)), head(1, "% Smith"), "multiline value, comma part");
+    assert_eq!(def(at(a, "  Bob\n\n", 3)), head(0, "% Bob"));
+    assert_eq!(def(at(a, "Alice\n\n# Ône", 1)), None, "front matter links nothing");
+    assert_eq!(def(at(a, "al\n", 1)), None, "an id names its own node");
+    assert_eq!(def(at(a, "Nobody", 2)), None, "unresolved");
+    // Just past `]]` with styled text starting right there, and in a title.
+    let c = "# See [[Bob]]\n\n**[[Bob]] x**\n";
+    let past =
+        |pat: &str| ink_core::definition(&[b, c], 1, at(c, pat, 0)).map(|(f, s)| (f, s.start));
+    assert_eq!(past(" x**"), head(0, "% Bob"), "caret past ]], bold text after");
+    assert_eq!(past("\n\n**"), head(0, "% Bob"), "a link in a heading title");
+    assert_eq!(def(at(a, "Met", 1)), None, "plain prose");
+    // A caret past the last char still sits in the last node's scope, so it
+    // reaches the `%% Note` under `# Two`, not the top-level one.
+    assert_eq!(def(a.chars().count()), head(1, "%% Note"), "end of file keeps its scope");
+}
