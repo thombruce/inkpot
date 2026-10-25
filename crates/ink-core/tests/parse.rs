@@ -1550,3 +1550,90 @@ fn fmt_keeps_colon_prose_out_of_meta() {
     // …but ordinary prose-first files gain no leading blank line.
     assert_eq!(render(&parse("Once upon a time.\n"), View::Edit), "Once upon a time.\n\n");
 }
+
+#[test]
+fn tokens_come_from_the_parse() {
+    use ink_core::{tokens, TokenKind as K, Visibility::*};
+    let src = "title: Book\nnotes:\n  line one\n\n# The **Big** {&alice}\ntime: 1\npov : Ada\n\n\
+               See {+new **bold**|@Ada} and {~teh~the} {-gone}, {@smith2020, p. 4}.\n\
+               / note\n*it* \\* {=number} {/hm} [[Bob]]\\\n~~ Scene\n\nRoses,\\\nred.\n";
+    let chars: Vec<char> = src.chars().collect();
+    let got: Vec<(String, K, bool, bool)> = tokens(src)
+        .iter()
+        .map(|t| (chars[t.span.start..t.span.end].iter().collect(), t.kind, t.bold, t.italic))
+        .collect();
+    let want = [
+        ("title", K::MetaKey, false, false),
+        (":", K::Marker, false, false),
+        ("Book", K::MetaValue, false, false),
+        ("notes", K::MetaKey, false, false),
+        (":", K::Marker, false, false),
+        ("line one", K::MetaValue, false, false), // a multiline value's line
+        ("#", K::Heading(Visible), false, false),
+        ("The ", K::Heading(Visible), false, false),
+        ("**", K::Marker, false, false),
+        ("Big", K::Heading(Visible), true, false), // emphasis is a modifier
+        ("**", K::Marker, false, false),
+        (" ", K::Heading(Visible), false, false),
+        ("{&", K::Marker, false, false),
+        ("alice", K::Link, false, false),
+        ("}", K::Marker, false, false),
+        ("time", K::MetaKey, false, false),
+        (":", K::Marker, false, false),
+        ("1", K::MetaValue, false, false),
+        ("pov", K::MetaKey, false, false), // the parsed key, not `pov `
+        (":", K::Marker, false, false),
+        ("Ada", K::MetaValue, false, false),
+        ("{+", K::Marker, false, false),
+        ("new ", K::Insert, false, false),
+        ("**", K::Marker, false, false),
+        ("bold", K::Insert, true, false), // still an insertion, now bold
+        ("**", K::Marker, false, false),
+        ("|@Ada", K::Attribution, false, false),
+        ("}", K::Marker, false, false),
+        ("{~", K::Marker, false, false),
+        ("teh", K::Delete, false, false),
+        ("~", K::Marker, false, false),
+        ("the", K::Insert, false, false),
+        ("}", K::Marker, false, false),
+        ("{-", K::Marker, false, false),
+        ("gone", K::Delete, false, false),
+        ("}", K::Marker, false, false),
+        ("{@", K::Marker, false, false),
+        ("smith2020, p. 4", K::Cite, false, false),
+        ("}", K::Marker, false, false),
+        ("/ note", K::Comment, false, false),
+        ("*", K::Marker, false, false),
+        ("it", K::Text, false, true),
+        ("*", K::Marker, false, false),
+        ("\\*", K::Escape, false, false),
+        ("{=number}", K::Interp, false, false), // not split into a CriticMarkup `{-`
+        ("{/hm}", K::Comment, false, false),
+        ("[[", K::Marker, false, false),
+        ("Bob", K::Link, false, false),
+        ("]]", K::Marker, false, false),
+        ("\\", K::Escape, false, false), // a paragraph-final `\` (a no-op)
+        ("~~", K::Heading(Scene), false, false),
+        ("Scene", K::Heading(Scene), false, false),
+        ("\\", K::Escape, false, false), // a hard break: the `\` only, not its `\n`
+    ];
+    let want: Vec<_> = want.iter().map(|&(s, k, b, i)| (s.to_string(), k, b, i)).collect();
+    assert_eq!(got, want);
+
+    // On real documents: sorted, non-overlapping, non-empty, in bounds.
+    for src in [
+        SAMPLE,
+        include_str!("../../../examples/codex.ink"),
+        include_str!("../../../examples/notes.ink"),
+    ] {
+        let toks = tokens(src);
+        let len = src.chars().count();
+        assert!(!toks.is_empty());
+        for t in &toks {
+            assert!(t.span.start < t.span.end && t.span.end <= len, "{t:?}");
+        }
+        for w in toks.windows(2) {
+            assert!(w[0].span.end <= w[1].span.start, "overlap: {w:?}");
+        }
+    }
+}
